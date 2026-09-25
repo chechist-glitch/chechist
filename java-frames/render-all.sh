@@ -31,4 +31,17 @@ $J StainedGlass $OUT/06-reaccion-difusion.png      $OUT/09-vitral-reaccion.png
 $J Vhs          $OUT/11-metal-liquido-javascript.png $OUT/12-metal-liquido-vhs.png
 
 $J ContactSheet $OUT $OUT/00-hoja-de-contactos.png 4
+
+echo "Ilustración experimental:"
+ILL=$OUT/ilustracion
+mkdir -p "$ILL"
+$J Bauhaus              $ILL/13-bauhaus.png
+$J RisoFiguras          $ILL/14-riso-gente-rara.png
+$J CubistFaces          $ILL/15-retratos-cubistas.png
+$J Creatures            $ILL/16-bestiario.png
+$J MetaphysicalSquare   $ILL/17-plaza-metafisica.png
+$J DadaCollage          $OUT $ILL/18-collage-dada.png
+$J ConstructivistPoster $ILL/19-cartel-constructivista.png
+$J IsoCity              $ILL/20-ciudad-isometrica.png
+$J ContactSheet         $ILL $ILL/00-hoja-de-contactos.png 4
 echo "Listo."
