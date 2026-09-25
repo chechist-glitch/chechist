@@ -43,6 +43,16 @@ uniform float uWet, uEyeLight;
 uniform vec3  uFillDir, uFillCol;
 uniform vec4  uCityBox;
 uniform vec4  uEarth;                // radio de grietas, radio de la onda, intensidad onda, -
+uniform vec3  uMPos; uniform mat3 uMRot; uniform float uMScale;
+uniform mat3  uMHead; uniform vec4 uMFace;          // mandíbula, visera, empuje, brazo izq. cortado
+uniform vec3  uMArmR[3]; uniform mat3 uMHandR; uniform vec3 uMArmL[3]; uniform mat3 uMHandL;
+uniform vec3  uMLegR[3]; uniform vec3 uMLegL[3];
+uniform vec4  uSquad[8]; uniform int uSquadN; uniform float uSquadScale;
+uniform vec4  uBeamA[10], uBeamB[10]; uniform int uBeamN;
+uniform vec4  uWound;                               // herida del gigante (local) + radio
+uniform vec4  uCrack;                               // grietas en el suelo: xz, radio, intensidad
+uniform vec3  uDomeCore, uDomeEdge;
+uniform vec4  uArmOff;                              // brazo cortado volando: posición + giro
 layout(location=0) out vec4 outCol;
 layout(location=1) out vec4 outND;
 
@@ -226,6 +236,12 @@ vec2 mapBaby(vec3 p){
 #ifdef HAS_ARM_L
   res = opSU(res, mapArm(p, uArmL[0], uArmL[1], uArmL[2], uHandL, uPoint.y, -1.), .16);
 #endif
+  if (uWound.w > 0.) {
+    float wd = length(p - uWound.xyz) - uWound.w;
+    wd += .06*sin(p.x*9.)*sin(p.y*11.)*sin(p.z*7.);
+    if (-wd > res.x - .01) res.y = 7.;
+    res.x = smax(res.x, -wd, .05);
+  }
   return res;
 }
 vec2 mapBabyW(vec3 p){
@@ -286,6 +302,123 @@ vec2 mapCity(vec3 p){
   return dg < db ? vec2(dg, 6.) : vec2(db, 5.);
 }
 
+
+/* ------------------------------------------------------------- el mecha -- */
+float sdRBox(vec3 p, vec3 b, float r){ vec3 q = abs(p) - b + r; return length(max(q,0.)) + min(max(q.x,max(q.y,q.z)),0.) - r; }
+float sdCylX(vec3 p, float r, float h){ vec2 d = abs(vec2(length(p.yz), p.x)) - vec2(r,h); return min(max(d.x,d.y),0.) + length(max(d,0.)); }
+const vec3 M_HP = vec3(0.,-.6,-.1);
+vec2 mechaHead(vec3 p, float jaw){
+  float b = length(p - vec3(0.,.05,.05)) - 1.45;
+  if (b > .25) return vec2(b, 10.);
+  vec3 q = vec3(abs(p.x), p.y, p.z);
+  float helm = sdEll(p - vec3(0.,.14,-.1), vec3(.95,.96,1.0));
+  helm = smax(helm, -sdRBox(p - vec3(0.,-.02,.8), vec3(.8,.15,.45), .05), .02);
+  vec2 r = vec2(helm, 10.);
+  r = opU(r, vec2(sdEll(p - vec3(0.,-.02,-.06), vec3(.9,.16,.86)), 12.));
+  float jw = sdRBox(p - vec3(0.,-.47 - .26*jaw, .36), vec3(.52,.27,.46), .2);
+  r = opU(r, vec2(jw, 11.));
+  if (jaw > .01) r = opU(r, vec2(length(p - vec3(0.,-.33,.5)) - .2*jaw, 12.));
+  float crest = sdBox(p - vec3(0.,1.0,.2), vec3(.045,.2,.42));
+  crest = max(crest, dot(p - vec3(0.,1.13,.55), normalize(vec3(0.,1.,.8))));
+  r = opU(r, vec2(crest, 11.));
+  r = opU(r, vec2(sdCylX(q - vec3(.93,-.05,-.05), .26, .12), 13.));
+  r = opU(r, vec2(sdCap(q, vec3(.98,.08,-.12), vec3(1.12,.8,-.4), .035, .015), 13.));
+  return r;
+}
+vec2 mechaLeg(vec3 p, vec3 h, vec3 k, vec3 a){
+  float b = sdCap(p, h, a, .6, .6); if (b > .3) return vec2(b, 10.);
+  vec2 r = vec2(sdCap(p, h, k, .37, .31), 10.);
+  r = opU(r, vec2(length(p - k) - .27, 13.));
+  r = opU(r, vec2(length(p - k - vec3(0.,.02,.2)) - .2, 11.));
+  r = opU(r, vec2(sdCap(p, k, a, .34, .27), 10.));
+  r = opU(r, vec2(sdRBox(p - a - vec3(0.,-.14,.22), vec3(.27,.15,.46), .08), 13.));
+  return r;
+}
+vec2 mechaArm(vec3 p, vec3 sh, vec3 el, vec3 wr, mat3 hr, float side, float cut){
+  float b = min(sdCap(p, sh, el, .45, .45), sdCap(p, el, wr + hr[1]*.6, .75, .75)); if (b > .3) return vec2(b, 10.);
+  vec2 r = vec2(sdCap(p, sh, el, .22, .2), 13.);
+  r = opU(r, vec2(length(p - el) - .26, 13.));
+  if (cut < .5) {
+    r = opU(r, vec2(sdCap(p, el, wr, .31, .26), 10.));
+    r = opU(r, vec2(sdRBox((p - mix(el, wr, .45))*hr, vec3(.3,.34,.3), .1), 11.));
+    vec3 ph = (p - wr)*hr; ph.x *= side;
+    r = opU(r, vec2(sdHand(ph/1.35, .1)*1.35, 13.));
+  } else {
+    // muñón que chorrea
+    r = opU(r, vec2(sdCap(p, el, mix(el, wr, .3), .31, .3), 10.));
+  }
+  return r;
+}
+vec2 mechaLocal(vec3 q){
+  float b = length(q - vec3(0.,-2.4,0.)) - 5.;
+  if (b > .5) return vec2(b, 10.);
+  vec3 ph = (q - M_HP)*uMHead + M_HP;
+  vec2 r = mechaHead(ph, uMFace.x);
+  vec3 qa = vec3(abs(q.x), q.y, q.z);
+  float bb = sdCap(q, vec3(0.,-1.,0.), vec3(0.,-3.2,0.), 1.8, 1.4);
+  if (bb < .3) {
+    r = opU(r, vec2(sdCap(q, vec3(0.,-.55,-.1), vec3(0.,-1.2,-.1), .3, .33), 13.));
+    r = opU(r, vec2(sdRBox(q - vec3(0.,-1.72,.02), vec3(.95,.55,.62), .24), 10.));
+    r = opU(r, vec2(sdRBox(q - vec3(0.,-1.6,.5), vec3(.52,.24,.2), .1), 11.));
+    r = opU(r, vec2(sdRBox(q - vec3(0.,-2.45,0.), vec3(.6,.35,.46), .12), 13.));
+    r = opU(r, vec2(sdRBox(q - vec3(0.,-2.98,0.), vec3(.85,.3,.6), .15), 10.));
+    r = opU(r, vec2(sdRBox(qa - vec3(1.22,-1.36,-.08), vec3(.42,.34,.52), .16), 11.));
+    r = opU(r, vec2(sdRBox(q - vec3(0.,-1.85,-.82), vec3(.72,.62,.32), .12), 13.));
+    r = opU(r, vec2(sdCap(qa, vec3(.42,-2.3,-.95), vec3(.5,-2.8,-1.25), .2, .27), 13.));
+  } else r = opU(r, vec2(bb, 10.));
+  r = opU(r, mechaLeg(q, uMLegR[0], uMLegR[1], uMLegR[2]));
+  r = opU(r, mechaLeg(q, uMLegL[0], uMLegL[1], uMLegL[2]));
+  r = opU(r, mechaArm(q, uMArmR[0], uMArmR[1], uMArmR[2], uMHandR, 1., 0.));
+  r = opU(r, mechaArm(q, uMArmL[0], uMArmL[1], uMArmL[2], uMHandL, -1., uMFace.w));
+  return r;
+}
+vec2 mapMechaW(vec3 p){
+  vec3 q = ((p - uMPos)*uMRot)/uMScale;
+  float b = length(q - vec3(0.,-2.4,0.)) - 5.2;
+  if (b > .6) return vec2(b*uMScale, 10.);
+  vec2 r = mechaLocal(q); r.x *= uMScale; return r;
+}
+vec2 mapSquad(vec3 p){
+  vec2 res = vec2(1e5, 10.);
+  for (int i=0;i<8;i++){
+    if (i >= uSquadN) break;
+    vec4 s = uSquad[i];
+    vec3 d = p - s.xyz;
+    float bd = length(d - vec3(0.,-2.4*uSquadScale,0.)) - 5.2*uSquadScale;
+    if (bd > uSquadScale) { res = opU(res, vec2(bd, 10.)); continue; }
+    float c = cos(s.w), sn = sin(s.w);
+    vec3 q = vec3(c*d.x - sn*d.z, d.y, sn*d.x + c*d.z)/uSquadScale;
+    vec2 r = mechaLocal(q); r.x *= uSquadScale;
+    res = opU(res, r);
+  }
+  return res;
+}
+// brazo cortado que sale volando
+vec2 mapArmOff(vec3 p){
+  vec3 d = p - uArmOff.xyz;
+  float b = length(d) - 2.2*uMScale; if (b > 1.) return vec2(b, 10.);
+  float c = cos(uArmOff.w), s = sin(uArmOff.w);
+  vec3 q = vec3(d.x, c*d.y - s*d.z, s*d.y + c*d.z)/uMScale;
+  vec2 r = vec2(sdCap(q, vec3(0.,.5,0.), vec3(0.,-.6,0.), .31, .26), 10.);
+  r = opU(r, vec2(sdRBox(q, vec3(.3,.34,.3), .1), 11.));
+  r = opU(r, vec2(sdHand((q - vec3(0.,-.6,0.))*vec3(1.,-1.,1.)/1.35, .1)*1.35, 13.));
+  r.x *= uMScale;
+  return r;
+}
+// el silo de lanzamiento
+vec2 mapShaft(vec3 p){
+  float rr = length(p.xz);
+  float wall = 6.2 - rr;
+  vec2 res = vec2(wall, 20.);
+  float ry = mod(p.y, 2.6) - 1.3;
+  res = opU(res, vec2(sdTorus(vec3(p.x, ry, p.z), vec2(6.05, .16)), 21.));
+  float a = atan(p.z, p.x);
+  float sec = floor(a/(TAU/6.) + .5)*(TAU/6.);
+  vec2 cp = vec2(cos(sec), sin(sec))*5.85;
+  res = opU(res, vec2(sdBox(vec3(p.x - cp.x, 0., p.z - cp.y), vec3(.28, 1e3, .28)), 20.));
+  return res;
+}
+
 /* ------------------------------------------------------------ mapa total -- */
 #ifdef HORDE
 const int NH = 5;
@@ -326,6 +459,18 @@ vec2 map(vec3 p){
 #endif
 #ifdef HAS_CITY
   res = opU(res, mapCity(p));
+#endif
+#ifdef HAS_MECHA
+  res = opU(res, mapMechaW(p));
+#endif
+#ifdef HAS_SQUAD
+  res = opU(res, mapSquad(p));
+#endif
+#ifdef HAS_ARMOFF
+  res = opU(res, mapArmOff(p));
+#endif
+#ifdef HAS_SHAFT
+  res = opU(res, mapShaft(p));
 #endif
   return res;
 }
@@ -508,6 +653,12 @@ vec3 shadeBaby(vec3 p, vec3 n, vec3 rd, float mat, float t, vec3 bpos, mat3 brot
     vec3 c = shadeEye(ph, rdh);
     return mix(c, c + vec3(1.3,1.4,1.8)*.35, uFlashL);
   }
+  if (mat > 6.5) {
+    float fl = noise3(pl*14.);
+    vec3 c = mix(vec3(.25,0.,.02), vec3(.7,.05,.06), ss(.3,.7, fl));
+    c += vec3(1.,.5,.4)*ss(.9,.93, dot(reflect(rd,n), uKeyDir))*.8;
+    return c*(.6 + .8*sat(dot(n,-rd)));
+  }
   vec3 alb = mat < 1.5 ? SKIN : (mat < 3.5 ? CLOTH : vec3(.05,.0,.01));
   float ndl = dot(n, uKeyDir);
   float sh = 1.;
@@ -597,6 +748,51 @@ vec3 shadeCity(vec3 p, vec3 n, vec3 rd, float mat, float t){
   return col;
 }
 
+
+vec3 shadeMecha(vec3 p, vec3 n, vec3 rd, float mat, float t){
+  if (mat > 11.5 && mat < 12.5) {
+    float fres = 1. - sat(dot(n, -rd));
+    return vec3(.25,1.,.78)*(.6 + 2.6*uMFace.y) + vec3(.8,1.,.95)*ss(.55,.6,fres)*uMFace.y;
+  }
+  vec3 alb = mat < 10.5 ? vec3(.78,.8,.86) : (mat < 11.5 ? vec3(.95,.34,.05) : vec3(.05,.055,.07));
+  float ndl = dot(n, uKeyDir);
+  float lit = ss(-.02, .02, ndl);
+  vec3 col = alb*mix(uShadowCol*1.4, uKeyCol, lit);
+  col += alb*uFillCol*ss(-.02, .02, dot(n, uFillDir))*(1. - lit)*1.4;
+  vec3 rf = reflect(rd, n);
+  float spec = ss(.9, .92, dot(rf, uKeyDir));
+  col += uKeyCol*spec*(mat < 11.5 ? 1.1 : .35);
+  col += uFillCol*ss(.93, .95, dot(rf, uFillDir))*.8;
+  float fres = 1. - sat(dot(n, -rd));
+  float rim = ss(uRimW, uRimW + .035, fres*sat(dot(n, uRimDir)*1.4 + .35));
+  col = mix(col, uRimCol*(.6 + .5*alb), rim);
+  if (mat < 11.5) {
+    vec3 g = abs(fract(p*1.3/uMScale) - .5);
+    float pl = ss(.475, .49, max(g.x, g.z))*step(abs(n.y), .8) + ss(.475, .49, g.y)*step(.5, abs(n.y));
+    col *= 1. - .55*pl;
+  }
+  for (int i=0;i<4;i++){
+    if (uXL[i].w > 0.) col += vec3(1.,.5,.15)*uXL[i].w*bandPt(p, n, uXL[i].xyz, uMScale*1.6)*(alb + .05)*2.5;
+  }
+  float ao = calcAO(p, n, uMScale);
+  col *= mix(.45, 1., ss(.3, .55, ao));
+  return col;
+}
+vec3 shadeShaft(vec3 p, vec3 n, vec3 rd, float mat, float t){
+  vec3 col = vec3(.03,.032,.04)*mix(.6, 1.2, ss(-.2,.2, dot(n, vec3(0.,-1.,0.))));
+  if (mat > 20.5) {
+    float a = atan(p.z, p.x);
+    float lamp = step(.5, fract(a*6./TAU*4.))*step(.3, fract(p.y*.8));
+    col = vec3(.08,.07,.07) + vec3(1.,.55,.2)*lamp*2.2;
+  } else {
+    float v = ss(.46, .49, abs(fract(p.y*.9) - .5));
+    col *= 1. - .5*v;
+    float a = atan(p.z, p.x);
+    col += vec3(1.,.08,.04)*step(.93, fract(a*6./TAU*2. + .25))*step(.5, fract(p.y*.15 - uG*.8))*1.5;
+  }
+  return col;
+}
+
 void finishSetup(){
   vec3 gl = ((uGaze - uBPos)*uBRot)/uBScale;
   vec3 gt = (gl - HEAD_PIVOT)*uHeadRot + HEAD_PIVOT;
@@ -649,7 +845,7 @@ vec3 domeVolume(vec3 ro, vec3 rd, float tHit){
         float ch = (t1 - t0)/(2.*uDome.w);
         vec3 dn = normalize(ro + rd*t0 - uDome.xyz);
         float k = ch + (fbm3s(dn*5. + uG*3.) - .5)*.3;
-        acc += (vec3(1.,.12,.04)*ss(.0, .06, k)*.8 + vec3(1.,.5,.15)*ss(.22, .28, k)*1.6 + vec3(1.,.95,.85)*ss(.45, .5, k)*4.)*uFx.x;
+        acc += (uDomeEdge*ss(.0, .06, k)*.8 + mix(uDomeEdge, uDomeCore, .5)*ss(.22, .28, k)*1.6 + uDomeCore*ss(.45, .5, k)*4.)*uFx.x;
       }
     }
   }
@@ -723,10 +919,31 @@ vec3 shadeOcean(vec3 p, vec3 rd, float t){
 }
 `;
 
+
 /* ------------------------------------------------------------------------ */
 /*  Render genérico                                                          */
 /* ------------------------------------------------------------------------ */
 const RENDER = `
+
+vec3 beamGlow(vec3 ro, vec3 rd, float tHit){
+  vec3 acc = vec3(0.);
+  for (int i=0;i<10;i++){
+    if (i >= uBeamN) break;
+    vec3 A = uBeamA[i].xyz, B = uBeamB[i].xyz; float w = uBeamA[i].w, k = uBeamB[i].w;
+    vec3 ab = B - A, r0 = ro - A;
+    float e = dot(ab,ab), f = dot(ab,r0), c = dot(rd,r0), b = dot(rd,ab);
+    float den = e - b*b;
+    float u = den > 1e-6 ? clamp((f - b*c)/den, 0., 1.) : 0.;
+    vec3 Q = A + ab*u;
+    float s = max(dot(Q - ro, rd), 0.);
+    if (s > tHit + w) continue;
+    float dist = length(ro + rd*s - Q);
+    vec3 col = k >= 10. ? vec3(1.,.55,.18) : (k > 0. ? vec3(.3,1.,.9) : vec3(1.,.08,.04));
+    float kk = k >= 10. ? k - 10. : abs(k);
+    acc += (vec3(1.)*ss(w*.35, 0., dist)*2.5 + col*ss(w, w*.3, dist)*2. + col*exp(-dist/(w*2.5))*.5)*kk;
+  }
+  return acc;
+}
 void main(){
   finishSetup();
 #ifdef HORDE
@@ -754,7 +971,13 @@ void main(){
     vec3 p = ro + rd*h.x;
     vec3 n = (h.y > 5.5 && h.y < 6.5) ? vec3(0.,1.,0.) : calcNormal(p, h.x);
     tHit = h.x; nOut = n;
-    if (h.y < 4.5) {
+    if (h.y > 19.5) {
+#ifdef HAS_SHAFT
+      col = shadeShaft(p, n, rd, h.y, h.x);
+#endif
+    } else if (h.y > 9.5) {
+      col = shadeMecha(p, n, rd, h.y, h.x);
+    } else if (h.y < 4.5 || h.y > 6.5) {
 #ifdef HORDE
       // localizar a qué gigante pertenece el punto
       int best = 0; float bd = 1e9;
@@ -767,6 +990,12 @@ void main(){
     } else {
 #ifdef HAS_CITY
       col = shadeCity(p, n, rd, h.y, h.x);
+      if (uCrack.w > 0. && h.y > 5.5) {
+        vec2 dq = p.xz - uCrack.xy; float dd = length(dq);
+        float cr = 1. - ss(0., .04, crackNoise(vec3(dq*1.6, 1.)));
+        col = mix(col, vec3(1.,.4,.1)*2., cr*ss(uCrack.z, uCrack.z*.7, dd)*uCrack.w);
+        col *= 1. - .5*ss(uCrack.z*.5, 0., dd)*uCrack.w;
+      }
 #endif
     }
     col = mix(col, uHaze, 1. - exp(-h.x*uFogK));
@@ -784,6 +1013,7 @@ void main(){
 #ifdef HAS_DOME
   col += domeVolume(ro, rd, tHit);
 #endif
+  if (uBeamN > 0) col += beamGlow(ro, rd, tHit);
 #if defined(HAS_HEAD) && !defined(HORDE)
   col += EYE_GLOW*uEyeGlow*min(glowLine(ro, rd, tHit, eyeWL, .0011*uBScale) + glowLine(ro, rd, tHit, eyeWR, .0011*uBScale), 6.);
 #endif
@@ -855,17 +1085,20 @@ void main(){
 /* ------------------------------------------------------------------------ */
 /*  Planos                                                                    */
 /* ------------------------------------------------------------------------ */
+const CITYN = ['HAS_CITY', 'BG_NIGHT', 'HAS_CLOUDS', 'SKYLINE'];
+const GIANT = ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L'];
 const SHOTS = {
-  SEA:    { defs: ['HAS_HEAD', 'BODY 2', 'HAS_OCEAN', 'BG_NIGHT', 'HAS_CLOUDS'], mods: [OCEAN] },
-  EYES:   { defs: ['HAS_HEAD', 'BG_DARK'], mods: [] },
-  CITY:   { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'HAS_CITY', 'BG_NIGHT', 'HAS_CLOUDS', 'SEARCHLIGHTS', 'SKYLINE'], mods: [SEARCH], pre: true },
-  ATTACK: { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'BG_NIGHT', 'HAS_CLOUDS', 'SKYLINE'], mods: [] },
-  RAISE:  { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'BG_NIGHT', 'HAS_CLOUDS', 'SKYLINE'], mods: [] },
-  TOUCH:  { defs: ['HAS_ARM_R', 'HAS_CITY', 'BG_NIGHT', 'HAS_DOME', 'SKYLINE'], mods: [DOME], pre: true },
-  EARTH:  { defs: [], mods: [], main: EARTH },
-  HORDE:  { defs: ['HAS_HEAD', 'BODY 2', 'HORDE', 'HAS_CITY', 'RUINS', 'BG_FIRE'], mods: [] },
-  SMILE:  { defs: ['HAS_HEAD', 'BODY 2', 'BG_DARK'], mods: [] },
-  HEADTEST: { defs: ['HAS_HEAD', 'BG_DARK'], mods: [] },
+  OPEN:   { defs: [...GIANT, 'BG_FIRE'], mods: [] },
+  SHAFT:  { defs: ['HAS_MECHA', 'HAS_SHAFT', 'BG_DARK'], mods: [] },
+  BURST:  { defs: ['HAS_MECHA', ...CITYN, 'HAS_DOME'], mods: [DOME] },
+  LAND:   { defs: ['HAS_MECHA', ...CITYN, 'HAS_DOME'], mods: [DOME] },
+  RUSH:   { defs: ['HAS_MECHA', ...GIANT, ...CITYN], mods: [] },
+  PUNCH:  { defs: ['HAS_MECHA', ...GIANT, ...CITYN], mods: [] },
+  LASER:  { defs: ['HAS_MECHA', 'HAS_ARMOFF', ...GIANT, ...CITYN], mods: [] },
+  SQUAD:  { defs: ['HAS_SQUAD', ...GIANT, ...CITYN], mods: [] },
+  CANNON: { defs: ['HAS_MECHA', ...GIANT, ...CITYN, 'HAS_DOME'], mods: [DOME] },
+  AFTER:  { defs: ['HAS_MECHA', 'HAS_HEAD', 'BODY 2', 'HORDE', 'HAS_CITY', 'RUINS', 'BG_FIRE'], mods: [] },
+  MECHATEST: { defs: ['HAS_MECHA', 'BG_DARK'], mods: [] },
 };
 
 function sceneSource(name) {
@@ -913,7 +1146,9 @@ const COMP = `#version 300 es
 precision highp float;
 uniform sampler2D uScene, uFxTex;
 uniform vec2 uRes; uniform float uG, uFrame;
-uniform vec4 uExp[12]; uniform int uExpN;
+uniform vec4 uExp[24]; uniform int uExpN;
+uniform vec4 uSplat[10]; uniform int uSplatN;
+uniform vec4 uRing[4]; uniform int uRingN;
 uniform vec4 uFlare[8]; uniform int uFlareN;
 uniform float uRain, uAsh, uEmbers, uSpray;
 uniform vec4 uCharge, uDebris;
@@ -954,6 +1189,41 @@ void explosion(vec2 p, vec4 e, float seed, inout vec3 col, inout float cov){
   cov = max(cov, fireA);
 }
 
+
+// salpicadura (gore): sangre oscura del gigante (+) o refrigerante del mecha (−)
+void splat(vec2 p, vec4 sp, float seed, inout vec3 col, inout float cov){
+  float S = abs(sp.z), age = sp.w;
+  vec2 d = (p - sp.xy)/S;
+  if (length(d) > 4.) return;
+  vec3 c0 = sp.z > 0. ? vec3(.2,0.,.02) : vec3(.35,1.,.85);
+  vec3 c1 = sp.z > 0. ? vec3(.55,.02,.05) : vec3(.85,1.,.95);
+  float ang = atan(d.y, d.x), r = length(d);
+  float spikes = pow(abs(sin(ang*3.5 + seed)), 6.)*(.5 + fb(vec2(ang*2., seed)));
+  float R = (1. - pow(1. - clamp(age*5., 0., 1.), 3.))*(.35 + .9*spikes + .15*fb(d*3. + seed));
+  float fade = 1. - smoothstep(.55, 1., age);
+  float blob = (1. - smoothstep(R - .03, R + .03, r))*fade;
+  // gotas que salen disparadas y caen
+  float drops = 0.;
+  for (int i=0;i<14;i++){
+    float fi = float(i);
+    float a = h11(fi*3.1 + seed)*6.2832, v = .8 + 1.6*h11(fi*5.7 + seed);
+    vec2 dp = vec2(cos(a), sin(a) + .6)*v*age*1.8 - vec2(0., 2.2*age*age);
+    float rr = .07 + .06*h11(fi + seed);
+    drops = max(drops, 1. - smoothstep(rr - .02, rr, length(d - dp)));
+  }
+  drops *= 1. - smoothstep(.7, 1., age);
+  float m = max(blob, drops);
+  float hl = smoothstep(.1, .2, fb(d*4. + seed + vec2(-.08, .08)) - fb(d*4. + seed) + .1);
+  vec3 c = mix(c0, c1, hl*.6 + .2);
+  if (sp.z < 0.) c *= 1.8;
+  col = mix(col, c, m);
+  cov = max(cov, m);
+}
+void ring(vec2 p, vec4 rg, inout vec3 col){
+  float r = length((p - rg.xy)*vec2(1., 1.6));
+  float w = .012 + .03*(1. - rg.w);
+  col += vec3(1.,.9,.8)*smoothstep(w, 0., abs(r - rg.z))*rg.w*2.;
+}
 void main(){
   vec2 uv = vUv;
   float asp = uRes.x/uRes.y;
@@ -963,10 +1233,12 @@ void main(){
   vec4 fx = texture(uFxTex, uv);
   col = col*(1. - fx.a) + fx.rgb;
   cov = max(cov, fx.a);
-  for (int i=0;i<12;i++){
+  for (int i=0;i<24;i++){
     if (i >= uExpN) break;
     explosion(p, uExp[i], float(i)*7.31, col, cov);
   }
+  for (int i=0;i<10;i++){ if (i >= uSplatN) break; splat(p, uSplat[i], float(i)*3.7 + 1., col, cov); }
+  for (int i=0;i<4;i++){ if (i >= uRingN) break; ring(p, uRing[i], col); }
   // lluvia
   if (uRain > 0.) {
     for (int l=0;l<3;l++){
@@ -1118,7 +1390,7 @@ uniform vec2 uShake; uniform float uZoom;
 uniform float uImpact, uSpeed, uSpeedDark; uniform vec2 uSpeedPos;
 uniform float uFlash; uniform vec3 uFlashCol; uniform float uFade;
 uniform float uRaysAmt, uBloom, uCA, uHasScene;
-uniform vec3 uLineCol; uniform vec4 uGrade;
+uniform vec3 uLineCol; uniform vec4 uGrade; uniform vec2 uMotion;
 in vec2 vUv; out vec4 outCol;
 float h11(float p){ p=fract(p*.1031); p*=p+33.33; p*=p+p; return fract(p); }
 float h21(vec2 p){ vec3 p3=fract(vec3(p.xyx)*.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
@@ -1134,6 +1406,11 @@ void main(){
     col.r = texture(uComp, cuv + dca).r;
     col.g = texture(uComp, cuv).g;
     col.b = texture(uComp, cuv - dca).b;
+    if (dot(uMotion, uMotion) > 1e-7) {
+      vec3 acc = col; float wsum = 1.;
+      for (int i=1;i<12;i++){ float k = float(i)/11. - .5; acc += texture(uComp, cuv + uMotion*k).rgb; wsum += 1.; }
+      col = acc/wsum;
+    }
     float cov = texture(uComp, cuv).a;
     float ln = ss(.28, .62, texture(uLine, cuv).r)*(1. - cov);
     col = mix(col, uLineCol, ln);
