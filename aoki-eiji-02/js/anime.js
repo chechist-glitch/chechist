@@ -133,6 +133,8 @@ function mecha(o) {
 }
 const mW = (m, p) => add(m.pos, m3v(m.rot, mul(p, m.scale)));
 const mDir = (m, d) => norm(m3v(m.rot, d));
+const mEyes = m => [mW(m, [0.3, -0.04, 0.95]), mW(m, [-0.3, -0.04, 0.95])];
+const eyeFlares = (m, cam, asp, size, k) => mEyes(m).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, size, k]);
 function thrusters(m, len) {
   if (len <= 0) return [];
   return [[0.5, -2.8, -1.25], [-0.5, -2.8, -1.25]].map(n => {
@@ -197,18 +199,21 @@ function splats(list, t, cam, asp) {
 }
 
 /* ---------------------------------------------------------------- escena -- */
-const GIANT = { bPos: [0, 19.1, -40], bScale: 3.4 };
+const G_S = 8;
+const GIANT = { bPos: [0, 5.62 * G_S, -64], bScale: G_S };
+const GW = p => toWorld(baseRig(GIANT), p);
+const G_CHEEK = GW([-0.34, -0.28, 0.62]), G_CHEST = GW([0, -2.0, 0.6]), G_FACE = GW([0, -0.15, 0.75]);
 const MOON2 = norm([0.35, 0.42, -1]);
 const NIGHT = {
-  keyDir: MOON2, keyCol: [0.9, 0.2, 0.13], shadowCol: [0.04, 0.055, 0.13], rimDir: MOON2, rimCol: [1, 0.35, 0.22], rimW: 0.4,
-  fogCol: [0.07, 0.01, 0.016], haze: [0.05, 0.008, 0.014], zenith: [0.002, 0.002, 0.006], fogK: 0.006, moonDir: MOON2, moonR: 0.075,
-  fillDir: [-0.5, 0.5, 0.7], fillCol: [0.15, 0.19, 0.4],
+  keyDir: norm([0.75, 0.45, 0.5]), keyCol: [1.0, 0.42, 0.28], shadowCol: [0.05, 0.065, 0.15], rimDir: MOON2, rimCol: [1, 0.4, 0.25], rimW: 0.36,
+  fogCol: [0.3, 0.05, 0.035], haze: [0.09, 0.014, 0.02], zenith: [0.012, 0.004, 0.012], fogK: 0.005, moonDir: MOON2, moonR: 0.095,
+  fillDir: norm([-0.35, 0.45, 1]), fillCol: [0.24, 0.3, 0.6], termCol: [0.3, 0.04, 0.1],
 };
 const giantAt = (t, cam, extra = {}) => baseRig(Object.assign({}, GIANT, { head: [0, 0.1, 0], face: [0.075, -0.12, 0.35, 0.1], eyeGlow: 1.4, gaze: cam.pos }, extra));
 const giantEyes = r => eyesWorld(r);
 
 // Misiles del mecha (salen de las hombreras en la carrera)
-const RUSH_M = t => mecha({ pos: [2.5, 17.5 + 0.4 * Math.sin(t * 3), lerp(34, -6, t / 4)], yaw: Math.PI, pitch: 0.55, thrust: 2.5, ...P_DASH(t) });
+const RUSH_M = t => mecha({ pos: [2.5, 17.5 + 3 * ss(0, 4, t) + 0.4 * Math.sin(t * 3), lerp(30, -16, t / 4)], yaw: Math.PI, pitch: 0.55, thrust: 2.5, ...P_DASH(t) });
 const PODS = Array.from({ length: 12 }, (_, i) => {
   const t0 = 1.5 + i * 0.06, m = RUSH_M(t0);
   const L = mW(m, [(i % 2 ? 1.25 : -1.25), -0.95, -0.2]);
@@ -220,9 +225,9 @@ const PODS = Array.from({ length: 12 }, (_, i) => {
 });
 
 // La escuadra que cae del cielo
-const SQUAD = Array.from({ length: 8 }, (_, i) => ({ x: (i - 3.5) * 9 + (hash(i) - 0.5) * 4, z: -18 + (hash(i + 5) - 0.5) * 18, y0: 60 + hash(i + 9) * 25, t0: hash(i + 2) * 1.2, yaw: Math.PI + (hash(i + 4) - 0.5) * 0.6 }));
+const SQUAD = Array.from({ length: 8 }, (_, i) => ({ x: (i - 3.5) * 9 + (hash(i) - 0.5) * 4, z: -24 + (hash(i + 5) - 0.5) * 18, y0: 70 + hash(i + 9) * 25, t0: hash(i + 2) * 1.2, yaw: Math.PI + (hash(i + 4) - 0.5) * 0.6 }));
 const SQ_S = 1.7;
-const squadPos = (q, t) => [q.x, Math.max(q.y0 - (t - q.t0) * 18, 18 + (q.x > 0 ? 3 : 0) + hash(q.x) * 6), q.z];
+const squadPos = (q, t) => [q.x, Math.max(q.y0 - (t - q.t0) * 18, 22 + (q.x > 0 ? 4 : 0) + hash(q.x) * 8), q.z];
 
 /* ----------------------------------------------------------------- guion -- */
 const SHOTS = [
@@ -231,31 +236,36 @@ const SHOTS = [
     name: 'open', dur: 2.0, prog: 'OPEN', twos: false,
     cam: t => ({ pos: lerp3([0.5, -0.1, 3.9], [0.32, -0.12, 3.1], ease(t / 2)), tar: [0, -0.3, 0], fl: 1.8, roll: -0.04 }),
     rig: (t, cam) => baseRig({ head: [0.1 - 0.1 * t, -0.04, 0.05], face: [kf(t, [[0, 0.06], [1.5, 0.03]]), -0.1, kf(t, [[0, 0.3], [1.6, 1]], ease), 0.07], eyeGlow: kf(t, [[0, 1.2], [1.6, 1.6], [1.85, 4]]), gaze: cam.pos }),
-    light: t => ({ keyDir: norm([0.35, -1, 0.08]), keyCol: [0.85, 0.22, 0.07], shadowCol: [0.014, 0.018, 0.045], rimDir: norm([0.3, 0.5, -1]), rimCol: [1, 0.42, 0.16], rimW: 0.5,
+    light: t => ({ keyDir: norm([0.6, -0.3, 0.75]), keyCol: [1.0, 0.36, 0.12], shadowCol: [0.014, 0.018, 0.045], rimDir: norm([0.3, 0.5, -1]), rimCol: [1, 0.42, 0.16], rimW: 0.5,
       fogCol: [0.08, 0.02, 0.01], zenith: [0.01, 0.003, 0.003], fillCol: [0.04, 0.06, 0.14], eyeLight: 0.4, moonDir: norm([0.4, 0.5, -1]), moonR: 0.001 }),
-    comp: (t, cam, rig, asp) => ({ embers: 0.6, ash: 0.15, flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.6, kf(t, [[0, 0.6], [1.7, 1], [1.9, 3.5]])]) }),
+    comp: (t, cam, rig, asp) => ({ embers: 0.3, ash: 0, flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.6, kf(t, [[0, 0.6], [1.7, 1], [1.9, 3.5]])]) }),
     post: t => ({ flash: kf(t, [[1.8, 0], [1.95, 0.8]]), flashCol: [1, 0.3, 0.2], grade: [1.05, 1.1, 1.12, 0.03] }),
   },
   /* 1 · el silo */
   {
     name: 'shaft', dur: 3.0, prog: 'SHAFT', twos: false,
-    cam: t => { const Y = 10 + 70 * t, a = 0.9 + t * 0.25, k = ss(1.5, 2.2, t); return { pos: [5.3 * Math.cos(a), Y - 1.2 + 1.0 * k, 5.3 * Math.sin(a)], tar: [0, Y - lerp(2.4, 0.2, k), 0], fl: lerp(0.95, 1.5, k), roll: 0.05 * Math.sin(t * 2) }; },
+    cam: (t, m) => {
+      if (t < 1.5) return { pos: [3.4, 124, 1.3], tar: add(m.pos, [0, -1.5, 0]), fl: 1.05, roll: 0.3 };
+      const Y = 10 + 70 * t, a = 0.9 + t * 0.25; return { pos: [5.3 * Math.cos(a), Y - 0.2, 5.3 * Math.sin(a)], tar: [0, Y - 0.2, 0], fl: 1.5, roll: 0.05 * Math.sin(t * 2) };
+    },
     rig: t => baseRig({}),
-    mech: t => mecha({ pos: [0, 10 + 70 * t, 0], yaw: Math.PI / 2 - (0.9 + t * 0.25) - 0.45 + 0.35 * ss(1.8, 2.4, t), scale: 1.6, head: [0.4 * ss(1.9, 2.3, t) - 0.2, -0.15 * ss(2.4, 3, t), 0], visor: t < 1.6 ? 0 : kf(t, [[1.6, 2.5], [2.0, 1]]), thrust: 2.5 }),
-    light: t => ({ keyDir: [0, 1, 0], keyCol: [0.3, 0.3, 0.35], shadowCol: [0.03, 0.035, 0.05], rimDir: [0, 1, 0], rimCol: [1, 0.6, 0.3], rimW: 0.5,
-      fillDir: [0.3, -1, 0.3], fillCol: [0.35, 0.18, 0.06], fogCol: [0, 0, 0], zenith: [0, 0, 0], fogK: 0.002, moonR: 0.001 }),
-    comp: (t, cam, rig, asp, m) => ({ flares: [[0, 0.35, 1.2, -kf(t, [[2.4, 0], [3, 3]])]].concat(t > 1.6 ? [[...(() => { const p = project(cam, mW(m, [0, -0.02, 0.9]), asp); return p ? [p.x, p.y] : [9, 9]; })(), 0.9, -kf(t, [[1.6, 3], [2.1, 0.6]])]] : []) }),
+    mech: t => t < 1.5
+      ? mecha({ pos: [0, 10 + 70 * t, 0], yaw: 0.6 + t * 0.5, pitch: 0.1, scale: 1.6, head: [0, 0.35, 0], visor: 1.2, thrust: 2.5, ...P_SUPER() })
+      : mecha({ pos: [0, 10 + 70 * t, 0], yaw: Math.PI / 2 - (0.9 + t * 0.25) - 0.45 + 0.35 * ss(1.8, 2.4, t), scale: 1.6, head: [0.4 * ss(1.9, 2.3, t) - 0.2, -0.15 * ss(2.4, 3, t), 0], visor: t < 1.6 ? 0 : kf(t, [[1.6, 2.5], [2.0, 1]]), thrust: 2.5 }),
+    light: t => ({ keyDir: [0, 1, 0], keyCol: [0.65, 0.55, 0.5], shadowCol: [0.04, 0.045, 0.07], rimDir: [0, 1, 0], rimCol: [1, 0.6, 0.3], rimW: 0.45,
+      fillDir: [0.3, -1, 0.3], fillCol: [0.6, 0.28, 0.08], fogCol: [0, 0, 0], zenith: [0, 0, 0], fogK: 0.002, moonR: 0.001 }),
+    comp: (t, cam, rig, asp, m) => ({ flares: t < 1.5 ? [] : [[0, 0.35, 1.2, -kf(t, [[2.4, 0], [3, 3]])]].concat(t > 1.6 ? eyeFlares(m, cam, asp, 0.55, -kf(t, [[1.6, 3], [2.1, 0.6]])) : []) }),
     beams: (t, m) => thrusters(m, 3.5),
-    post: t => ({ motion: [0, 0.035], impact: Math.floor((t - 1.6) * FPS) === 0 ? 2 : 0, flash: kf(t, [[2.55, 0], [3, 1]]), flashCol: [0.8, 1, 0.95], shake: shake(t, 0.004) }),
+    post: t => ({ motion: [0, t < 1.5 ? 0 : 0.035], motionNear: 10, speed: t < 1.5 ? 0.7 : 0, speedPos: [0.5, 0.5], speedDark: 1, impact: Math.floor((t - 1.6) * FPS) === 0 ? 2 : 0, flash: kf(t, [[2.55, 0], [3, 1]]), flashCol: [0.8, 1, 0.95], shake: shake(t, t < 1.5 ? 0.008 : 0.004) }),
   },
   /* 2 · revienta el asfalto */
   {
     name: 'burst', dur: 2.0, prog: 'BURST', twos: false,
-    cam: (t, m) => { const tar = lerp3([0, 3, 0], add(m.pos, [0, -5, 0]), ease(t / 0.45)); return { pos: lerp3([8, 1.2, 19], [10, 1.0, 22], t / 2), tar, fl: 1.2, roll: 0.06 }; },
+    cam: (t, m) => ({ pos: lerp3([15, 3, 30], [17, 2.5, 34], t / 2), tar: [0, clamp(m.pos[1] - 5, 3, 17), -1], fl: 1.15, roll: 0.06 }),
     rig: t => baseRig({}),
     mech: t => mecha({ pos: [0, lerp(-9, 52, easeOut(t / 1.9)), -1], yaw: 0.35, pitch: -0.12, roll: 0.1 * Math.sin(t * 3), visor: 1.2, thrust: 3, ...P_SUPER() }),
     light: () => NIGHT,
-    scene: t => ({ uFx: [0, 18 * easeOut(t / 1.4), kf(t, [[0, 0], [0.05, 1.4], [2, 0.3]]), 0], uDome: [0, 0, 0, 0], uCrack: [0, 0, 7 * easeOut(t / 0.4), 1] }),
+    scene: t => ({ uFx: [0, 18 * easeOut(t / 1.4), kf(t, [[0, 0], [0.05, 1.4], [2, 0.3]]), 0], uDome: [0, 0, 0, 0], uCrack: [0, 0, 7 * easeOut(t / 0.4), 1], uXL: { t: 'v4a', v: [0, 3, 0, 5 * Math.exp(-t * 1.2), 3, 1, 2, 3 * Math.exp(-t * 2), -3, 1, -1, 3 * Math.exp(-t * 2), 0, 0, 0, 0] } }),
     comp: (t, cam, rig, asp, m) => {
       const c = project(cam, [0, 0.5, 0], asp);
       return { exp: explosions([[[0, 1.5, 0], 0.02, 9], [[3, 0.8, 2], 0.12, 5], [[-3, 0.8, -1], 0.18, 5]], t, cam, asp, 1.6), debris: c ? [c.x, c.y, t * 1.4, 1 - ss(1, 2, t)] : [0, 0, 0, 0] };
@@ -267,7 +277,7 @@ const SHOTS = [
   /* 3 · aterrizaje de superhéroe */
   {
     name: 'land', dur: 2.0, prog: 'LAND', twos: false,
-    cam: (t, m) => ({ pos: kf(t, [[0, [12, 2, 22]], [1.0, [10, 1.4, 18]], [2, [7.6, 1.8, 14]]], ease), tar: t < 1.0 ? add(m.pos, [0, -6, 0]) : lerp3(add(m.pos, [0, -6, 0]), [0, 6.5, 0], ss(1.0, 1.4, t)), fl: 1.4, roll: -0.05 }),
+    cam: (t, m) => ({ pos: kf(t, [[0, [17, 3.5, 29]], [1.0, [13, 2.2, 23]], [2, [9, 2, 17]]], ease), tar: t < 1.0 ? [0, clamp(m.pos[1] - 7, 5, 19), 0] : lerp3([0, 7, 0], [0, 6.5, 0], ss(1.0, 1.4, t)), fl: 1.3, roll: -0.05 }),
     rig: t => baseRig({}),
     mech: t => {
       if (t < 1.0) { const k = easeIn(t / 1.0); return mecha({ pos: [0, lerp(48, (MFOOT - 1.6) * MS, k), 0], yaw: 0.5, pitch: 0.1, visor: 0.4, thrust: 1.2, ...P_FALL() }); }
@@ -280,7 +290,7 @@ const SHOTS = [
       const c = project(cam, [0, 0.3, 1.5], asp), a = t - 1.0;
       const out = { exp: explosions([[[0, 0.8, 2], 1.0, 7], [[4, 0.5, 3], 1.06, 4], [[-4, 0.5, 2], 1.1, 4]], t, cam, asp, 1.2) };
       if (a > 0 && c) { out.debris = [c.x, c.y, a * 1.3, 1 - ss(0.6, 1, a)]; out.rings = [[c.x, c.y, a * 1.6, 1 - ss(0, 0.7, a)], [c.x, c.y, a * 1.1, 1 - ss(0, 0.9, a)]]; }
-      if (t > 1.3) { const v = project(cam, mW(m, [0, -0.02, 0.95]), asp); if (v) out.flares = [[v.x, v.y, 0.9, -kf(t, [[1.3, 3.5], [1.8, 1]])]]; }
+      if (t > 1.3) out.flares = eyeFlares(m, cam, asp, 0.45, -kf(t, [[1.3, 3], [1.8, 0.8]]));
       return out;
     },
     beams: (t, m) => thrusters(m, t < 1 ? 2.5 : 0),
@@ -293,7 +303,7 @@ const SHOTS = [
       const back = add(m.pos, [15, -2, 24]);
       const front = add(m.pos, [6, -3, -20]);
       const k = ss(2.9, 3.15, t);
-      const tb = lerp3(add(m.pos, [0, -3, 0]), [0, 15, -40], 0.4);
+      const tb = lerp3(add(m.pos, [0, -3, 0]), GW([0, -1.5, 0]), 0.5);
       return { pos: lerp3(back, front, k), tar: lerp3(tb, add(m.pos, [0, -2, 0]), k), fl: lerp(1.2, 1.05, k), roll: lerp(-0.08, 0.12, k) };
     },
     rig: (t, cam) => giantAt(t, cam),
@@ -310,10 +320,10 @@ const SHOTS = [
     name: 'punch', dur: 3.0, prog: 'PUNCH', twos: false,
     timeWarp: t => t < 1.0 ? t : t < 2.0 ? 1.0 + (t - 1.0) * 0.18 : 1.18 + (t - 2.0) * 1.2,
     cam: (t, m, rig) => {
-      const P = [2.6, 18.2, -35];
-      const a = lerp(0.9, 1.9, ease(t / 2.4));
-      const d = t < 0.9 ? lerp(34, 26, t / 0.9) : 24;
-      return { pos: add(P, [Math.sin(a) * d, lerp(2, -4, ease(t / 2.4)), Math.cos(a) * d]), tar: t < 0.9 ? lerp3(m.pos, P, ease(t / 0.9)) : P, fl: 1.35, roll: 0.08 * Math.sin(t) };
+      const P = add(G_CHEEK, [0, -2, 0]);
+      const a = lerp(0.75, 1.75, ease(t / 2.4));
+      const d = t < 0.9 ? lerp(46, 34, t / 0.9) : 32;
+      return { pos: add(P, [Math.sin(a) * d, lerp(-4, -9, ease(t / 2.4)), Math.cos(a) * d]), tar: t < 0.9 ? lerp3(m.pos, P, ease(t / 0.9)) : P, fl: 1.3, roll: 0.08 * Math.sin(t) };
     },
     rig: (t, cam) => {
       const hit = t > 1.0 ? ss(1.0, 1.06, t) : 0;
@@ -322,36 +332,35 @@ const SHOTS = [
     mech: t => {
       const k = t < 0.75 ? 0 : ss(0.75, 1.0, t);
       const tipL = lerp3([-1.6, -1.8, -1.6], [-0.45, -0.9, 2.55], k);
-      const target = [2.4, 17.9, -34.6];
       const R = euler(Math.PI - 0.15, -0.1, 0.1);
-      const at = sub(target, m3v(R, mul(tipL, MS)));
-      const pos = t < 1.0 ? lerp3(add(at, [14, -10, 22]), at, easeOut(t / 1.0)) : add(at, [0.8 * ss(1.0, 2.2, t), 0, 1.5 * ss(1.0, 2.6, t)]);
+      const at = sub(add(G_CHEEK, [0.6, -0.4, 1.2]), m3v(R, mul(tipL, MS)));
+      const pos = t < 1.0 ? lerp3(add(at, [14, -14, 26]), at, easeOut(t / 1.0)) : add(at, [0.8 * ss(1.0, 2.2, t), 0, 1.5 * ss(1.0, 2.6, t)]);
       return mecha({ pos, yaw: Math.PI - 0.15, pitch: -0.1, roll: 0.1, visor: 1.3, thrust: t < 1 ? 2 : 0.6, ...P_PUNCH(k) });
     },
     light: () => NIGHT,
     comp: (t, cam, rig, asp) => {
-      const c = project(cam, [2.4, 17.9, -34.6], asp), a = t - 1.0;
+      const c = project(cam, G_CHEEK, asp), a = t - 1.0;
       const out = { flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.5, 1.3]) };
       if (a > 0 && c) {
         const s = a < 1 ? a * 0.35 : 0.35 + (a - 1) * 1.6;
         out.rings = [[c.x, c.y, s * 1.2, 1 - ss(0, 1.2, a)], [c.x, c.y, s * 0.7, 1 - ss(0, 1.4, a)]];
-        out.splats = splats([[[1.6, 17.5, -33.8], 1.0, 5], [[1.2, 16.9, -34], 1.02, 3.5], [[2.0, 18.4, -34.3], 1.04, 2.5]], lerp(1.0, t, a < 1 ? 0.4 : 1), cam, asp);
+        out.splats = splats([[add(G_CHEEK, [-0.8, -0.4, 0.8]), 1.0, 8], [add(G_CHEEK, [-1.4, -1.2, 0.6]), 1.02, 6], [add(G_CHEEK, [-0.4, 0.6, 0.5]), 1.04, 4.5]], lerp(1.0, t, a < 1 ? 0.4 : 1), cam, asp);
         out.debris = [c.x, c.y, s, 1 - ss(0.8, 2, a)];
       }
       return out;
     },
     beams: (t, m) => thrusters(m, t < 1 ? 4 : 1),
-    post: t => { const f = Math.floor((t - 1.0) * FPS); return { impact: f >= 0 && f < 5 ? [1, 3, 2, 1, 3][f] : 0, shake: t > 1 ? shake(t, 0.025 * Math.exp(-(t - 1) * 1.5)) : [0, 0], speed: t > 1 && t < 2.1 ? 1 : 0, speedPos: [0.5, 0.5], motion: [t < 0.9 ? 0.04 : 0, 0], zoom: t > 1 ? 1 + 0.12 * Math.exp(-(t - 1) * 3) : 1 }; },
+    post: t => { const f = Math.floor((t - 1.0) * FPS); return { impact: f >= 0 && f < 5 ? [1, 3, 2, 1, 3][f] : 0, shake: t > 1 ? shake(t, 0.025 * Math.exp(-(t - 1) * 1.5)) : [0, 0], speed: t > 1 && t < 2.1 ? 1 : 0, speedPos: [0.5, 0.5], motion: [t < 0.9 ? 0.025 : 0, 0], motionNear: 30, zoom: t > 1 ? 1 + 0.12 * Math.exp(-(t - 1) * 3) : 1 }; },
   },
   /* 6 · los láseres de los ojos: le cortan el brazo */
   {
     name: 'laser', dur: 4.0, prog: 'LASER', twos: false,
-    cam: t => ({ pos: lerp3([36, 9, 6], [30, 11, 10], ease(t / 4)), tar: lerp3([4, 16, -24], [8, 16, -18], ease(t / 4)), fl: 1.3, roll: -0.04 + 0.05 * ss(1.3, 1.5, t) }),
-    rig: (t, cam) => giantAt(t, cam, { head: [0.55 * ease(t / 0.6), 0.05, 0.05], face: [kf(t, [[0, 0.075], [0.5, 0.11]]), -0.14, 0.2, 0.05], eyeGlow: kf(t, [[0, 1.4], [0.55, 3.5], [3.8, 2.5]]), gaze: [16, 16, -14] }),
+    cam: t => ({ pos: lerp3([34, 3, -14], [30, 4, -10], ease(t / 4)), tar: lerp3([4, 30, -52], [8, 29, -48], ease(t / 4)), fl: 1.2, roll: -0.04 + 0.05 * ss(1.3, 1.5, t) }),
+    rig: (t, cam) => giantAt(t, cam, { head: [0.55 * ease(t / 0.6), 0.05, 0.05], face: [kf(t, [[0, 0.075], [0.5, 0.11]]), -0.14, 0.2, 0.05], eyeGlow: kf(t, [[0, 1.4], [0.55, 2.4], [3.8, 1.8]]), gaze: [3, 22, -26] }),
     mech: t => {
       const cutAt = 1.4;
       const hit = ss(cutAt, cutAt + 0.3, t);
-      return mecha({ pos: lerp3([14, 17, -16], [19, 18.5, -9], ease(t / 4)), yaw: -2.3 + 0.6 * hit, pitch: -0.2 - 0.4 * hit + 0.3 * ss(2.4, 3.5, t), roll: 0.5 * hit - 0.4 * ss(2.4, 3.6, t), head: [0, -0.2, 0], visor: 1.2, thrust: 1.5 + hit, cut: t > cutAt ? 1 : 0, ...P_SPREAD() });
+      return mecha({ pos: lerp3([1, 21, -28], [5, 23, -24], ease(t / 4)), yaw: -2.3 + 0.6 * hit, pitch: -0.2 - 0.4 * hit + 0.3 * ss(2.4, 3.5, t), roll: 0.5 * hit - 0.4 * ss(2.4, 3.6, t), head: [0, -0.2, 0], visor: 1.2, thrust: 1.5 + hit, cut: t > cutAt ? 1 : 0, ...P_SPREAD() });
     },
     light: () => NIGHT,
     scene: (t, cam, rig, m) => {
@@ -360,7 +369,7 @@ const SHOTS = [
       return { uArmOff: [...off, (t - cutAt) * 7], uXL: { t: 'v4a', v: lightsFrom(LASER_EXP, t) } };
     },
     comp: (t, cam, rig, asp, m) => {
-      const out = { exp: explosions(LASER_EXP, t, cam, asp, 1.3), flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.7, kf(t, [[0, 1], [0.55, 3], [3.8, 2]])]) };
+      const out = { exp: explosions(LASER_EXP, t, cam, asp, 1.3), flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.45, kf(t, [[0, 1], [0.55, 2], [3.8, 1.4]])]) };
       out.splats = splats([[mW(m, [1.5, -2.2, 0.3]), 1.42, 4, 'mecha'], [mW(m, [1.5, -2.2, 0.3]), 1.75, 3, 'mecha'], [mW(m, [1.5, -2.2, 0.3]), 2.2, 2.5, 'mecha']], t, cam, asp);
       return out;
     },
@@ -406,8 +415,8 @@ const SHOTS = [
     name: 'cannon', dur: 5.0, prog: 'CANNON', twos: false,
     cam: (t, m) => {
       if (t < 1.0) { const h = mW(m, [0, -0.3, 0]), f = mDir(m, [0, 0, 1]), r = mDir(m, [1, 0, 0]); return { pos: add(add(h, mul(f, lerp(9, 7.5, t))), add(mul(r, 1.6), [0, -1.2, 0])), tar: add(h, [0, -0.4, 0]), fl: 1.6, roll: 0.05 }; }
-      if (t < 2.0) { const h = mW(m, [0, -1, 0]); return { pos: add(h, [-14, -9, 12]), tar: lerp3(h, [0, 17, -40], 0.55), fl: 1.3, roll: -0.05 }; }
-      return { pos: lerp3([46, 10, -12], [50, 12, -8], ease((t - 2) / 3)), tar: [5, 14, -18], fl: 1.1, roll: 0.02 };
+      if (t < 2.0) { const h = mW(m, [0, -1, 0]); return { pos: add(h, [7, -5, 17]), tar: lerp3(h, G_CHEST, 0.75), fl: 1.2, roll: -0.05 }; }
+      return { pos: lerp3([42, 14, -26], [46, 16, -22], ease((t - 2) / 3)), tar: add(G_CHEST, [5, -5, 16]), fl: 1.05, roll: 0.02 };
     },
     rig: (t, cam) => {
       const a = t - 2.0;
@@ -428,7 +437,7 @@ const SHOTS = [
       const mouth = project(cam, mW(m, [0, -0.6, 1.0]), asp);
       const chest = project(cam, toWorld(rig, [0, -2.0, 0.9]), asp);
       const out = { flares: [] };
-      if (mouth && t < 2.0) { out.charge = [mouth.x, mouth.y, 0.6, ss(0.3, 0.8, t)]; out.flares.push([mouth.x, mouth.y, 0.8, -ss(0.5, 2, t) * 3]); }
+      if (mouth && t < 2.0) { out.charge = [mouth.x, mouth.y, 0.6, ss(0.3, 0.8, t)]; if (t < 1) out.flares.push([mouth.x, mouth.y, 0.5, -ss(0.5, 2, t) * 3]); }
       if (t > 2.0 && chest) {
         const a = t - 2.0;
         out.splats = splats(CANNON_GORE(rig), t, cam, asp);
@@ -443,14 +452,14 @@ const SHOTS = [
       return out;
     },
     post: t => { const f = Math.floor((t - 2.0) * FPS); return { impact: f >= 0 && f < 5 ? [2, 1, 3, 2, 1][f] : 0, shake: t > 2 ? shake(t, 0.03 * Math.exp(-(t - 2) * 1.2)) : shake(t, 0.004 * ss(0.5, 2, t)),
-      speed: t < 2 ? ss(0.6, 1.9, t) * 0.8 : (t < 2.8 ? 1 : 0), speedPos: [0.55, 0.5], flash: f >= 5 && f < 8 ? [0.8, 0.5, 0.25][f - 5] : 0, flashCol: [0.8, 1, 1] }; },
+      speed: t < 1 ? ss(0.6, 1.0, t) * 0.6 : t < 2 ? 0 : (t < 2.8 ? 1 : 0), speedPos: [0.55, 0.5], flash: f >= 5 && f < 8 ? [0.8, 0.5, 0.25][f - 5] : 0, flashCol: [0.8, 1, 1] }; },
   },
   /* 9 · epílogo: el humo se abre y aparecen muchos más */
   {
     name: 'after', dur: 6.0, prog: 'AFTER', twos: false,
     cam: t => ({ pos: lerp3([-14, 2.2, 30], [-10, 3, 23], ease(t / 6)), tar: [2, 12, -60], fl: 1.35, roll: 0 }),
     rig: (t, cam) => baseRig({ head: [0, 0.12, 0], face: [0.07, -0.12, 0.6, 0.08], eyeGlow: kf(t, [[2.2, 0], [3.2, 1.6], [4.0, 1.6], [4.1, 4]]), gaze: cam.pos }),
-    mech: t => mecha({ pos: [-4, (MFOOT - 1.25) * MS, 6], yaw: Math.PI + 0.2, pitch: 0.25, head: [0.1, 0.1, 0], visor: 0.5 + 0.5 * (hash(Math.floor(t * 12)) > 0.3 ? 1 : 0), cut: 1, ...P_KNEEL() }),
+    mech: t => mecha({ pos: [-15, (MFOOT - 1.25) * MS, 14], yaw: Math.PI + 0.35, pitch: 0.25, head: [0.1, 0.1, 0], visor: 0.5 + 0.5 * (hash(Math.floor(t * 12)) > 0.3 ? 1 : 0), cut: 1, ...P_KNEEL() }),
     light: t => ({ keyDir: norm([0, 0.25, -1]), keyCol: [0.9, 0.3, 0.09], shadowCol: [0.03, 0.035, 0.08], rimDir: norm([0, 0.25, -1]), rimCol: [1, 0.45, 0.2], rimW: 0.45,
       termCol: [0.3, 0.05, 0.05], fogCol: [0.38, 0.07, 0.03], haze: [0.07, 0.014, 0.012], zenith: [0.01, 0.004, 0.006], fogK: 0.004, moonDir: norm([-0.5, 0.42, -1]), moonR: 0.07, moonCol: [1, 0.3, 0.12], cityBox: [0, -5, 40, 28] }),
     comp: (t, cam, rig, asp) => {
@@ -464,10 +473,10 @@ const SHOTS = [
 // datos que dependen de funciones de arriba
 function laserTarget(t, m) {
   // barrido por la ciudad hasta cruzar el brazo del mecha
-  if (t < 1.4) return lerp3([-20, 0, -5], mW(m, [1.9, -2.3, 0.4]), ease((t - 0.55) / 0.85));
-  return lerp3(mW(m, [1.9, -2.3, 0.4]), [30, 0, 20], ease((t - 1.4) / 2.2));
+  if (t < 1.4) return lerp3([-24, 0, -38], mW(m, [1.9, -2.3, 0.4]), ease((t - 0.55) / 0.85));
+  return lerp3(mW(m, [1.9, -2.3, 0.4]), [34, 0, -18], ease((t - 1.4) / 2.2));
 }
-const LASER_EXP = Array.from({ length: 16 }, (_, i) => { const t = 0.6 + i * 0.19; const m = SHOTS ? null : null; return [[lerp(-20, 30, i / 15) + (hash(i) - 0.5) * 4, 0.8, lerp(-5, 20, i / 15) + (hash(i + 2) - 0.5) * 4], t + 0.05, 4 + hash(i) * 3]; });
+const LASER_EXP = Array.from({ length: 16 }, (_, i) => { const t = 0.6 + i * 0.19; const m = SHOTS ? null : null; return [[lerp(-24, 34, i / 15) + (hash(i) - 0.5) * 4, 0.8, lerp(-38, -18, i / 15) + (hash(i + 2) - 0.5) * 4], t + 0.05, 4 + hash(i) * 3]; });
 const SQUAD_EXP = Array.from({ length: 18 }, (_, i) => [toWorld(baseRig(GIANT), [(hash(i * 3) - 0.5) * 1.8, -0.8 - hash(i + 5) * 2.8, 0.85]), 1.8 + i * 0.17, 3 + hash(i) * 2]).concat([[[SQUAD[5].x, 30, SQUAD[5].z], 3.2, 9]]);
 const SQUAD_GORE = Array.from({ length: 5 }, (_, i) => [toWorld(baseRig(GIANT), [(hash(i * 7) - 0.5) * 1.4, -1.2 - hash(i + 2) * 2, 0.9]), 2.2 + i * 0.5, 3.5]);
 const CANNON_GORE = rig => [[toWorld(rig, [0, -2.0, 1.0]), 2.02, 9], [toWorld(rig, [0.3, -1.6, 1.0]), 2.25, 6], [toWorld(rig, [-0.4, -2.4, 1.0]), 2.5, 7], [toWorld(rig, [0.1, -2.1, 1.0]), 2.9, 8], [toWorld(rig, [0, -2.0, 1.0]), 3.4, 6]];

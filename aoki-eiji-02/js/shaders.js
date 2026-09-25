@@ -672,7 +672,7 @@ vec3 skyNight(vec3 rd){
     float c2 = fbm2((cp + toMoon*.018)*vec2(1., 1.6) + 7.);
     float rim = sat(mask - ss(th, th + .01, c2));
     float near = exp(-md*3.);
-    vec3 cc = mix(vec3(.008,.003,.008), vec3(.025,.006,.014), ss(th, th + .25, c));
+    vec3 cc = mix(uFogCol*.35 + vec3(.01,.004,.01), vec3(.02,.005,.012), ss(th, th + .25, c))*mix(1., .5, ss(.0, .4, y));
     col = mix(col, cc, mask);
     col += uMoonCol*rim*(.06 + 1.5*near);
   }
@@ -1324,8 +1324,8 @@ void splat(vec2 p, vec4 sp, float seed, inout vec3 col, inout float cov){
   float S = abs(sp.z), age = sp.w;
   vec2 d = (p - sp.xy)/S;
   if (length(d) > 4.) return;
-  vec3 c0 = sp.z > 0. ? vec3(.2,0.,.02) : vec3(.35,1.,.85);
-  vec3 c1 = sp.z > 0. ? vec3(.55,.02,.05) : vec3(.85,1.,.95);
+  vec3 c0 = sp.z > 0. ? vec3(.2,0.,.02) : vec3(.0,.18,.22);
+  vec3 c1 = sp.z > 0. ? vec3(.55,.02,.05) : vec3(.3,.95,.9);
   float ang = atan(d.y, d.x), r = length(d);
   float dir = seed*2.1 + 1.2;
   float lobe = pow(max(cos(ang - dir), 0.), 3.);
@@ -1333,6 +1333,7 @@ void splat(vec2 p, vec4 sp, float seed, inout vec3 col, inout float cov){
   float grow = 1. - pow(1. - clamp(age*4.5, 0., 1.), 3.);
   float R = grow*(.28 + .5*nz + 1.4*lobe*(.4 + nz));
   R += .08*fb(d*6. + seed);
+  if (sp.z < 0.) R *= .55;
   float fade = 1. - smoothstep(.55, 1., age);
   float blob = (1. - smoothstep(R - .03, R + .03, r))*fade;
   float drops = 0.;
@@ -1350,7 +1351,7 @@ void splat(vec2 p, vec4 sp, float seed, inout vec3 col, inout float cov){
   float m = max(blob, drops);
   float hl = smoothstep(.1, .2, fb(d*4. + seed + vec2(-.08, .08)) - fb(d*4. + seed) + .1);
   vec3 c = mix(c0, c1, hl*.6 + .2);
-  if (sp.z < 0.) c *= 1.8;
+  c = mix(c, c0*.25, smoothstep(R - .1, R - .02, r)*blob);
   col = mix(col, c, m);
   cov = max(cov, m);
 }
@@ -1457,8 +1458,8 @@ void main(){
     float halo = exp(-length(d)/(s*.12));
     float streak = exp(-abs(d.y)/(s*.006))*exp(-abs(d.x)/(s*.7));
     float streak2 = exp(-abs(d.x)/(s*.004))*exp(-abs(d.y)/(s*.18));
-    vec3 c = f.w > 0. ? vec3(1.,.14,.05) : vec3(1.,.9,.85);
-    col += c*abs(f.w)*(core*3. + halo*.35 + streak*1.1 + streak2*.4);
+    vec3 c = f.w > 0. ? vec3(1.,.14,.05) : vec3(.65,1.,.95);
+    col += c*abs(f.w)*(core*2. + halo*.16 + streak*.9 + streak2*.3);
   }
   outCol = vec4(col, cov);
 }`;
