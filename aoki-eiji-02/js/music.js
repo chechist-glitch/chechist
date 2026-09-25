@@ -1,12 +1,12 @@
 /* ==========================================================================
-   蒼キ嬰児 — banda sonora épica y gótica, 100 % sintetizada (WebAudio)
-   96 BPM · compás = 2,5 s · Re menor · cadencia andaluza (Rem–Do–Si♭–La)
-   Coro con formantes, órgano de tubos, ostinato de cuerdas, metales con el
-   Dies Irae, braams, taikos, timbales, campanas y efectos sincronizados.
+   蒼キ嬰児 · 第二話 — banda sonora de acción, 100 % sintetizada (WebAudio)
+   120 BPM · compás = 2 s · Re menor (Rem–Si♭–Do–La)
+   Ostinato de cuerdas, bajo distorsionado, taikos, metales, braams, coro con
+   formantes y efectos (propulsores, misiles, láseres, cañón, gore) al fotograma.
    ========================================================================== */
 window.AEMusic = (function () {
 const SR = 44100;
-const BPM = 96, BEAT = 60 / BPM, BAR = 4 * BEAT;
+const BPM = 120, BEAT = 60 / BPM, BAR = 4 * BEAT;
 const at = (bar, beat = 1) => (bar - 1) * BAR + (beat - 1) * BEAT;
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 function rng(seed) { let s = (seed >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
@@ -185,183 +185,267 @@ function musicBox(dest, notes, t0, beat, level) {
   w.stop(t + 2);
 }
 
+/* ------------------------------------------------------- instrumentos extra -- */
+// bajo distorsionado en corcheas
+function pulseBass(dest, t0, t1, rootAt, level) {
+  const step = BEAT / 2;
+  for (let t = Math.round(t0 / step) * step; t < t1 - 0.01; t += step) {
+    const m = rootAt(t) - 24, g = G(0, dest);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level, t + 0.005); g.gain.exponentialRampToValueAtTime(level * 0.25, t + step * 0.9); g.gain.linearRampToValueAtTime(0, t + step);
+    const lp = F('lowpass', 900, 3, shaper(4, g)); lp.frequency.setValueAtTime(1400, t); lp.frequency.exponentialRampToValueAtTime(260, t + step);
+    for (const det of [-8, 8]) { const o = osc('sawtooth', mtof(m), t, t + step, lp); o.detune.value = det; }
+    osc('square', mtof(m - 12), t, t + step, G(0.5, lp));
+  }
+}
+// golpe de tráiler: taiko + chasquido + cola
+function thud(dest, t, level) {
+  taiko(dest, t, level, 0.9);
+  burst(WN, t, 'bandpass', 1800, 0.8, 0.06, level * 0.5, dest, 0.001);
+  burst(BN, t, 'lowpass', 180, 0.7, 0.9, level * 0.5, dest, 0.002);
+}
+function snare(dest, t, level) {
+  burst(WN, t, 'bandpass', 2600, 0.6, 0.16, level, dest, 0.001);
+  glide('triangle', 240, 160, t, 0.08, level * 0.5, dest, 0.001);
+}
+// rugido de propulsores
+function thruster(dest, t0, t1, level, pan = 0) {
+  const g = G(0, Pan(pan, dest)); env(g.gain, [[t0, 0], [t0 + 0.15, level], [t1 - 0.2, level * 0.8], [t1, 0]]);
+  noise(BN, t0, t1, F('lowpass', 500, 0.7, g));
+  noise(WN, t0, t1, F('bandpass', 1800, 0.6, G(0.25, g)));
+}
+function whoosh(dest, t, dur, level, f0 = 400, f1 = 3000) {
+  const g = G(0, dest); env(g.gain, [[t, 0], [t + dur * 0.7, level], [t + dur, 0]]);
+  const bp = F('bandpass', f0, 1.2, g); bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  noise(WN, t, t + dur + 0.02, bp);
+}
+function boom(dest, t, level) {
+  glide('sine', 85, 30, t, 1.1, level * 0.6, dest, 0.002);
+  burst(BN, t, 'lowpass', 700, 0.7, 1.4, level * 0.5, dest, 0.002);
+  burst(WN, t, 'highpass', 1500, 0.7, 0.1, level * 0.25, dest, 0.001);
+  const s = ctx.createBufferSource(); s.buffer = crackleBuf(1.5, 60, Math.floor(t * 100)); s.connect(F('bandpass', 1800, 0.7, G(level * 0.6, dest))); s.start(t);
+}
+// láser de los ojos: zumbido FM que chisporrotea
+function laser(dest, t0, t1, level, f = 110) {
+  const g = G(0, dest); env(g.gain, [[t0, 0], [t0 + 0.04, level], [t1 - 0.1, level], [t1, 0]]);
+  const car = osc('sawtooth', f, t0, t1, F('bandpass', 1400, 0.8, shaper(3, g)));
+  const mod = ctx.createOscillator(); mod.frequency.value = f * 1.49; const mg = G(f * 2.5); mod.connect(mg); mg.connect(car.frequency); mod.start(t0); mod.stop(t1);
+  osc('sawtooth', f * 0.5, t0, t1, F('lowpass', 300, 1, G(0.6, g)));
+  noise(WN, t0, t1, F('highpass', 5000, 0.5, G(0.15, g)));
+}
+function pew(dest, t, level, f = 2400) { glide('square', f, f * 0.25, t, 0.18, level, F('lowpass', 5000, 0.7, dest), 0.001); }
+// chirrido metálico (corte del brazo)
+function screech(dest, t, dur, level) {
+  const g = G(0, dest); env(g.gain, [[t, 0], [t + 0.01, level], [t + dur, 0]]);
+  for (const [f, r] of [[2800, 1], [3730, 0.6], [5120, 0.4]]) { const o = osc('sawtooth', f, t, t + dur, F('bandpass', f, 12, G(r, g))); o.frequency.linearRampToValueAtTime(f * 0.7, t + dur); }
+}
+// gore: chapoteo grave con goteo
+function gore(dest, t, level) {
+  const g = G(0, dest); env(g.gain, [[t, 0], [t + 0.01, level], [t + 0.5, level * 0.3], [t + 0.9, 0]]);
+  const bp = F('bandpass', 380, 2.5, g); bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(160, t + 0.6);
+  noise(BN, t, t + 0.95, bp);
+  glide('sine', 120, 45, t, 0.4, level * 0.6, dest, 0.003);
+  for (let i = 0; i < 6; i++) { const td = t + 0.12 + R() * 0.7; glide('sine', 900 + R() * 900, 300, td, 0.05, level * 0.12, dest, 0.001); }
+}
+function riser(dest, t0, t1, level) {
+  reverseSwell(dest, t0, t1, level);
+  const g = G(0, dest); env(g.gain, [[t0, 0], [t1 - 0.02, level * 0.7], [t1, 0]]);
+  for (const r of [1, 1.5, 2.01]) { const o = osc('sawtooth', 110 * r, t0, t1, F('lowpass', 2500, 1, G(0.3, g))); o.frequency.setValueAtTime(110 * r, t0); o.frequency.exponentialRampToValueAtTime(880 * r, t1); }
+}
+
 /* ------------------------------------------------------------ partitura -- */
 const CH = {
-  Dm: [38, 50, 57, 62, 65, 69], C: [36, 48, 55, 60, 64, 67], Bb: [34, 46, 53, 58, 62, 65], A: [33, 45, 52, 57, 64, 69], Gm: [31, 43, 50, 55, 58, 62],
+  Dm: [38, 50, 57, 62, 65, 69], C: [36, 48, 55, 60, 64, 67], Bb: [34, 46, 53, 58, 62, 65], A: [33, 45, 52, 57, 61, 64], Gm: [31, 43, 50, 55, 58, 62], F: [41, 53, 57, 60, 65, 69],
 };
-const ROOT = { Dm: 50, C: 48, Bb: 46, A: 45, Gm: 43 };
-// Mapa de acordes (inicio, fin, acorde)
+const ROOT = { Dm: 50, C: 48, Bb: 46, A: 45, Gm: 43, F: 53 };
+// dos compases por acorde (4 s)… salvo en el tramo final
 const HARM = [
-  [0, 7.5, 'Dm'], [7.5, 10, 'Bb'], [10, 12.5, 'Dm'], [12.5, 15, 'C'], [15, 17.5, 'Bb'], [17.5, 20, 'A'], [20, 22.5, 'Dm'],
-  [22.5, 23.75, 'Bb'], [23.75, 25, 'A'], [25, 27.5, 'Dm'], [27.5, 30, 'C'], [30, 32.5, 'Bb'], [32.5, 35, 'A'], [35, 37.5, 'Dm'], [37.5, 42.5, 'Dm'],
+  [0, 5, 'Dm'], [5, 7, 'Dm'], [7, 9, 'Bb'], [9, 11, 'Dm'], [11, 13, 'Bb'], [13, 14, 'C'], [14, 16, 'A'], [16, 18, 'Dm'], [18, 20, 'Bb'],
+  [20, 22, 'Gm'], [22, 24, 'Bb'], [24, 25, 'A'], [25, 27, 'Dm'], [27, 29, 'Bb'], [29, 30, 'A'], [30, 36, 'Dm'],
 ];
 const chordAt = t => { for (const h of HARM) if (t >= h[0] && t < h[1]) return h[2]; return 'Dm'; };
 const LULLABY = [[68, 0.5], [68, 0.5], [72, 1.5], [68, 0.5], [68, 0.5], [72, 1.5], [68, 0.5], [72, 0.5], [77, 1]];
 
 async function render(duration, opts = {}) {
   ctx = new OfflineAudioContext(2, Math.ceil(duration * SR), SR);
-  R = rng(20251);
+  R = rng(20252);
   WN = noiseBuf(3, 'white', 11); BN = noiseBuf(4, 'brown', 23); PN = noiseBuf(3, 'pink', 37);
-  const END = duration;
-  const missiles = opts.missiles || [];
+  const E = opts.ep2 || {};
+  const PODS = E.PODS || [], LASER_EXP = E.LASER_EXP || [], SQUAD_EXP = E.SQUAD_EXP || [];
 
   // --- buses y mezcla
   const master = G(1);
+  // dinámica: la calma es calma y los golpes pegan
+  env(master.gain, [[0, 0.3], [1.9, 0.38], [2.0, 0.55], [4.9, 0.7], [5.0, 1], [14.05, 1], [14.2, 0.55], [14.98, 0.6], [15.0, 1], [26.9, 1], [27.0, 1], [30.0, 1], [30.4, 0.45], [34.0, 0.5], [34.05, 1]]);
   const duck = G(1);
-  for (const [a, b] of [[9.76, 10.0], [24.6, 25.0], [37.36, 37.5]]) {
-    duck.gain.setValueAtTime(1, a - 0.04); duck.gain.linearRampToValueAtTime(0.02, a); duck.gain.setValueAtTime(0.02, b - 0.004); duck.gain.linearRampToValueAtTime(1, b);
+  for (const [a, b] of [[4.94, 5.0], [7.94, 8.0], [13.9, 14.0], [26.85, 27.0], [33.98, 34.05]]) {
+    duck.gain.setValueAtTime(1, a - 0.04); duck.gain.linearRampToValueAtTime(0.03, a); duck.gain.setValueAtTime(0.03, b - 0.004); duck.gain.linearRampToValueAtTime(1, b);
   }
-  const glue = ctx.createDynamicsCompressor(); glue.threshold.value = -14; glue.knee.value = 10; glue.ratio.value = 2.5; glue.attack.value = 0.01; glue.release.value = 0.25;
-  const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.12;
+  const glue = ctx.createDynamicsCompressor(); glue.threshold.value = -14; glue.knee.value = 10; glue.ratio.value = 3; glue.attack.value = 0.008; glue.release.value = 0.2;
+  const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.1;
   const hp = F('highpass', 28, 0.7);
   master.connect(duck); duck.connect(hp); hp.connect(glue); glue.connect(lim); lim.connect(ctx.destination);
-  const verb = ctx.createConvolver(); verb.buffer = impulse(5.5, 2.2, 77);
-  const rv = G(1); rv.connect(verb); verb.connect(G(0.7, master));
-  const mus = G(1, master); mus.connect(G(0.35, rv));
-  const choirBus = G(1, master); choirBus.connect(G(0.9, rv));
-  const drums = G(1, master); drums.connect(G(0.28, rv));
-  const sfx = G(1, master); sfx.connect(G(0.3, rv));
+  const verb = ctx.createConvolver(); verb.buffer = impulse(4.5, 2.4, 77);
+  const rv = G(1); rv.connect(verb); verb.connect(G(0.6, master));
+  const mus = G(1, master); mus.connect(G(0.3, rv));
+  const choirBus = G(1, master); choirBus.connect(G(0.8, rv));
+  const drums = G(1, master); drums.connect(G(0.22, rv));
+  const sfx = G(0.9, master); sfx.connect(G(0.25, rv));
 
-  /* ======================== 0–3,75: intro ======================== */
-  bell(mus, 0.05, 50, 0.16); bell(mus, at(2), 45, 0.13);
-  { const d = G(0, mus); env(d.gain, [[0, 0], [1.5, 0.05], [3.75, 0.05], [9.7, 0.08], [9.75, 0]]);
-    const lp = F('lowpass', 160, 1.5, d); for (const [m, det] of [[26, -6], [26, 7], [33, 0]]) { const o = osc('sawtooth', mtof(m), 0, 9.8, lp); o.detune.value = det; } }
-  choir(choirBus, 0.6, 3.6, [50, 57, 62], 0.12, 'u', 1.2, 0.8);
-  for (const t of [0.7, 1.95, 3.2]) heartbeat(drums, t, 0.28);
-  reverseSwell(sfx, 2.9, 3.75, 0.18);
-
-  /* ======================== 3,75–9,75: el mar ======================== */
-  taiko(drums, 3.75, 0.6, 0.8); subDrop(mus, 3.75, 0.5, 2);
-  { const r = G(0, sfx); env(r.gain, [[3.75, 0], [4.1, 0.09], [9.6, 0.09], [9.75, 0]]);
-    noise(PN, 3.75, 9.75, F('highpass', 1400, 0.5, F('lowpass', 9000, 0.5, r))); }
-  for (const t of [5.0, 7.5]) {
-    burst(WN, t, 'highpass', 1200, 0.7, 0.25, 0.5, sfx, 0.001);
-    const g = G(0, sfx); env(g.gain, [[t, 0], [t + 0.08, 0.5], [t + 0.8, 0.3], [t + 2.8, 0]]);
-    noise(BN, t, t + 3, F('lowpass', 220, 0.8, g));
-  }
-  { const g = G(0, sfx); env(g.gain, [[4.4, 0], [7.5, 0.18], [9.5, 0.25], [9.75, 0]]); noise(BN, 4.4, 9.75, F('lowpass', 320, 0.7, g)); }
-  organ(mus, at(3), 7.5, [38, 50, 57, 62], 0.1); organ(mus, 7.5, 9.7, [34, 46, 53, 58, 62], 0.12);
-  choir(choirBus, at(3), 7.5, [50, 57, 62, 65], 0.16, 'o', 1.4, 0.6); choir(choirBus, 7.5, 9.7, [46, 53, 58, 62], 0.2, 'o', 0.6, 0.1);
-  timpRoll(drums, 8.8, 9.7, 38, 0.06, 0.32);
-  reverseSwell(sfx, 8.4, 9.74, 0.13);
-  heartbeat(drums, 9.76, 0.55);
-
-  /* ======================== 10: ¡LOS OJOS! ======================== */
   const HIT = (t, big = 1) => {
-    braam(mus, t, 3.2 * big, 0.8 * big); taiko(drums, t, 1.4 * big, 0.75); taiko(drums, t + 0.01, 0.9 * big, 0.55); crash(drums, t, 0.35 * big); subDrop(mus, t, 0.8 * big);
-    choir(choirBus, t, t + 0.5 * big, [50, 57, 62, 65, 69], 0.55 * big, 'a', 0.02, 1.2);
-    burst(WN, t, 'highpass', 2500, 0.7, 0.12, 0.3, sfx, 0.001);
+    braam(mus, t, 2.6 * big, 0.75 * big); thud(drums, t, 1.4 * big); taiko(drums, t + 0.01, 0.9 * big, 0.55); crash(drums, t, 0.32 * big); subDrop(mus, t, 0.8 * big);
+    choir(choirBus, t, t + 0.45 * big, [50, 57, 62, 65, 69], 0.5 * big, 'a', 0.02, 1.0);
   };
-  HIT(10.0);
-  for (const t of [10.02, 10.06, 10.1]) burst(WN, t, 'bandpass', 5000, 3, 0.05, 0.15, sfx, 0.001);
-
-  /* ======================== 10–24,6: build ======================== */
-  ostinato(mus, 10.0, 24.6, t => ROOT[chordAt(t)], 0.06);
-  for (const [t0, t1, c] of HARM.filter(h => h[0] >= 10 && h[0] < 25)) {
-    organ(mus, t0, t1 - 0.05, CH[c].slice(0, 5), 0.06);
-    choir(choirBus, t0, t1 - 0.05, CH[c].slice(1, 5), t0 < 17.5 ? 0.09 : 0.13, t0 < 17.5 ? 'o' : 'a', 0.35, 0.4);
-  }
-  // taikos
-  for (let b = 5; b <= 7; b++) { taiko(drums, at(b, 1), 0.7); taiko(drums, at(b, 3), 0.5, 1.1); taiko(drums, at(b, 4.5), 0.3, 1.25); }
-  for (let b = 8; b <= 9; b++) for (let k = 0; k < 8; k++) taiko(drums, at(b, 1 + k * 0.5), k % 4 === 0 ? 0.8 : k % 2 ? 0.28 : 0.45, k % 4 === 0 ? 1 : 1.2);
-  taiko(drums, at(10, 1), 0.8);
-  // la ciudad: sirenas y pitidos del HUD
-  for (const [pan, ph] of [[-0.6, 0], [0.55, 1.7]]) {
-    const g = G(0, Pan(pan, sfx)); env(g.gain, [[12.5, 0], [13.2, 0.035], [17.2, 0.035], [17.5, 0]]);
-    const o = osc('triangle', 700, 12.5, 17.5, F('bandpass', 900, 1.5, g));
-    const l = ctx.createOscillator(); l.frequency.value = 0.28; const lg = G(260); l.connect(lg); lg.connect(o.frequency); l.start(12.5 - ph); l.stop(17.5);
-  }
-  const blip = (t, f, l = 0.05, d = 0.06) => { const g = G(0, sfx); adsr(g, t, 0.003, l, t + d, 0.02); osc('square', f, t, t + d + 0.05, F('lowpass', 4000, 0.7, g)); };
-  blip(12.55, 1800); blip(12.95, 1200, 0.06, 0.12); blip(13.1, 1200, 0.06, 0.12);
-  for (let i = 0; i < 4; i++) blip(13.1 + i * 0.08, 2400, 0.04, 0.03);
-  for (let r = 0; r < 5; r++) for (let i = 0; i < 6; i++) blip(12.5 + 1.3 + r * 0.5 + i * 0.04, 3200 - r * 120, 0.02, 0.012);
-  // el ataque: cazas, misiles y explosiones
-  { const g = G(0, sfx); env(g.gain, [[17.5, 0], [17.7, 0.35], [18.4, 0.1], [19, 0]]);
-    const pn = Pan(0, g); pn.pan.setValueAtTime(0.8, 17.5); pn.pan.linearRampToValueAtTime(-0.8, 18.6);
-    const bp = F('bandpass', 2200, 0.8, pn); bp.frequency.setValueAtTime(2600, 17.5); bp.frequency.exponentialRampToValueAtTime(500, 18.8);
-    noise(WN, 17.5, 19, bp); }
-  for (const m of missiles) {
-    const t0 = 17.5 + m.t0, th = 17.5 + m.hit;
-    const g = G(0, sfx); env(g.gain, [[t0, 0], [t0 + 0.1, 0.05], [th - 0.1, 0.03], [th, 0]]);
-    const bp = F('bandpass', 1500, 1.4, g); bp.frequency.setValueAtTime(900, t0); bp.frequency.exponentialRampToValueAtTime(3000, th);
-    noise(WN, t0, th, bp);
-    glide('sine', 90, 38, th, 0.9, 0.28, sfx, 0.002);
-    burst(BN, th, 'lowpass', 900, 0.7, 1.1, 0.35, sfx, 0.002);
-    burst(WN, th, 'highpass', 1800, 0.7, 0.08, 0.12, sfx, 0.001);
-  }
-  for (let i = 0; i < 4; i++) brass(mus, at(8, 1 + i), BEAT * 0.45, 45 + (i % 2 ? 7 : 0), 0.09);
-  for (let i = 0; i < 4; i++) brass(mus, at(9, 1 + i), BEAT * 0.45, 50 + (i === 3 ? 3 : 0), 0.1);
-  // la mano se alza: coro creciente, carga eléctrica, silencio
-  choir(choirBus, 21.25, 24.55, [50, 57, 62, 65, 69, 74], 0.15, 'a', 2.5, 0.05);
-  timpRoll(drums, 22.6, 24.55, 38, 0.08, 0.38);
-  { const g = G(0, sfx); env(g.gain, [[22.6, 0], [24.4, 0.18], [24.55, 0]]);
-    const o = osc('sawtooth', 180, 22.6, 24.6, F('lowpass', 1200, 6, g)); o.frequency.setValueAtTime(180, 22.6); o.frequency.exponentialRampToValueAtTime(1500, 24.5);
-    const cr = crackleBuf(2.2, 70, 999); const s = ctx.createBufferSource(); s.buffer = cr; s.connect(F('bandpass', 3200, 0.8, G(1.2, g))); s.start(22.6); }
-  reverseSwell(sfx, 23.6, 24.58, 0.16);
-  { const g = G(0, sfx); env(g.gain, [[24.35, 0], [24.5, 0.3], [24.62, 0]]); const bp = F('bandpass', 3000, 1, g); bp.frequency.setValueAtTime(5000, 24.35); bp.frequency.exponentialRampToValueAtTime(300, 24.62); noise(WN, 24.35, 24.65, bp); }
-
-  /* ======================== 25: EL TOQUE ======================== */
-  HIT(25.0, 1.35);
-  braam(mus, 25.0, 4.5, 0.4, 21);
-  bell(mus, 25.0, 38, 0.3, 9);
-  { const g = G(0, sfx); env(g.gain, [[25, 0], [25.05, 0.5], [26.5, 0.3], [29.5, 0]]); noise(BN, 25, 29.6, F('lowpass', 140, 0.8, g)); }
-  { const s = ctx.createBufferSource(); s.buffer = crackleBuf(3, 90, 4242); s.connect(F('bandpass', 2200, 0.7, G(0.9, sfx))); s.start(25.02); }
-  // Dies Irae (metales + sopranos) sobre Rem–Do–Si♭–La, con órgano pleno
-  const DIES = [[53, 1], [52, 1], [53, 1], [50, 1], [52, 1], [48, 1], [50, 2]];
-  const playDies = (t0, oct, lvl) => {
-    let t = t0;
-    for (const [m, d] of DIES) {
-      brass(mus, t, d * BEAT * 0.92, m + oct, lvl);
-      choir(choirBus, t, t + d * BEAT * 0.9, [m + oct + 12], lvl * 1.5, 'a', 0.04, 0.25);
-      t += d * BEAT;
+  const groove = (t0, t1, lvl = 1, fill = true) => {
+    for (let t = t0; t < t1 - 0.01; t += BAR) {
+      const last = t + BAR >= t1 - 0.01;
+      thud(drums, t, 0.9 * lvl); taiko(drums, t + BEAT * 1.5, 0.45 * lvl, 1.15); thud(drums, t + BEAT * 2, 0.7 * lvl); taiko(drums, t + BEAT * 2.75, 0.35 * lvl, 1.3);
+      snare(drums, t + BEAT, 0.28 * lvl); snare(drums, t + BEAT * 3, 0.32 * lvl);
+      if (last && fill) for (let k = 0; k < 8; k++) snare(drums, t + BEAT * 3 + k * BEAT / 8, 0.12 + 0.03 * k);
     }
   };
-  playDies(at(11), 0, 0.14);
-  playDies(at(13), 12, 0.13);
-  for (const [t0, t1, c] of HARM.filter(h => h[0] >= 25 && h[0] < 35)) {
-    organ(mus, t0, t1 - 0.03, CH[c], 0.1, true);
-    choir(choirBus, t0, t1 - 0.03, CH[c].slice(0, 5), 0.2, 'a', 0.15, 0.35);
-    timp(drums, t0, ROOT[c] - 12, 0.5);
-  }
-  ostinato(mus, 25.0, 35.0, t => ROOT[chordAt(t)], 0.07);
-  for (let b = 11; b <= 14; b++) {
-    taiko(drums, at(b, 1), 1.0, 0.8);
-    taiko(drums, at(b, 2.5), 0.4, 1.2); taiko(drums, at(b, 3), 0.7, 1);
-    for (let k = 0; k < 4; k++) taiko(drums, at(b, 4 + k * 0.25), 0.25 + k * 0.1, 1.3);
-  }
-  // la Tierra se agrieta
-  { const s = ctx.createBufferSource(); s.buffer = crackleBuf(3, 140, 777); const g = G(0, sfx); env(g.gain, [[27.5, 0], [27.7, 0.9], [30, 0]]); s.connect(F('bandpass', 1600, 0.6, g)); s.start(27.5); }
-  crash(drums, 27.5, 0.2); crash(drums, 30.0, 0.22);
-  // la horda: campanas y pasos de gigante
-  bell(mus, 30.0, 38, 0.3, 8); bell(mus, 30.0, 45, 0.18, 7); bell(mus, 32.5, 45, 0.2, 7);
-  for (const t of [30.6, 32.1, 33.6]) { glide('sine', 50, 26, t, 1.4, 0.5, sfx, 0.004); burst(BN, t, 'lowpass', 300, 0.7, 0.8, 0.3, sfx, 0.004); }
-  { const g = G(0, sfx); env(g.gain, [[30, 0], [30.5, 0.06], [34.8, 0.06], [35, 0]]); const s = ctx.createBufferSource(); s.buffer = crackleBuf(5, 30, 31337); s.connect(F('bandpass', 2600, 0.5, g)); s.start(30); }
 
-  /* ======================== 35: la sonrisa ======================== */
-  choir(choirBus, 35.0, 37.3, [50, 57, 62, 63], 0.14, 'u', 0.3, 0.1);
-  { const g = G(0, mus); adsr(g, 35, 0.3, 0.012, 37.3, 0.05); for (const f of [1174.7, 1244.5]) osc('sine', f, 35, 37.4, g); }
-  musicBox(G(1, mus), LULLABY, 35.15, 0.3, 0.08);
-  heartbeat(drums, 35.3, 0.45); heartbeat(drums, 36.3, 0.5);
-  reverseSwell(sfx, 36.5, 37.34, 0.16);
+  /* ================= 0–2: la cara entre el humo ================= */
+  { const d = G(0, mus); env(d.gain, [[0, 0], [1.2, 0.07], [4.9, 0.1], [5.0, 0]]);
+    const lp = F('lowpass', 180, 1.5, d); for (const [m, det] of [[26, -6], [26, 7], [33, 0]]) { const o = osc('sawtooth', mtof(m), 0, 5.1, lp); o.detune.value = det; } }
+  choir(choirBus, 0.1, 2.0, [50, 57, 62], 0.12, 'u', 0.8, 0.4);
+  heartbeat(drums, 0.4, 0.4); heartbeat(drums, 1.2, 0.45);
+  bell(mus, 0.05, 38, 0.18, 6);
+  riser(sfx, 1.1, 2.0, 0.14);
+  { const g = G(0, sfx); env(g.gain, [[1.7, 0], [1.9, 0.25], [2.05, 0]]); noise(WN, 1.7, 2.05, F('bandpass', 3000, 1, g)); }
 
-  /* ======================== 37,5: título ======================== */
-  HIT(37.5, 1.2);
-  bell(mus, 37.5, 38, 0.3, 9);
-  taiko(drums, 38.75, 0.7, 0.9);
-  HIT(40.0, 1.0);
-  bell(mus, 40.0, 50, 0.25, 8); bell(mus, 40.0, 45, 0.2, 8);
-  choir(choirBus, 40.0, 41.6, [38, 50, 57, 62, 65], 0.2, 'a', 0.05, 1.0);
+  /* ================= 2–5: el silo ================= */
+  thud(drums, 2.0, 1.0); subDrop(mus, 2.0, 0.6, 1.5);
+  thruster(sfx, 2.0, 5.0, 0.22);
+  ostinato(mus, 2.0, 5.0, t => ROOT[chordAt(t)], 0.045);
+  for (let t = 2.0; t < 3.5; t += BEAT) taiko(drums, t, 0.4, 1.2);
+  whoosh(sfx, 2.9, 0.6, 0.3, 300, 4000);
+  // se encienden los ojos
+  brass(mus, 3.6, 1.2, 38, 0.2); brass(mus, 3.6, 1.2, 45, 0.16); thud(drums, 3.6, 1.1); crash(drums, 3.6, 0.2);
+  { const g = G(0, sfx); env(g.gain, [[3.6, 0], [3.62, 0.2], [4.4, 0]]); osc('sine', 1760, 3.6, 4.4, g); osc('sine', 2637, 3.6, 4.4, G(0.5, g)); }
+  choir(choirBus, 3.6, 4.95, [50, 57, 62, 65], 0.18, 'a', 0.1, 0.1);
+  timpRoll(drums, 4.0, 4.93, 38, 0.1, 0.4);
+  riser(sfx, 4.1, 4.95, 0.2);
+
+  /* ================= 5: ¡REVIENTA EL ASFALTO! ================= */
+  HIT(5.0, 1.1); boom(sfx, 5.0, 1.0); boom(sfx, 5.12, 0.6); boom(sfx, 5.18, 0.6);
+  thruster(sfx, 5.0, 7.0, 0.3);
+  ostinato(mus, 5.0, 13.9, t => ROOT[chordAt(t)], 0.065);
+  pulseBass(mus, 5.0, 13.9, t => ROOT[chordAt(t)], 0.08);
+  groove(5.5, 7.0, 0.9, false);
+  for (const [t0, t1, c] of HARM.filter(h => h[0] >= 5 && h[0] < 14)) choir(choirBus, t0, t1 - 0.05, CH[c].slice(1, 5), 0.1, 'a', 0.2, 0.3);
+  // caída
+  whoosh(sfx, 7.0, 1.0, 0.35, 3000, 250);
+  riser(sfx, 7.2, 7.95, 0.18);
+
+  /* ================= 8: aterrizaje ================= */
+  HIT(8.0, 1.0); boom(sfx, 8.0, 1.1); boom(sfx, 8.06, 0.5);
+  { const s = ctx.createBufferSource(); s.buffer = crackleBuf(2, 120, 808); s.connect(F('bandpass', 1400, 0.6, G(0.8, sfx))); s.start(8.0); }
+  brass(mus, 8.5, 0.4, 50, 0.1);
+
+  /* ================= 9–13: carga y lluvia de misiles ================= */
+  groove(9.0, 13.0, 1);
+  thruster(sfx, 9.0, 13.0, 0.26, 0.2);
+  // riff de metales
+  const RIFF = [[50, 1], [50, 0.5], [53, 0.5], [55, 1], [53, 0.5], [52, 0.5]];
+  for (const t0 of [9.0, 11.0]) { let t = t0; for (const [m, d] of RIFF) { brass(mus, t, d * BEAT * 0.85, m - (t0 > 10 ? 4 : 0), 0.12); t += d * BEAT; } }
+  for (const p of PODS) {
+    const t0 = 9 + p.t0, th = 9 + p.hit;
+    const g = G(0, sfx); env(g.gain, [[t0, 0], [t0 + 0.05, 0.08], [th - 0.1, 0.04], [th, 0]]);
+    const bp = F('bandpass', 1500, 1.4, g); bp.frequency.setValueAtTime(900, t0); bp.frequency.exponentialRampToValueAtTime(3200, th);
+    noise(WN, t0, th, bp);
+    boom(sfx, th, 0.45);
+  }
+  choir(choirBus, 11.9, 13.9, [53, 57, 62, 65], 0.16, 'a', 0.3, 0.1);
+  // tensión antes del puñetazo
+  riser(sfx, 13.0, 13.9, 0.26); timpRoll(drums, 13.0, 13.88, 38, 0.1, 0.5);
+  for (let k = 0; k < 8; k++) snare(drums, 13.4 + k * 0.06, 0.1 + k * 0.03);
+
+  /* ================= 14: ¡PUÑETAZO! (cámara lenta) ================= */
+  HIT(14.0, 1.4); boom(sfx, 14.0, 1.2); gore(sfx, 14.02, 0.9); gore(sfx, 14.15, 0.6);
+  { const g = G(0, sfx); env(g.gain, [[14.0, 0], [14.01, 0.5], [14.4, 0]]); noise(WN, 14.0, 14.4, F('bandpass', 900, 0.5, g)); }
+  choir(choirBus, 14.1, 15.0, [38, 45, 50, 53], 0.2, 'u', 0.3, 0.4);
+  heartbeat(drums, 14.35, 0.6); heartbeat(drums, 14.8, 0.5);
+  { const d = G(0, mus); env(d.gain, [[14.1, 0], [14.4, 0.12], [15, 0.12], [15.1, 0]]);
+    const lp = F('lowpass', 120, 1.5, d); osc('sawtooth', mtof(26), 14.1, 15.1, lp); osc('sawtooth', mtof(33), 14.1, 15.1, lp); }
+  reverseSwell(sfx, 14.5, 15.0, 0.2);
+  thud(drums, 15.0, 1.1); crash(drums, 15.0, 0.25); boom(sfx, 15.0, 0.5);
+  ostinato(mus, 15.0, 20.0, t => ROOT[chordAt(t)], 0.065);
+  pulseBass(mus, 15.0, 27.0, t => ROOT[chordAt(t)], 0.085);
+  groove(15.0, 16.0, 0.8, false);
+
+  /* ================= 16–20: láseres de los ojos ================= */
+  groove(16.0, 20.0, 1);
+  laser(sfx, 16.55, 19.6, 0.22, 110); laser(sfx, 16.55, 19.6, 0.12, 165);
+  brass(mus, 16.55, 0.8, 45, 0.16); brass(mus, 16.55, 0.8, 52, 0.12);
+  for (const e of LASER_EXP) boom(sfx, 16 + e[1], 0.3);
+  // el corte
+  HIT(17.4, 1.0); screech(sfx, 17.4, 0.9, 0.18); gore(sfx, 17.42, 0.5);
+  { const g = G(0, sfx); env(g.gain, [[17.45, 0], [17.5, 0.15], [19.5, 0]]); noise(WN, 17.45, 19.5, F('highpass', 3000, 0.5, g)); } // chorro de refrigerante
+  choir(choirBus, 17.4, 19.9, [45, 52, 57, 61, 64], 0.18, 'a', 0.05, 0.3);
+  for (const t0 of [18.0, 19.0]) { let t = t0; for (const [m, d] of RIFF) { brass(mus, t, d * BEAT * 0.85, m - 5, 0.11); t += d * BEAT; } }
+
+  /* ================= 20–25: la escuadra ================= */
+  for (let i = 0; i < 4; i++) whoosh(sfx, 20.0 + i * 0.3, 1.2, 0.18, 3500, 400);
+  thruster(sfx, 20.2, 25.0, 0.2, -0.3);
+  ostinato(mus, 20.0, 26.9, t => ROOT[chordAt(t)], 0.07);
+  groove(20.0, 24.0, 1);
+  for (let t = 21.6; t < 24.9; t += 0.125) if (R() < 0.55) pew(sfx, t, 0.05, 1800 + R() * 1400);
+  for (const e of SQUAD_EXP) boom(sfx, 20 + e[1], e[2] > 8 ? 1.0 : 0.3);
+  // derriban a uno
+  laser(sfx, 22.9, 23.25, 0.25, 130); HIT(23.2, 0.9); screech(sfx, 23.2, 0.5, 0.12);
+  for (const [t0, t1, c] of HARM.filter(h => h[0] >= 20 && h[0] < 25)) choir(choirBus, t0, t1 - 0.05, CH[c].slice(1, 5), 0.15, 'a', 0.2, 0.3);
+  playDies(22.0, 0.12);
+  riser(sfx, 24.2, 24.98, 0.2);
+
+  /* ================= 25–30: el cañón de la boca ================= */
+  thud(drums, 25.0, 1.0); crash(drums, 25.0, 0.2);
+  { const g = G(0, sfx); env(g.gain, [[25.1, 0], [26.8, 0.2], [26.9, 0]]);
+    const o = osc('sawtooth', 120, 25.1, 26.95, F('lowpass', 1600, 6, g)); o.frequency.setValueAtTime(120, 25.1); o.frequency.exponentialRampToValueAtTime(1900, 26.85);
+    const cr = crackleBuf(2, 90, 2727); const sb = ctx.createBufferSource(); sb.buffer = cr; sb.connect(F('bandpass', 3000, 0.8, G(1.1, g))); sb.start(25.1); }
+  choir(choirBus, 25.0, 26.85, [50, 57, 62, 65, 69, 74], 0.16, 'a', 1.6, 0.05);
+  timpRoll(drums, 25.6, 26.85, 38, 0.08, 0.5);
+  for (let t = 25.0; t < 26.5; t += BEAT) thud(drums, t, 0.5 + (t - 25) * 0.3);
+  for (let k = 0; k < 12; k++) snare(drums, 26.25 + k * 0.05, 0.08 + k * 0.025);
+  riser(sfx, 26.0, 26.85, 0.25);
+  // ¡FUEGO!
+  HIT(27.0, 1.5); braam(mus, 27.0, 4, 0.45, 21); bell(mus, 27.0, 38, 0.3, 8);
+  { const g = G(0, sfx); env(g.gain, [[27.0, 0], [27.03, 0.45], [28.3, 0.35], [28.6, 0]]);
+    noise(BN, 27.0, 28.7, F('lowpass', 900, 0.7, g)); noise(WN, 27.0, 28.7, F('bandpass', 2400, 0.7, G(0.4, g))); osc('sawtooth', 55, 27.0, 28.7, F('lowpass', 400, 2, shaper(3, G(0.6, g)))); }
+  for (const t of [27.02, 27.25, 27.5, 27.9, 28.4]) gore(sfx, t, 0.7);
+  boom(sfx, 27.05, 1.0);
+  ostinato(mus, 27.0, 29.9, t => ROOT[chordAt(t)], 0.08);
+  pulseBass(mus, 27.0, 29.9, t => ROOT[chordAt(t)], 0.09);
+  groove(27.0, 30.0, 1.1);
+  playDies(27.5, 0.15);
+  for (const [t0, t1, c] of HARM.filter(h => h[0] >= 27 && h[0] < 30)) { organ(mus, t0, t1 - 0.03, CH[c], 0.09, true); choir(choirBus, t0, t1 - 0.03, CH[c].slice(0, 5), 0.2, 'a', 0.1, 0.35); }
+
+  /* ================= 30–36: epílogo ================= */
+  thud(drums, 30.0, 0.9); bell(mus, 30.0, 38, 0.3, 8); bell(mus, 30.0, 45, 0.18, 7);
+  { const d = G(0, mus); env(d.gain, [[30, 0], [30.5, 0.09], [35, 0.09], [35.9, 0]]);
+    const lp = F('lowpass', 150, 1.5, d); for (const [m, det] of [[26, -6], [26, 7], [33, 0]]) { const o = osc('sawtooth', mtof(m), 30, 36, lp); o.detune.value = det; } }
+  { const g = G(0, sfx); env(g.gain, [[30, 0], [30.4, 0.08], [35, 0.08], [35.8, 0]]); const sb = ctx.createBufferSource(); sb.buffer = crackleBuf(6, 25, 31337); sb.connect(F('bandpass', 2600, 0.5, g)); sb.start(30); }
+  musicBox(G(1, mus), LULLABY, 30.6, 0.3, 0.07);
+  for (const t of [32.2, 32.6, 33.0]) { glide('sine', 50, 26, t, 1.2, 0.5, sfx, 0.004); burst(BN, t, 'lowpass', 300, 0.7, 0.8, 0.3, sfx, 0.004); }
+  choir(choirBus, 32.2, 33.95, [50, 57, 62, 63], 0.16, 'u', 0.6, 0.05);
+  reverseSwell(sfx, 33.2, 34.02, 0.2);
+  HIT(34.05, 1.2); bell(mus, 34.05, 38, 0.3, 8);
 
   const buf = await ctx.startRendering();
   let peak = 0;
   for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i])); }
-  const k = peak > 0 ? 0.89 / peak : 1, fade = Math.floor(0.3 * SR);
+  const k = peak > 0 ? 0.89 / peak : 1, fade = Math.floor(0.6 * SR);
   for (let c = 0; c < buf.numberOfChannels; c++) {
     const d = buf.getChannelData(c);
     for (let i = 0; i < d.length; i++) d[i] *= k;
     for (let i = 0; i < fade; i++) d[d.length - 1 - i] *= i / fade;
   }
   return buf;
+
+  function playDies(t0, lvl) {
+    const DIES = [[53, 0.5], [52, 0.5], [53, 0.5], [50, 0.5], [52, 0.5], [48, 0.5], [50, 1]];
+    let t = t0;
+    for (const [m, d] of DIES) { brass(mus, t, d * BEAT * 0.9, m + 12, lvl); choir(choirBus, t, t + d * BEAT * 0.9, [m + 24], lvl * 1.3, 'a', 0.03, 0.2); t += d * BEAT; }
+  }
 }
 
 function toWav(buf) {
