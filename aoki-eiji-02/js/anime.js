@@ -137,7 +137,7 @@ function thrusters(m, len) {
   if (len <= 0) return [];
   return [[0.5, -2.8, -1.25], [-0.5, -2.8, -1.25]].map(n => {
     const p = mW(m, n), d = mDir(m, [0.04 * Math.sign(n[0]), -0.5, -0.86]);
-    return [p, add(p, mul(d, len * m.scale * (0.85 + 0.3 * hash(Math.floor(performanceFrame / 1) + n[0])))), 0.3 * m.scale, 10 + Math.min(2.5, 0.6 + len * 0.35)];
+    return [p, add(p, mul(d, Math.min(len, 2.2) * 0.8 * m.scale * (0.8 + 0.4 * hash(performanceFrame + n[0])))), 0.11 * m.scale, 10 + Math.min(2.2, 0.8 + len * 0.3)];
   });
 }
 let performanceFrame = 0;
@@ -200,9 +200,9 @@ function splats(list, t, cam, asp) {
 const GIANT = { bPos: [0, 19.1, -40], bScale: 3.4 };
 const MOON2 = norm([0.35, 0.42, -1]);
 const NIGHT = {
-  keyDir: MOON2, keyCol: [0.85, 0.18, 0.12], shadowCol: [0.035, 0.05, 0.12], rimDir: MOON2, rimCol: [1, 0.32, 0.2], rimW: 0.45,
+  keyDir: MOON2, keyCol: [0.9, 0.2, 0.13], shadowCol: [0.04, 0.055, 0.13], rimDir: MOON2, rimCol: [1, 0.35, 0.22], rimW: 0.4,
   fogCol: [0.07, 0.01, 0.016], haze: [0.05, 0.008, 0.014], zenith: [0.002, 0.002, 0.006], fogK: 0.006, moonDir: MOON2, moonR: 0.075,
-  fillDir: [-0.5, 0.5, 0.7], fillCol: [0.1, 0.13, 0.28],
+  fillDir: [-0.5, 0.5, 0.7], fillCol: [0.15, 0.19, 0.4],
 };
 const giantAt = (t, cam, extra = {}) => baseRig(Object.assign({}, GIANT, { head: [0, 0.1, 0], face: [0.075, -0.12, 0.35, 0.1], eyeGlow: 1.4, gaze: cam.pos }, extra));
 const giantEyes = r => eyesWorld(r);
@@ -229,19 +229,19 @@ const SHOTS = [
   /* 0 · la cara del gigante entre el humo */
   {
     name: 'open', dur: 2.0, prog: 'OPEN', twos: false,
-    cam: t => ({ pos: lerp3([0.45, -0.38, 3.6], [0.3, -0.32, 3.0], ease(t / 2)), tar: [0, -0.28, 0], fl: 1.9, roll: -0.04 }),
+    cam: t => ({ pos: lerp3([0.5, -0.1, 3.9], [0.32, -0.12, 3.1], ease(t / 2)), tar: [0, -0.3, 0], fl: 1.8, roll: -0.04 }),
     rig: (t, cam) => baseRig({ head: [0.1 - 0.1 * t, -0.04, 0.05], face: [kf(t, [[0, 0.06], [1.5, 0.03]]), -0.1, kf(t, [[0, 0.3], [1.6, 1]], ease), 0.07], eyeGlow: kf(t, [[0, 1.2], [1.6, 1.6], [1.85, 4]]), gaze: cam.pos }),
-    light: t => ({ keyDir: norm([0.2, -1, 0.3]), keyCol: [0.9, 0.25, 0.08], shadowCol: [0.012, 0.016, 0.04], rimDir: norm([0.3, 0.5, -1]), rimCol: [1, 0.4, 0.15], rimW: 0.55,
-      fogCol: [0.08, 0.02, 0.01], zenith: [0.01, 0.003, 0.003], fillCol: [0.03, 0.045, 0.11], eyeLight: 0.35, moonDir: norm([0.4, 0.5, -1]), moonR: 0.001 }),
-    comp: (t, cam, rig, asp) => ({ embers: 1, ash: 0.6, flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.6, kf(t, [[0, 0.6], [1.7, 1], [1.9, 3.5]])]) }),
+    light: t => ({ keyDir: norm([0.35, -1, 0.08]), keyCol: [0.85, 0.22, 0.07], shadowCol: [0.014, 0.018, 0.045], rimDir: norm([0.3, 0.5, -1]), rimCol: [1, 0.42, 0.16], rimW: 0.5,
+      fogCol: [0.08, 0.02, 0.01], zenith: [0.01, 0.003, 0.003], fillCol: [0.04, 0.06, 0.14], eyeLight: 0.4, moonDir: norm([0.4, 0.5, -1]), moonR: 0.001 }),
+    comp: (t, cam, rig, asp) => ({ embers: 0.6, ash: 0.15, flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.6, kf(t, [[0, 0.6], [1.7, 1], [1.9, 3.5]])]) }),
     post: t => ({ flash: kf(t, [[1.8, 0], [1.95, 0.8]]), flashCol: [1, 0.3, 0.2], grade: [1.05, 1.1, 1.12, 0.03] }),
   },
   /* 1 · el silo */
   {
     name: 'shaft', dur: 3.0, prog: 'SHAFT', twos: false,
-    cam: t => { const Y = 10 + 70 * t; return { pos: [5.2 * Math.cos(0.9 + t * 0.25), Y + 0.6 - 0.8 * ss(2.4, 3, t), 5.2 * Math.sin(0.9 + t * 0.25)], tar: [0, Y + 0.25 + 1.2 * ss(2.4, 3, t), 0], fl: 1.25, roll: 0.05 * Math.sin(t * 2) }; },
+    cam: t => { const Y = 10 + 70 * t, a = 0.9 + t * 0.25, k = ss(1.5, 2.2, t); return { pos: [5.3 * Math.cos(a), Y - 1.2 + 1.0 * k, 5.3 * Math.sin(a)], tar: [0, Y - lerp(2.4, 0.2, k), 0], fl: lerp(0.95, 1.5, k), roll: 0.05 * Math.sin(t * 2) }; },
     rig: t => baseRig({}),
-    mech: t => mecha({ pos: [0, 10 + 70 * t, 0], yaw: 0.9 + Math.PI / 2 - 0.25 * ss(2.0, 2.6, t), scale: 1.6, head: [0.4 * ss(1.9, 2.3, t) - 0.2, -0.15 * ss(2.4, 3, t), 0], visor: t < 1.6 ? 0 : kf(t, [[1.6, 2.5], [2.0, 1]]), thrust: 2.5 }),
+    mech: t => mecha({ pos: [0, 10 + 70 * t, 0], yaw: Math.PI / 2 - (0.9 + t * 0.25) - 0.45 + 0.35 * ss(1.8, 2.4, t), scale: 1.6, head: [0.4 * ss(1.9, 2.3, t) - 0.2, -0.15 * ss(2.4, 3, t), 0], visor: t < 1.6 ? 0 : kf(t, [[1.6, 2.5], [2.0, 1]]), thrust: 2.5 }),
     light: t => ({ keyDir: [0, 1, 0], keyCol: [0.3, 0.3, 0.35], shadowCol: [0.03, 0.035, 0.05], rimDir: [0, 1, 0], rimCol: [1, 0.6, 0.3], rimW: 0.5,
       fillDir: [0.3, -1, 0.3], fillCol: [0.35, 0.18, 0.06], fogCol: [0, 0, 0], zenith: [0, 0, 0], fogK: 0.002, moonR: 0.001 }),
     comp: (t, cam, rig, asp, m) => ({ flares: [[0, 0.35, 1.2, -kf(t, [[2.4, 0], [3, 3]])]].concat(t > 1.6 ? [[...(() => { const p = project(cam, mW(m, [0, -0.02, 0.9]), asp); return p ? [p.x, p.y] : [9, 9]; })(), 0.9, -kf(t, [[1.6, 3], [2.1, 0.6]])]] : []) }),
@@ -251,9 +251,9 @@ const SHOTS = [
   /* 2 · revienta el asfalto */
   {
     name: 'burst', dur: 2.0, prog: 'BURST', twos: false,
-    cam: (t, m) => { const tar = t < 0.15 ? [0, 2, 0] : lerp3([0, 3, 0], m.pos, ease((t - 0.1) / 0.5)); return { pos: [7, 1.4, 16], tar, fl: 1.25, roll: 0.06 }; },
+    cam: (t, m) => { const tar = lerp3([0, 3, 0], add(m.pos, [0, -5, 0]), ease(t / 0.45)); return { pos: lerp3([8, 1.2, 19], [10, 1.0, 22], t / 2), tar, fl: 1.2, roll: 0.06 }; },
     rig: t => baseRig({}),
-    mech: t => mecha({ pos: [0, lerp(-10, 58, easeIn((t - 0.05) / 1.5) * 0.8 + ss(0.05, 1.55, t) * 0.2), -1], yaw: 0.35, pitch: -0.12, visor: 1.2, thrust: 3, ...P_SUPER() }),
+    mech: t => mecha({ pos: [0, lerp(-9, 52, easeOut(t / 1.9)), -1], yaw: 0.35, pitch: -0.12, roll: 0.1 * Math.sin(t * 3), visor: 1.2, thrust: 3, ...P_SUPER() }),
     light: () => NIGHT,
     scene: t => ({ uFx: [0, 18 * easeOut(t / 1.4), kf(t, [[0, 0], [0.05, 1.4], [2, 0.3]]), 0], uDome: [0, 0, 0, 0], uCrack: [0, 0, 7 * easeOut(t / 0.4), 1] }),
     comp: (t, cam, rig, asp, m) => {
@@ -267,7 +267,7 @@ const SHOTS = [
   /* 3 · aterrizaje de superhéroe */
   {
     name: 'land', dur: 2.0, prog: 'LAND', twos: false,
-    cam: t => ({ pos: kf(t, [[0, [9, 1.4, 17]], [1.0, [9, 1.4, 17]], [2, [7.4, 1.8, 13.5]]], ease), tar: kf(t, [[0, [0, 12, 0]], [1.0, [0, 6, 0]], [2, [0, 7, 0]]], easeOut), fl: 1.4, roll: -0.05 }),
+    cam: (t, m) => ({ pos: kf(t, [[0, [12, 2, 22]], [1.0, [10, 1.4, 18]], [2, [7.6, 1.8, 14]]], ease), tar: t < 1.0 ? add(m.pos, [0, -6, 0]) : lerp3(add(m.pos, [0, -6, 0]), [0, 6.5, 0], ss(1.0, 1.4, t)), fl: 1.4, roll: -0.05 }),
     rig: t => baseRig({}),
     mech: t => {
       if (t < 1.0) { const k = easeIn(t / 1.0); return mecha({ pos: [0, lerp(48, (MFOOT - 1.6) * MS, k), 0], yaw: 0.5, pitch: 0.1, visor: 0.4, thrust: 1.2, ...P_FALL() }); }
@@ -290,10 +290,11 @@ const SHOTS = [
   {
     name: 'rush', dur: 4.0, prog: 'RUSH', twos: false,
     cam: (t, m) => {
-      const side = add(m.pos, [16, -5.5, 4]);
-      const front = add(m.pos, [4, -2, -16]);
+      const back = add(m.pos, [15, -2, 24]);
+      const front = add(m.pos, [6, -3, -20]);
       const k = ss(2.9, 3.15, t);
-      return { pos: lerp3(side, front, k), tar: lerp3(add(m.pos, [0, -1, -4]), add(m.pos, [0, -1, 0]), k), fl: lerp(1.35, 1.1, k), roll: lerp(-0.1, 0.12, k) };
+      const tb = lerp3(add(m.pos, [0, -3, 0]), [0, 15, -40], 0.4);
+      return { pos: lerp3(back, front, k), tar: lerp3(tb, add(m.pos, [0, -2, 0]), k), fl: lerp(1.2, 1.05, k), roll: lerp(-0.08, 0.12, k) };
     },
     rig: (t, cam) => giantAt(t, cam),
     mech: t => RUSH_M(t),
@@ -302,7 +303,7 @@ const SHOTS = [
     comp: (t, cam, rig, asp) => ({ exp: explosions(PODS.map(p => [p.T, p.hit, 3.5]), t, cam, asp), flares: eyesWorld(rig).map(e => project(cam, e, asp)).filter(Boolean).map(p => [p.x, p.y, 0.4, 1.2]) }),
     beams: (t, m) => thrusters(m, 5),
     fx: (ctx, t, cam, rig, E) => E.trails(ctx, t, cam, PODS),
-    post: t => ({ motion: [t < 2.9 ? 0.045 : 0, 0], speed: t > 3.1 ? 0.8 : 0.35, speedDark: 0, speedPos: [0.5, 0.5], shake: shake(t, 0.004), zoom: t > 2.9 ? 1 + 0.08 * Math.exp(-(t - 3) * 4) : 1 }),
+    post: t => ({ motion: [t < 2.9 ? 0.03 : 0.05, 0], motionNear: 34, speed: t > 3.1 ? 0.8 : 0.3, speedDark: 0, speedPos: [0.5, 0.5], shake: shake(t, 0.004), zoom: t > 2.9 ? 1 + 0.08 * Math.exp(-(t - 3) * 4) : 1 }),
   },
   /* 5 · ¡PUÑETAZO! */
   {
@@ -404,15 +405,15 @@ const SHOTS = [
   {
     name: 'cannon', dur: 5.0, prog: 'CANNON', twos: false,
     cam: (t, m) => {
-      if (t < 1.0) { const h = mW(m, [0, -0.3, 0]); return { pos: add(h, [3.2, -0.6, -5.8]), tar: h, fl: 1.5, roll: 0.05 }; }
-      if (t < 2.0) return { pos: [30, 3, 18], tar: [6, 14, -18], fl: 1.25, roll: -0.03 };
-      return { pos: lerp3([26, 6, 22], [30, 8, 26], ease((t - 2) / 3)), tar: [4, 14, -22], fl: 1.2, roll: 0.02 };
+      if (t < 1.0) { const h = mW(m, [0, -0.3, 0]), f = mDir(m, [0, 0, 1]), r = mDir(m, [1, 0, 0]); return { pos: add(add(h, mul(f, lerp(9, 7.5, t))), add(mul(r, 1.6), [0, -1.2, 0])), tar: add(h, [0, -0.4, 0]), fl: 1.6, roll: 0.05 }; }
+      if (t < 2.0) { const h = mW(m, [0, -1, 0]); return { pos: add(h, [-14, -9, 12]), tar: lerp3(h, [0, 17, -40], 0.55), fl: 1.3, roll: -0.05 }; }
+      return { pos: lerp3([46, 10, -12], [50, 12, -8], ease((t - 2) / 3)), tar: [5, 14, -18], fl: 1.1, roll: 0.02 };
     },
     rig: (t, cam) => {
       const a = t - 2.0;
       return giantAt(t, cam, { head: [0.2, -0.25 * ss(0, 0.5, a) + 0.1, 0.2 * ss(0, 1, a)], face: [0.1, -0.14, a > 0 ? 0 : 0.4, 0.05], eyeGlow: a > 0 ? 3 : 1.8 });
     },
-    mech: t => mecha({ pos: [12, MFOOT * MS, 2], yaw: Math.PI + 0.45, pitch: 0.08, head: [0, -0.12, 0], jaw: ss(0.1, 0.7, t), visor: 1.3 + ss(1.5, 2, t), cut: 1, ...P_BRACE() }),
+    mech: t => mecha({ pos: [12, MFOOT * MS, 2], yaw: Math.PI + 0.3, pitch: 0.08, head: [0, -0.12, 0], jaw: ss(0.1, 0.7, t), visor: 1.3 + ss(1.5, 2, t), cut: 1, ...P_BRACE() }),
     light: () => NIGHT,
     scene: (t, cam, rig) => {
       const a = t - 2.0;
@@ -643,7 +644,7 @@ class Anime {
     const post = Object.assign({
       zoom: 1, shake: [0, 0], impact: 0, speed: 0, speedDark: 0, speedPos: [0.5, 0.5], flash: 0, flashCol: [1, 1, 1], fade: 1,
       raysAmt: 0, raysPos: [0.5, 0.5], raysLen: 0.85, bloom: 0.6, ca: 0.0015, grade: [1.0, 1.05, 1.12, 0.02], lineCol: [0.02, 0.012, 0.03],
-      lineW: 1, lineFog: 0.003, normTh: 0.12, motion: [0, 0],
+      lineW: 1, lineFog: 0.003, normTh: 0.12, motion: [0, 0], motionNear: 30,
     });
     if (shot.prog) {
       hasScene = 1;
@@ -716,8 +717,8 @@ class Anime {
     this.pass(P.FINAL, null, {
       uRes: [this.W, this.H], uFrame: frame, uG: t, uShake: post.shake, uZoom: post.zoom, uImpact: post.impact, uSpeed: post.speed,
       uSpeedDark: post.speedDark, uSpeedPos: post.speedPos, uFlash: post.flash, uFlashCol: post.flashCol, uFade: post.fade,
-      uRaysAmt: post.raysAmt, uBloom: post.bloom, uCA: post.ca, uHasScene: hasScene, uLineCol: post.lineCol, uGrade: post.grade, uMotion: post.motion,
-    }, { uComp: fb.comp.tex, uLine: fb.lines.tex, uB1: fb.b1a.tex, uB2: fb.b2a.tex, uB3: fb.b3a.tex, uRays: fb.rays.tex, uOverlay: this.ovTex });
+      uRaysAmt: post.raysAmt, uBloom: post.bloom, uCA: post.ca, uHasScene: hasScene, uLineCol: post.lineCol, uGrade: post.grade, uMotion: post.motion, uMotionNear: post.motionNear,
+    }, { uComp: fb.comp.tex, uLine: fb.lines.tex, uB1: fb.b1a.tex, uB2: fb.b2a.tex, uB3: fb.b3a.tex, uRays: fb.rays.tex, uOverlay: this.ovTex, uND: fb.mrt.nd });
   }
   readPixels() {
     const gl = this.gl, px = new Uint8Array(this.W * this.H * 4);

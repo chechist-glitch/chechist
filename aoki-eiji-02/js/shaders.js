@@ -388,7 +388,17 @@ vec2 mapSquad(vec3 p){
     if (bd > uSquadScale) { res = opU(res, vec2(bd, 10.)); continue; }
     float c = cos(s.w), sn = sin(s.w);
     vec3 q = vec3(c*d.x - sn*d.z, d.y, sn*d.x + c*d.z)/uSquadScale;
-    vec2 r = mechaLocal(q); r.x *= uSquadScale;
+    vec2 r;
+    if (length(s.xyz - uCamPos) > 45.) {
+      vec3 qa = vec3(abs(q.x), q.y, q.z);
+      float d = length(q - vec3(0.,.1,0.)) - 1.;
+      d = min(d, sdRBox(q - vec3(0.,-2.2,0.), vec3(.95,1.,.65), .25));
+      d = min(d, sdRBox(qa - vec3(1.22,-1.36,-.08), vec3(.42,.34,.52), .16));
+      d = min(d, sdCap(qa, vec3(1.2,-1.4,0.), vec3(2.3,-2.3,.3), .3, .26));
+      d = min(d, sdCap(qa, vec3(.45,-3.1,0.), vec3(.6,-5.4,-.2), .36, .28));
+      r = vec2(d, 10.);
+    } else r = mechaLocal(q);
+    r.x *= uSquadScale;
     res = opU(res, r);
   }
   return res;
@@ -1198,18 +1208,24 @@ void splat(vec2 p, vec4 sp, float seed, inout vec3 col, inout float cov){
   vec3 c0 = sp.z > 0. ? vec3(.2,0.,.02) : vec3(.35,1.,.85);
   vec3 c1 = sp.z > 0. ? vec3(.55,.02,.05) : vec3(.85,1.,.95);
   float ang = atan(d.y, d.x), r = length(d);
-  float spikes = pow(abs(sin(ang*3.5 + seed)), 6.)*(.5 + fb(vec2(ang*2., seed)));
-  float R = (1. - pow(1. - clamp(age*5., 0., 1.), 3.))*(.35 + .9*spikes + .15*fb(d*3. + seed));
+  float dir = seed*2.1 + 1.2;
+  float lobe = pow(max(cos(ang - dir), 0.), 3.);
+  float nz = fb(vec2(cos(ang), sin(ang))*1.7 + seed + age*.6);
+  float grow = 1. - pow(1. - clamp(age*4.5, 0., 1.), 3.);
+  float R = grow*(.28 + .5*nz + 1.4*lobe*(.4 + nz));
+  R += .08*fb(d*6. + seed);
   float fade = 1. - smoothstep(.55, 1., age);
   float blob = (1. - smoothstep(R - .03, R + .03, r))*fade;
-  // gotas que salen disparadas y caen
   float drops = 0.;
-  for (int i=0;i<14;i++){
+  for (int i=0;i<16;i++){
     float fi = float(i);
-    float a = h11(fi*3.1 + seed)*6.2832, v = .8 + 1.6*h11(fi*5.7 + seed);
-    vec2 dp = vec2(cos(a), sin(a) + .6)*v*age*1.8 - vec2(0., 2.2*age*age);
-    float rr = .07 + .06*h11(fi + seed);
-    drops = max(drops, 1. - smoothstep(rr - .02, rr, length(d - dp)));
+    float a = dir + (h11(fi*3.1 + seed) - .5)*1.6, v = 1. + 2.2*h11(fi*5.7 + seed);
+    vec2 dp = vec2(cos(a), sin(a))*v*age*1.6 - vec2(0., 2.6*age*age);
+    vec2 dd = d - dp; float rr = (.05 + .07*h11(fi + seed))*(1. - .4*age);
+    float st = 1. + 2.5*age*h11(fi*2.3 + seed);
+    vec2 vv = normalize(vec2(cos(a), sin(a) - 3.*age) + 1e-4);
+    float along = dot(dd, vv), perp = dot(dd, vec2(-vv.y, vv.x));
+    drops = max(drops, 1. - smoothstep(rr - .02, rr, length(vec2(along/st, perp))));
   }
   drops *= 1. - smoothstep(.7, 1., age);
   float m = max(blob, drops);
@@ -1384,7 +1400,8 @@ void main(){
 // Composición final: contornos nítidos, resplandor, gradación, líneas de velocidad, impact frames
 const FINAL = `#version 300 es
 precision highp float;
-uniform sampler2D uComp, uLine, uB1, uB2, uB3, uRays, uOverlay;
+uniform sampler2D uComp, uLine, uB1, uB2, uB3, uRays, uOverlay, uND;
+uniform float uMotionNear;
 uniform vec2 uRes; uniform float uFrame, uG;
 uniform vec2 uShake; uniform float uZoom;
 uniform float uImpact, uSpeed, uSpeedDark; uniform vec2 uSpeedPos;
@@ -1407,9 +1424,13 @@ void main(){
     col.g = texture(uComp, cuv).g;
     col.b = texture(uComp, cuv - dca).b;
     if (dot(uMotion, uMotion) > 1e-7) {
-      vec3 acc = col; float wsum = 1.;
-      for (int i=1;i<12;i++){ float k = float(i)/11. - .5; acc += texture(uComp, cuv + uMotion*k).rgb; wsum += 1.; }
-      col = acc/wsum;
+      float dp = texture(uND, cuv).w;
+      float mb = smoothstep(uMotionNear, uMotionNear*1.7, dp);
+      if (mb > 0.) {
+        vec3 acc = vec3(0.); float wsum = 0.;
+        for (int i=0;i<12;i++){ float k = float(i)/11. - .5; vec2 su = cuv + uMotion*k; float w = smoothstep(uMotionNear*.8, uMotionNear*1.3, texture(uND, su).w) + .05; acc += texture(uComp, su).rgb*w; wsum += w; }
+        col = mix(col, acc/wsum, mb);
+      }
     }
     float cov = texture(uComp, cuv).a;
     float ln = ss(.28, .62, texture(uLine, cuv).r)*(1. - cov);
