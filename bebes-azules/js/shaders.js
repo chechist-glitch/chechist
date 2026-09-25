@@ -826,7 +826,7 @@ void setup(){
   float after = max(t - T0, 0.);
   eC = vec3(.1,-3.45,1.35); eR = 2.1;
   eRot = rotX(.45)*rotY(1.9);
-  eSun = normalize(vec3(-1.,.45,-.25));
+  eSun = normalize(vec3(-.65,.3,-.75));
   vec3 n0 = normalize(vec3(-.36,.82,.45));
   vec3 contact = eC + n0*eR;
   vec3 fd = normalize(vec3(.17,-.88,.44));
@@ -1139,7 +1139,7 @@ void main(){
   }
   // grano (más fuerte en los medios tonos)
   float l2 = dot(col, vec3(.299,.587,.114));
-  vec2 gp = px/1.35 + vec2(h11(fr)*513., h11(fr+.5)*217.);
+  vec2 gp = px*(1080./uRes.y)/1.7 + vec2(h11(fr)*513., h11(fr+.5)*217.);
   float g = n2(gp) + n2(gp*1.9 + 7.) - 1.;
   vec3 gc = vec3(g, n2(gp + 31.) + n2(gp*1.9 + 41.) - 1., n2(gp + 71.) + n2(gp*1.9 + 91.) - 1.);
   gc = mix(vec3(g), gc, .35);
