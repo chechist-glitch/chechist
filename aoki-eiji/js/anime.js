@@ -318,7 +318,7 @@ const SHOTS = [
       const R = 9 * easeOut(a / 2.3), ring = 14 * easeOut(a / 1.8);
       return {
         uDome: [0, 0, 0, R],
-        uFx: [kf(a, [[0, 0], [0.05, 1.6], [0.8, 1.1], [2.5, 0.8]]), ring, kf(a, [[0, 0], [0.1, 1.2], [2.5, 0.6]]), kf(a, [[0.03, 0], [0.15, 1.8], [1.2, 0.9], [2.5, 0.3]])],
+        uFx: [kf(a, [[0, 0], [0.05, 1.6], [0.8, 1.0], [2.5, 0.55]]), ring, kf(a, [[0, 0], [0.1, 1.2], [2.5, 0.6]]), kf(a, [[0.03, 0], [0.15, 1.8], [1.2, 0.9], [2.5, 0.3]])],
         uDestroy: [0, 0, ring * 0.92, 1],
         uXL: { t: 'v4a', v: [0, 1.5, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
       };
@@ -749,8 +749,10 @@ const F = {
 };
 const typed = (s, t0, t, cps) => s.slice(0, Math.max(0, Math.min(s.length, Math.floor((t - t0) * cps))));
 
-function drawOverlay(ctx, t, shot, lt, W, H, frame, cam, rig) {
+function drawOverlay(ctx, t, shot, lt, W0, H0, frame, cam, rig) {
   ctx.save();
+  ctx.scale(W0 / 1920, H0 / 1080);
+  const W = 1920, H = 1080;
   if (shot.name === 'intro') drawIntro(ctx, lt, W, H, frame);
   if (shot.name === 'title') drawTitle(ctx, lt, W, H, frame);
   if (shot.overlay) shot.overlay(ctx, lt, cam, rig, HUD(W, H, frame));

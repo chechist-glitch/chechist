@@ -1174,7 +1174,7 @@ void main(){
     else col = mix(vec3(.02), vec3(1.,.06,.04), step(.25, l));
   }
   // grano digital muy fino
-  col += (h21(uv*uRes + uFrame*.37) - .5)*.035;
+  col += (h21(uv*uRes + uFrame*.37) - .5)*.018;
   vec4 ov = texture(uOverlay, uv);
   col = mix(col, ov.rgb, ov.a);
   col = mix(col, uFlashCol, uFlash);
