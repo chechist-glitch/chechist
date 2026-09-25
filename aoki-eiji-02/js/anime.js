@@ -425,7 +425,7 @@ const SHOTS = [
       };
     },
     comp: (t, cam, rig, asp, m) => {
-      const mouth = project(cam, mW(m, [0, -0.33, 0.8]), asp);
+      const mouth = project(cam, mW(m, [0, -0.6, 1.0]), asp);
       const chest = project(cam, toWorld(rig, [0, -2.0, 0.9]), asp);
       const out = { flares: [] };
       if (mouth && t < 2.0) { out.charge = [mouth.x, mouth.y, 0.6, ss(0.3, 0.8, t)]; out.flares.push([mouth.x, mouth.y, 0.8, -ss(0.5, 2, t) * 3]); }
@@ -439,7 +439,7 @@ const SHOTS = [
     },
     beams: (t, m, rig) => {
       const out = [];
-      if (t > 2.0 && t < 3.6) out.push([mW(m, [0, -0.33, 0.8]), toWorld(rig, [0, -2.0, 0.5]), 1.3 * (1 - 0.3 * ss(3.2, 3.6, t)), 4]);
+      if (t > 2.0 && t < 3.6) out.push([mW(m, [0, -0.6, 1.0]), toWorld(rig, [0, -2.0, 0.5]), 1.3 * (1 - 0.3 * ss(3.2, 3.6, t)), 4]);
       return out;
     },
     post: t => { const f = Math.floor((t - 2.0) * FPS); return { impact: f >= 0 && f < 5 ? [2, 1, 3, 2, 1][f] : 0, shake: t > 2 ? shake(t, 0.03 * Math.exp(-(t - 2) * 1.2)) : shake(t, 0.004 * ss(0.5, 2, t)),
@@ -480,12 +480,17 @@ function mechaU(m) {
   };
 }
 const TESTS = [{
-  name: 'mtest', prog: 'MECHATEST', dur: 10, twos: false,
-  cam: (t, m) => { const a = t; const c = add(m.pos, [0, -2.6 * MS, 0]); return { pos: add(c, [Math.sin(a) * 30, 2, Math.cos(a) * 30]), tar: c, fl: 1.6, roll: 0 }; },
+  // 0–10 luz neutra, 10–20 luz de escena · segundo 0–6 vuelta completa, 7–10 primer plano de la cabeza
+  name: 'mtest', prog: 'MECHATEST', dur: 20, twos: false,
+  cam: (t, m) => {
+    const a = t % 10;
+    if (a < 7) { const c = add(m.pos, [0, -2.4 * MS, 0]); return { pos: add(c, [Math.sin(a) * 30, 1, Math.cos(a) * 30]), tar: c, fl: 1.6, roll: 0 }; }
+    const h = mW(m, [0, -0.2, 0]), b = (a - 7) * 0.9 - 0.5; return { pos: add(h, [Math.sin(b) * 7, 0.6, Math.cos(b) * 7]), tar: h, fl: 1.5, roll: 0 };
+  },
   rig: () => baseRig({}),
-  mech: t => mecha({ pos: [0, 0, 0], visor: 1, ...(t > 6 ? P_PUNCH(1) : t > 4 ? P_CROUCH() : {}) }),
-  light: () => ({ keyDir: norm([-0.5, 0.7, 0.6]), keyCol: [1, 0.95, 0.9], shadowCol: [0.1, 0.12, 0.2], rimDir: norm([0.4, 0.3, -1]), rimCol: [1, 0.4, 0.2], rimW: 0.5,
-    fillDir: [0.6, 0.2, 0.5], fillCol: [0.15, 0.2, 0.35], fogCol: [0.02, 0.02, 0.03], zenith: [0.01, 0.01, 0.02], moonR: 0.001 }),
+  mech: t => { const a = t % 10; return mecha({ pos: [0, 0, 0], visor: 1, ...(a > 5 && a < 7 ? P_PUNCH(1) : a > 3.5 && a < 5 ? P_CROUCH() : {}) }); },
+  light: t => t < 10 ? ({ keyDir: norm([-0.5, 0.7, 0.6]), keyCol: [1, 0.95, 0.9], shadowCol: [0.1, 0.12, 0.2], rimDir: norm([0.4, 0.3, -1]), rimCol: [1, 0.4, 0.2], rimW: 0.5,
+    fillDir: [0.6, 0.2, 0.5], fillCol: [0.15, 0.2, 0.35], fogCol: [0.02, 0.02, 0.03], zenith: [0.01, 0.01, 0.02], moonR: 0.001 }) : Object.assign({}, NIGHT, { moonR: 0.001, fogCol: [0.02, 0.005, 0.008] }),
 }];
 let _acc = 0;
 for (const s of SHOTS) { s.start = _acc; _acc += s.dur; }

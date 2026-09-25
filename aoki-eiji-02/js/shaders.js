@@ -307,65 +307,151 @@ vec2 mapCity(vec3 p){
 float sdRBox(vec3 p, vec3 b, float r){ vec3 q = abs(p) - b + r; return length(max(q,0.)) + min(max(q.x,max(q.y,q.z)),0.) - r; }
 float sdCylX(vec3 p, float r, float h){ vec2 d = abs(vec2(length(p.yz), p.x)) - vec2(r,h); return min(max(d.x,d.y),0.) + length(max(d,0.)); }
 const vec3 M_HP = vec3(0.,-.6,-.1);
+// materiales: 10 blindaje · 11 rojo militar · 12 luz · 13 mecánica oscura · 14 careta · 15 franjas de peligro
 vec2 mechaHead(vec3 p, float jaw){
-  float b = length(p - vec3(0.,.05,.05)) - 1.45;
+  float b = length(p - vec3(0.,.15,.1)) - 1.85;
   if (b > .25) return vec2(b, 10.);
   vec3 q = vec3(abs(p.x), p.y, p.z);
-  float helm = sdEll(p - vec3(0.,.14,-.1), vec3(.95,.96,1.0));
-  helm = smax(helm, -sdRBox(p - vec3(0.,-.02,.8), vec3(.8,.15,.45), .05), .02);
-  vec2 r = vec2(helm, 10.);
-  r = opU(r, vec2(sdEll(p - vec3(0.,-.02,-.06), vec3(.9,.16,.86)), 12.));
-  float jw = sdRBox(p - vec3(0.,-.47 - .26*jaw, .36), vec3(.52,.27,.46), .2);
-  r = opU(r, vec2(jw, 11.));
-  if (jaw > .01) r = opU(r, vec2(length(p - vec3(0.,-.33,.5)) - .2*jaw, 12.));
-  float crest = sdBox(p - vec3(0.,1.0,.2), vec3(.045,.2,.42));
-  crest = max(crest, dot(p - vec3(0.,1.13,.55), normalize(vec3(0.,1.,.8))));
-  r = opU(r, vec2(crest, 11.));
-  r = opU(r, vec2(sdCylX(q - vec3(.93,-.05,-.05), .26, .12), 13.));
-  r = opU(r, vec2(sdCap(q, vec3(.98,.08,-.12), vec3(1.12,.8,-.4), .035, .015), 13.));
+  // cráneo acorazado de bebé
+  float sk = sdEll(p - vec3(0.,.25,-.15), vec3(1.1,1.04,1.08));
+  sk = smax(sk, -sdEll(p - vec3(0.,-.55,.7), vec3(.92,.75,.76)), .05);
+
+  vec2 r = vec2(sk, 10.);
+  // cresta blindada con remaches
+  float ridge = sdRBox(p - vec3(0.,1.02,-.12), vec3(.2,.3,1.), .07);
+  ridge = max(ridge, sdEll(p - vec3(0.,.25,-.15), vec3(1.22,1.16,1.2)));
+  r = opU(r, vec2(ridge, 13.));
+  // placas laterales del casco
+  float sp = max(sdEll(p - vec3(0.,.2,-.2), vec3(1.16,.9,1.12)), -q.y + .02 - .35*q.z);
+  sp = max(sp, .55 - q.x);
+  r = opU(r, vec2(sp, 11.));
+  // careta de bebé en acero, hundida bajo el casco
+  float face = sdEll(p - vec3(0.,-.32,.3), vec3(.74,.72,.68));
+  face = smin(face, length(q - vec3(.4,-.52,.5)) - .32, .15);
+  // rendijas de los ojos con el ceño hacia abajo
+  vec3 eq = q - vec3(.32,-.04,.9); eq.y -= .28*(eq.x);
+  float sock = sdEll(eq, vec3(.25,.075,.3));
+  face = smax(face, -sock, .025);
+  r = opU(r, vec2(face, 14.));
+  r = opU(r, vec2(sdEll(eq + vec3(0.,0.,.12), vec3(.24,.065,.12)), 13.));
+  r = opU(r, vec2(sdEll(eq + vec3(.03,0.,.04), vec3(.13,.028,.05)), 12.));
+  // visera del casco (labio blindado sobre los ojos)
+  float lip = sdEll(p - vec3(0.,.17,.12), vec3(1.0,.1,.92));
+  lip = max(lip, -p.z + .1);
+  r = opU(r, vec2(lip, 10.));
+  // respirador en forma de chupete, con filtros de máscara de gas
+  vec3 mq = p - vec3(0.,-.66 - .25*jaw,.98 + .12*jaw);
+  r = opU(r, vec2(sdCap(p, vec3(0.,-.6,.55), vec3(0.,-.64,.92), .24, .2), 13.));
+  float shield = sdEll(mq, vec3(.44,.3,.08));
+  shield = smax(shield, -(length(mq.xy) - .12), .02);
+  r = opU(r, vec2(shield, 11.));
+  r = opU(r, vec2(sdTorus((mq - vec3(0.,-.02,.14)).xzy, vec2(.14, .04)), 13.));
+  vec3 gq = mq; gq.x = abs(gq.x);
+  r = opU(r, vec2(length(vec2(length(gq.xy - vec2(.26,.02)) - .045, gq.z - .06)) - .02, 13.));
+  if (jaw > .01) {
+    r = opU(r, vec2(sdTorus((p - vec3(0.,-.6,.93)).xzy, vec2(.2*jaw, .05)), 13.));
+    r = opU(r, vec2(length(p - vec3(0.,-.6,.9)) - .17*jaw, 12.));
+  }
+  r = opU(r, vec2(sdCap(q, vec3(.2,-.62,.82), vec3(.62,-.9,.72), .12, .12), 13.));
+  r = opU(r, vec2(sdCap(q, vec3(.62,-.9,.72), vec3(.72,-.97,.7), .16, .16), 11.));
+  // orejeras y antenas en cuchilla
+  r = opU(r, vec2(sdCylX(q - vec3(1.06,.0,-.12), .34, .16), 13.));
+  r = opU(r, vec2(sdCylX(q - vec3(1.2,.0,-.12), .2, .06), 11.));
+  r = opU(r, vec2(sdCap(q, vec3(1.18,.2,-.35), vec3(1.4,1.25,-1.05), .06, .012), 13.));
+  // cuerno frontal
+  r = opU(r, vec2(sdCap(p, vec3(0.,.78,.72), vec3(0.,1.62,1.3), .1, .012), 11.));
   return r;
 }
 vec2 mechaLeg(vec3 p, vec3 h, vec3 k, vec3 a){
-  float b = sdCap(p, h, a, .6, .6); if (b > .3) return vec2(b, 10.);
-  vec2 r = vec2(sdCap(p, h, k, .37, .31), 10.);
-  r = opU(r, vec2(length(p - k) - .27, 13.));
-  r = opU(r, vec2(length(p - k - vec3(0.,.02,.2)) - .2, 11.));
-  r = opU(r, vec2(sdCap(p, k, a, .34, .27), 10.));
-  r = opU(r, vec2(sdRBox(p - a - vec3(0.,-.14,.22), vec3(.27,.15,.46), .08), 13.));
+  float b = sdCap(p, h, a, .75, .75); if (b > .3) return vec2(b, 10.);
+  vec3 kd = normalize(k - h), sd = normalize(a - k);
+  vec2 r = vec2(length(p - h) - .36, 13.);
+  r = opU(r, vec2(sdCap(p, h + kd*.25, k - kd*.2, .5, .43), 10.));
+  r = opU(r, vec2(length(p - k) - .32, 13.));
+  r = opU(r, vec2(sdRBox(p - k - vec3(0.,.02,.26), vec3(.3,.34,.13), .06), 10.));
+  r = opU(r, vec2(sdRBox(p - k - vec3(0.,.02,.38), vec3(.1,.28,.04), .02), 11.));
+  r = opU(r, vec2(sdCap(p, k + sd*.2, a - sd*.1, .45, .34), 10.));
+  // pistón hidráulico
+  vec3 bk = vec3(0.,0.,-.42);
+  r = opU(r, vec2(sdCap(p, mix(h, k, .25) + bk*.9, mix(k, a, .55) + bk, .07, .07), 13.));
+  r = opU(r, vec2(sdCap(p, mix(h, k, .25) + bk*.9, mix(k, a, .1) + bk*1.05, .12, .12), 13.));
+  // bota pesada con garras
+  r = opU(r, vec2(sdRBox(p - a - vec3(0.,-.16,.22), vec3(.36,.16,.56), .08), 13.));
+  r = opU(r, vec2(sdEll(p - a - vec3(0.,-.02,.42), vec3(.36,.2,.36)), 10.));
+  vec3 fq = p - a - vec3(0.,-.22,.8); fq.x = abs(fq.x);
+  r = opU(r, vec2(sdCap(fq, vec3(.18,0.,0.), vec3(.22,-.02,.2), .07, .02), 13.));
   return r;
 }
 vec2 mechaArm(vec3 p, vec3 sh, vec3 el, vec3 wr, mat3 hr, float side, float cut){
-  float b = min(sdCap(p, sh, el, .45, .45), sdCap(p, el, wr + hr[1]*.6, .75, .75)); if (b > .3) return vec2(b, 10.);
-  vec2 r = vec2(sdCap(p, sh, el, .22, .2), 13.);
-  r = opU(r, vec2(length(p - el) - .26, 13.));
+  float b = min(sdCap(p, sh, el, .55, .55), sdCap(p, el, wr + hr[1]*.7, .8, .8)); if (b > .3) return vec2(b, 10.);
+  vec3 ud = normalize(el - sh);
+  vec2 r = vec2(sdCap(p, sh, el, .24, .22), 13.);
+  r = opU(r, vec2(sdCap(p, sh + ud*.3, el - ud*.28, .36, .33), 10.));
+  r = opU(r, vec2(length(p - el) - .3, 13.));
   if (cut < .5) {
-    r = opU(r, vec2(sdCap(p, el, wr, .31, .26), 10.));
-    r = opU(r, vec2(sdRBox((p - mix(el, wr, .45))*hr, vec3(.3,.34,.3), .1), 11.));
+    vec3 fd = normalize(wr - el);
+    r = opU(r, vec2(sdCap(p, el + fd*.22, wr - fd*.08, .42, .35), 10.));
+    r = opU(r, vec2(sdCap(p, mix(el, wr, .62), mix(el, wr, .78), .44, .38), 11.));
     vec3 ph = (p - wr)*hr; ph.x *= side;
-    r = opU(r, vec2(sdHand(ph/1.35, .1)*1.35, 13.));
+    r = opU(r, vec2(sdHand(ph/1.5, .1)*1.5, 13.));
+    r = opU(r, vec2(sdRBox(ph - vec3(0.,.28,-.12), vec3(.3,.26,.08), .05), 10.));
   } else {
-    // muñón que chorrea
-    r = opU(r, vec2(sdCap(p, el, mix(el, wr, .3), .31, .3), 10.));
+    r = opU(r, vec2(sdCap(p, el, mix(el, wr, .3), .42, .4), 10.));
+    r = opU(r, vec2(sdCap(p, mix(el, wr, .3), mix(el, wr, .42), .16, .08), 13.));
+  }
+  return r;
+}
+vec2 mechaTorso(vec3 q){
+  vec3 qa = vec3(abs(q.x), q.y, q.z);
+  vec2 r = vec2(sdCap(q, vec3(0.,-.5,-.12), vec3(0.,-1.2,-.12), .36, .4), 13.);
+  // pecho y barriga blindados
+  float ch = sdRBox(q - vec3(0.,-1.72,.04), vec3(.92,.5,.6), .36);
+  float be = sdEll(q - vec3(0.,-2.38,.12), vec3(.9,.72,.8));
+  float tor = smin(ch, be, .2);
+  float core = length(q - vec3(0.,-2.32,.88)) - .34;
+  tor = smax(tor, -core, .03);
+  r = opU(r, vec2(tor, 10.));
+  r = opU(r, vec2(sdEll(q - vec3(0.,-1.14,.02), vec3(.98,.24,.74)), 13.));
+  r = opU(r, vec2(sdTorus(vec3(q.x, q.z - .78, q.y + 2.32), vec2(.36, .07)), 11.));
+  r = opU(r, vec2(length(q - vec3(0.,-2.32,.62)) - .3, 12.));
+  vec3 gq = q - vec3(0.,-2.32,.8);
+  float gr = sdBox(vec3(gq.x, mod(gq.y + .06, .12) - .06, gq.z), vec3(.34, .018, .03));
+  r = opU(r, vec2(max(gr, length(gq.xy) - .34), 13.));
+  // placa pectoral
+  r = opU(r, vec2(sdRBox(q - vec3(0.,-1.56,.62), vec3(.5,.2,.1), .06), 11.));
+  // pañal blindado
+  r = opU(r, vec2(sdEll(q - vec3(0.,-3.06,0.), vec3(.96,.5,.74)), 13.));
+  r = opU(r, vec2(sdRBox(q - vec3(0.,-3.0,.62), vec3(.46,.3,.12), .06), 10.));
+  r = opU(r, vec2(sdRBox(qa - vec3(.84,-2.92,.36), vec3(.12,.2,.2), .04), 15.));
+  // mochila, toberas y cables
+  r = opU(r, vec2(sdRBox(q - vec3(0.,-1.9,-.88), vec3(.82,.72,.38), .12), 13.));
+  r = opU(r, vec2(sdCap(qa, vec3(.42,-2.3,-.95), vec3(.5,-2.8,-1.25), .22, .3), 13.));
+  r = opU(r, vec2(sdCap(qa, vec3(.5,-2.7,-1.2), vec3(.52,-2.82,-1.27), .33, .33), 11.));
+  r = opU(r, vec2(sdCap(qa, vec3(.45,-.85,-.55), vec3(.55,-1.5,-1.12), .08, .08), 13.));
+  r = opU(r, vec2(sdCap(qa, vec3(.6,-1.35,-1.05), vec3(1.05,-.35,-1.55), .13, .03), 13.));
+  // hombreras enormes con lanzamisiles
+  r = opU(r, vec2(sdRBox(qa - vec3(1.36,-1.2,-.05), vec3(.56,.42,.64), .18), 10.));
+  float pod = sdRBox(qa - vec3(1.36,-.7,-.12), vec3(.44,.17,.52), .05);
+  vec2 hp = mod(vec2(qa.x - 1.36, qa.z + .12) + .13, .26) - .13;
+  pod = smax(pod, -max(length(hp) - .075, -.62 - qa.y), .01);
+  if (q.x > 0.) r = opU(r, vec2(pod, 15.));
+  else {
+    // cañón de riel sobre la hombrera derecha
+    vec3 cq = q - vec3(-1.36,-.52,0.);
+    r = opU(r, vec2(sdRBox(cq - vec3(0.,0.,-.25), vec3(.3,.2,.45), .06), 13.));
+    r = opU(r, vec2(sdRBox(cq - vec3(0.,.02,.6), vec3(.16,.1,.9), .03), 10.));
+    r = opU(r, vec2(sdRBox(cq - vec3(0.,.02,1.55), vec3(.2,.13,.12), .03), 11.));
+    r = opU(r, vec2(sdRBox(cq - vec3(0.,.02,.6), vec3(.06,.14,.95), .02), 13.));
   }
   return r;
 }
 vec2 mechaLocal(vec3 q){
-  float b = length(q - vec3(0.,-2.4,0.)) - 5.;
+  float b = length(q - vec3(0.,-2.2,0.)) - 5.3;
   if (b > .5) return vec2(b, 10.);
   vec3 ph = (q - M_HP)*uMHead + M_HP;
   vec2 r = mechaHead(ph, uMFace.x);
-  vec3 qa = vec3(abs(q.x), q.y, q.z);
-  float bb = sdCap(q, vec3(0.,-1.,0.), vec3(0.,-3.2,0.), 1.8, 1.4);
-  if (bb < .3) {
-    r = opU(r, vec2(sdCap(q, vec3(0.,-.55,-.1), vec3(0.,-1.2,-.1), .3, .33), 13.));
-    r = opU(r, vec2(sdRBox(q - vec3(0.,-1.72,.02), vec3(.95,.55,.62), .24), 10.));
-    r = opU(r, vec2(sdRBox(q - vec3(0.,-1.6,.5), vec3(.52,.24,.2), .1), 11.));
-    r = opU(r, vec2(sdRBox(q - vec3(0.,-2.45,0.), vec3(.6,.35,.46), .12), 13.));
-    r = opU(r, vec2(sdRBox(q - vec3(0.,-2.98,0.), vec3(.85,.3,.6), .15), 10.));
-    r = opU(r, vec2(sdRBox(qa - vec3(1.22,-1.36,-.08), vec3(.42,.34,.52), .16), 11.));
-    r = opU(r, vec2(sdRBox(q - vec3(0.,-1.85,-.82), vec3(.72,.62,.32), .12), 13.));
-    r = opU(r, vec2(sdCap(qa, vec3(.42,-2.3,-.95), vec3(.5,-2.8,-1.25), .2, .27), 13.));
-  } else r = opU(r, vec2(bb, 10.));
+  float bb = sdCap(q, vec3(0.,-1.,-.2), vec3(0.,-3.2,-.2), 2.1, 1.5);
+  r = opU(r, bb < .3 ? mechaTorso(q) : vec2(bb, 10.));
   r = opU(r, mechaLeg(q, uMLegR[0], uMLegR[1], uMLegR[2]));
   r = opU(r, mechaLeg(q, uMLegL[0], uMLegL[1], uMLegL[2]));
   r = opU(r, mechaArm(q, uMArmR[0], uMArmR[1], uMArmR[2], uMHandR, 1., 0.));
@@ -374,7 +460,7 @@ vec2 mechaLocal(vec3 q){
 }
 vec2 mapMechaW(vec3 p){
   vec3 q = ((p - uMPos)*uMRot)/uMScale;
-  float b = length(q - vec3(0.,-2.4,0.)) - 5.2;
+  float b = length(q - vec3(0.,-2.2,0.)) - 5.5;
   if (b > .6) return vec2(b*uMScale, 10.);
   vec2 r = mechaLocal(q); r.x *= uMScale; return r;
 }
@@ -384,18 +470,18 @@ vec2 mapSquad(vec3 p){
     if (i >= uSquadN) break;
     vec4 s = uSquad[i];
     vec3 d = p - s.xyz;
-    float bd = length(d - vec3(0.,-2.4*uSquadScale,0.)) - 5.2*uSquadScale;
+    float bd = length(d - vec3(0.,-2.2*uSquadScale,0.)) - 5.5*uSquadScale;
     if (bd > uSquadScale) { res = opU(res, vec2(bd, 10.)); continue; }
     float c = cos(s.w), sn = sin(s.w);
     vec3 q = vec3(c*d.x - sn*d.z, d.y, sn*d.x + c*d.z)/uSquadScale;
     vec2 r;
     if (length(s.xyz - uCamPos) > 45.) {
       vec3 qa = vec3(abs(q.x), q.y, q.z);
-      float d = length(q - vec3(0.,.1,0.)) - 1.;
-      d = min(d, sdRBox(q - vec3(0.,-2.2,0.), vec3(.95,1.,.65), .25));
-      d = min(d, sdRBox(qa - vec3(1.22,-1.36,-.08), vec3(.42,.34,.52), .16));
-      d = min(d, sdCap(qa, vec3(1.2,-1.4,0.), vec3(2.3,-2.3,.3), .3, .26));
-      d = min(d, sdCap(qa, vec3(.45,-3.1,0.), vec3(.6,-5.4,-.2), .36, .28));
+      float d = sdEll(q - vec3(0.,.2,0.), vec3(1.1,1.08,1.1));
+      d = min(d, sdRBox(q - vec3(0.,-2.1,0.), vec3(.95,1.05,.7), .35));
+      d = min(d, sdRBox(qa - vec3(1.36,-1.05,-.05), vec3(.56,.55,.64), .18));
+      d = min(d, sdCap(qa, vec3(1.3,-1.5,0.), vec3(2.4,-2.4,.3), .36, .4));
+      d = min(d, sdCap(qa, vec3(.45,-3.1,0.), vec3(.6,-5.4,-.2), .48, .38));
       r = vec2(d, 10.);
     } else r = mechaLocal(q);
     r.x *= uSquadScale;
@@ -406,12 +492,13 @@ vec2 mapSquad(vec3 p){
 // brazo cortado que sale volando
 vec2 mapArmOff(vec3 p){
   vec3 d = p - uArmOff.xyz;
-  float b = length(d) - 2.2*uMScale; if (b > 1.) return vec2(b, 10.);
+  float b = length(d) - 2.4*uMScale; if (b > 1.) return vec2(b, 10.);
   float c = cos(uArmOff.w), s = sin(uArmOff.w);
   vec3 q = vec3(d.x, c*d.y - s*d.z, s*d.y + c*d.z)/uMScale;
-  vec2 r = vec2(sdCap(q, vec3(0.,.5,0.), vec3(0.,-.6,0.), .31, .26), 10.);
-  r = opU(r, vec2(sdRBox(q, vec3(.3,.34,.3), .1), 11.));
-  r = opU(r, vec2(sdHand((q - vec3(0.,-.6,0.))*vec3(1.,-1.,1.)/1.35, .1)*1.35, 13.));
+  vec2 r = vec2(sdCap(q, vec3(0.,.5,0.), vec3(0.,-.6,0.), .42, .35), 10.);
+  r = opU(r, vec2(sdCap(q, vec3(0.,-.2,0.), vec3(0.,-.4,0.), .44, .38), 11.));
+  r = opU(r, vec2(sdCap(q, vec3(0.,.5,0.), vec3(0.,.75,0.), .16, .08), 13.));
+  r = opU(r, vec2(sdHand((q - vec3(0.,-.68,0.))*vec3(1.,-1.,1.)/1.5, .1)*1.5, 13.));
   r.x *= uMScale;
   return r;
 }
@@ -760,32 +847,64 @@ vec3 shadeCity(vec3 p, vec3 n, vec3 rd, float mat, float t){
 
 
 vec3 shadeMecha(vec3 p, vec3 n, vec3 rd, float mat, float t){
+  vec3 lq = ((p - uMPos)*uMRot)/uMScale;
+  vec3 ln = n*uMRot;
+  float fres = 1. - sat(dot(n, -rd));
   if (mat > 11.5 && mat < 12.5) {
-    float fres = 1. - sat(dot(n, -rd));
-    return vec3(.25,1.,.78)*(.6 + 2.6*uMFace.y) + vec3(.8,1.,.95)*ss(.55,.6,fres)*uMFace.y;
+    return vec3(.35,1.,.85)*(.7 + 2.8*uMFace.y) + vec3(1.)*ss(.3,.0,fres)*uMFace.y*1.5;
   }
-  vec3 alb = mat < 10.5 ? vec3(.78,.8,.86) : (mat < 11.5 ? vec3(.95,.34,.05) : vec3(.05,.055,.07));
+  // desgaste
+  float grime = fbm3s(lq*2.3);
+  float scr = ss(.8, .84, noise3(lq*11.))*ss(.45, .7, noise3(lq*1.3 + 3.))*.6;
+  vec3 alb;
+  if (mat < 10.5) alb = mix(vec3(.13,.14,.13), vec3(.27,.28,.26), grime);
+  else if (mat < 11.5) alb = mix(vec3(.16,.03,.022), vec3(.3,.06,.035), grime);
+  else if (mat < 13.5) alb = vec3(.045,.048,.055)*(.8 + .5*grime);
+  else if (mat < 14.5) alb = mix(vec3(.2,.19,.18), vec3(.36,.34,.31), grime);
+  else {
+    float st = step(.5, fract((lq.x*sign(lq.x) + lq.y + lq.z)*2.6));
+    alb = mix(vec3(.05,.045,.03), vec3(.78,.52,.05)*(.7 + .4*grime), st);
+  }
+  // paneles y remaches (en coordenadas del mecha)
+  float pl = 0.;
+  if (mat < 11.5) {
+    vec3 an = abs(ln);
+    float row = floor(lq.y*1.5 + .3);
+    float ry = abs(fract(lq.y*1.5 + .3) - .5);
+    float u = an.x > .6 ? lq.z : an.z > .6 ? lq.x : (lq.x + lq.z*.7);
+    if (an.y > .6) { row = floor(lq.z*1.4); ry = abs(fract(lq.z*1.4) - .5); u = lq.x; }
+    float cu = u*1.2 + hash11(row*7.1)*3.;
+    float rx = abs(fract(cu) - .5)*step(.35, hash11(floor(cu)*3.7 + row));
+    float lx = max(ry, rx);
+    pl = ss(.47, .485, lx);
+    float nearL = ss(.4, .44, ry)*(1. - pl);
+    float rvd = abs(fract(u*9.) - .5);
+    alb += vec3(.18)*ss(.14, .06, length(vec2(rvd, (.5 - ry)*6. - .45)))*nearL;
+    alb *= 1. - .6*pl;
+    alb += vec3(.25)*ss(.13, .09, rvd)*nearL*(1. - pl);
+  }
+  // óxido y churretes
+  float rust = ss(.6, .78, fbm3s(lq*vec3(4.,.7,4.) + 7.))*step(mat, 11.5);
+  alb = mix(alb, vec3(.14,.05,.025), rust*.7);
   float ndl = dot(n, uKeyDir);
   float lit = ss(-.02, .02, ndl);
-  vec3 col = alb*mix(uShadowCol*1.4, uKeyCol, lit);
-  col += alb*uFillCol*ss(-.02, .02, dot(n, uFillDir))*(1. - lit)*1.4;
+  float half_ = ss(.35, .4, ndl);
+  vec3 col = alb*mix(uShadowCol*1.2, uKeyCol*(.75 + .35*half_), lit);
+  col += alb*uFillCol*ss(-.02, .02, dot(n, uFillDir))*(1. - lit)*.8;
   vec3 rf = reflect(rd, n);
-  float spec = ss(.9, .92, dot(rf, uKeyDir));
-  col += uKeyCol*spec*(mat < 11.5 ? 1.1 : .35);
-  col += uFillCol*ss(.93, .95, dot(rf, uFillDir))*.8;
-  float fres = 1. - sat(dot(n, -rd));
+  float glossy = mat > 13.5 && mat < 14.5 ? .9 : (mat > 10.5 && mat < 11.5 ? .35 : (mat > 12.5 && mat < 13.5 ? .45 : .6));
+  col += uKeyCol*ss(.955, .965, dot(rf, uKeyDir))*glossy*(1. - .6*grime)*(1. - pl);
+  // arañazos que pillan la luz
+  col += (uKeyCol*.5 + .06)*scr*(1. - pl)*(mat > 12.5 && mat < 13.5 ? .3 : 1.);
   float rim = ss(uRimW, uRimW + .035, fres*sat(dot(n, uRimDir)*1.4 + .35));
-  col = mix(col, uRimCol*(.6 + .5*alb), rim);
-  if (mat < 11.5) {
-    vec3 g = abs(fract(p*1.3/uMScale) - .5);
-    float pl = ss(.475, .49, max(g.x, g.z))*step(abs(n.y), .8) + ss(.475, .49, g.y)*step(.5, abs(n.y));
-    col *= 1. - .55*pl;
-  }
+  col = mix(col, uRimCol*(.5 + .4*alb), rim*.85);
+  // reflejo de la luz de los ojos en la careta
+  if (mat > 13.5 && mat < 14.5) col += vec3(.3,1.,.85)*uMFace.y*.5*ss(.3,.0,length(vec2(abs(lq.x) - .32, (lq.y + .64)*2.)))*step(.6, lq.z);
   for (int i=0;i<4;i++){
     if (uXL[i].w > 0.) col += vec3(1.,.5,.15)*uXL[i].w*bandPt(p, n, uXL[i].xyz, uMScale*1.6)*(alb + .05)*2.5;
   }
   float ao = calcAO(p, n, uMScale);
-  col *= mix(.45, 1., ss(.3, .55, ao));
+  col *= mix(.35, 1., ss(.25, .55, ao));
   return col;
 }
 vec3 shadeShaft(vec3 p, vec3 n, vec3 rd, float mat, float t){
