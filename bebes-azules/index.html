@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Los Bebés Azules</title>
+<meta name="description" content="Falso documental de 1975 sobre bebés gigantes azules. Todo procedural: WebGL + WebAudio, sin vídeo generativo.">
+<style>
+  @font-face { font-family: 'Special Elite'; src: url(fonts/SpecialElite.woff2) format('woff2'); }
+  @font-face { font-family: 'IM Fell English SC'; src: url(fonts/IMFellEnglishSC.woff2) format('woff2'); }
+  @font-face { font-family: 'IM Fell English'; font-style: italic; src: url(fonts/IMFellEnglish-Italic.woff2) format('woff2'); }
+  @font-face { font-family: 'Playfair Display'; font-weight: 900; src: url(fonts/PlayfairDisplay-Black.woff2) format('woff2'); }
+  :root { --bg: #070606; --ink: #ece5d3; --dim: #8d877a; --red: #c41f12; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; }
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  canvas { width: min(100vw, calc(100vh * 4 / 3)); height: min(100vh, calc(100vw * 3 / 4)); display: block; background: #000; }
+  #ui { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+        background: radial-gradient(ellipse at 50% 45%, rgba(60,10,6,.55), rgba(0,0,0,.94) 70%); transition: opacity .6s; }
+  #ui.hidden { opacity: 0; pointer-events: none; }
+  .card { text-align: center; max-width: 560px; }
+  .small { font: 15px 'Special Elite', monospace; letter-spacing: .18em; color: var(--dim); }
+  h1 { font: 900 clamp(34px, 8vw, 64px)/1.05 'Playfair Display', Georgia, serif; margin: .35em 0 .2em;
+       text-shadow: 0 0 22px rgba(255,40,10,.45); }
+  .sub { font: italic 19px 'IM Fell English', Georgia, serif; color: var(--dim); margin-bottom: 1.6em; }
+  button { font: 18px 'Special Elite', monospace; letter-spacing: .12em; color: var(--ink); background: transparent;
+           border: 2px solid var(--ink); padding: 12px 26px; cursor: pointer; }
+  button:hover, button:focus-visible { background: var(--ink); color: #111; outline: none; }
+  button:disabled { opacity: .45; cursor: wait; }
+  #status { font: 13px 'Special Elite', monospace; color: var(--dim); margin-top: 1.2em; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+<div id="ui">
+  <div class="card">
+    <div class="small">ARCHIVO Nº 7 · 1975</div>
+    <h1>LOS BEBÉS AZULES</h1>
+    <div class="sub">Un documento que nunca debió ver la luz</div>
+    <button id="play">▶ PROYECTAR</button>
+    <div id="status"></div>
+  </div>
+</div>
+<script src="js/shaders.js"></script>
+<script src="js/film.js"></script>
+<script src="js/audio.js"></script>
+<script>
+(function () {
+  const qs = new URLSearchParams(location.search);
+  const canvas = document.getElementById('c');
+  const q = qs.get('q');
+  const film = new BBFilm.Film(canvas, {
+    sceneScale: parseFloat(qs.get('s')) || (q === 'low' ? 0.34 : q === 'high' ? 0.75 : 0.5),
+    width: parseInt(qs.get('w'), 10) || 1440,
+    height: parseInt(qs.get('h'), 10) || 1080,
+  });
+
+  function toB64(u8) {
+    let s = '';
+    for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+
+  // ---- modo render (lo usa render.mjs con Playwright) ----
+  if (qs.has('render')) {
+    document.getElementById('ui').remove();
+    window.BB = {
+      ready: film.init().then(() => ({ frames: film.frameCount, fps: film.fps, w: film.W, h: film.H, duration: film.duration })),
+      frame(i) { film.renderAt(i / film.fps); return toB64(film.readPixels()); },
+      still(t) { film.renderAt(t); return canvas.toDataURL('image/png'); },
+      shot(prog, lt, dur, v) { film.renderAt(0, { prog, lt, dur, v }); return canvas.toDataURL('image/png'); },
+      async audio() { const buf = await BBAudio.render(film.duration); return toB64(BBAudio.toWav(buf)); },
+    };
+    return;
+  }
+
+  // ---- modo proyección ----
+  const ui = document.getElementById('ui'), btn = document.getElementById('play'), status = document.getElementById('status');
+  let ready = null, actx = null, buffer = null, src = null, t0 = 0, raf = 0, lastFrame = -1;
+  const startAt = parseFloat(qs.get('t') || '0') || 0;
+
+  async function prepare() {
+    status.textContent = 'Revelando la película…';
+    await film.init((k, name) => { status.textContent = 'Revelando la película… ' + Math.round(k * 100) + '%'; });
+    status.textContent = 'Sincronizando la banda sonora…';
+    buffer = await BBAudio.render(film.duration);
+    status.textContent = '';
+  }
+
+  function loop() {
+    const t = actx.currentTime - t0;
+    if (t >= film.duration) { stop(); return; }
+    const f = Math.floor(t * film.fps);
+    if (f !== lastFrame) { film.renderAt(t); lastFrame = f; }
+    raf = requestAnimationFrame(loop);
+  }
+  function stop() {
+    cancelAnimationFrame(raf);
+    if (src) { try { src.stop(); } catch (e) {} src = null; }
+    btn.textContent = '↺ VOLVER A PROYECTAR';
+    btn.disabled = false;
+    ui.classList.remove('hidden');
+  }
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      await actx.resume();
+      if (!ready) ready = prepare();
+      await ready;
+    } catch (e) {
+      status.textContent = 'Error: ' + e.message;
+      console.error(e);
+      btn.disabled = false;
+      return;
+    }
+    ui.classList.add('hidden');
+    src = actx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(actx.destination);
+    t0 = actx.currentTime + 0.05 - startAt;
+    src.start(actx.currentTime + 0.05, startAt);
+    lastFrame = -1;
+    loop();
+  });
+  canvas.addEventListener('click', () => { if (src) stop(); });
+})();
+</script>
+</body>
+</html>

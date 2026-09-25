@@ -1,0 +1,14 @@
+{
+  "name": "bebes-azules",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Falso documental de 1975 sobre bebés gigantes azules, 100 % procedural (WebGL + WebAudio)",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "render": "node render.mjs --workers 2"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}

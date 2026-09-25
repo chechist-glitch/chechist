@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+stills/
+fotos/
+*.wav
+*.video.mp4
+prueba.mp4
