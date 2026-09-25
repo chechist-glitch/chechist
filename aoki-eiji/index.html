@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>蒼キ嬰児 · Los Niños de Azul</title>
+<meta name="description" content="Anime oscuro 100 % procedural (WebGL + WebAudio) sobre los bebés gigantes azules.">
+<style>
+  @font-face { font-family: 'Noto Serif JP'; font-weight: 900; src: url(fonts/NotoSerifJP-Black.woff2) format('woff2'); }
+  @font-face { font-family: 'Noto Sans JP'; font-weight: 700; src: url(fonts/NotoSansJP-Bold.woff2) format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 600; src: url(fonts/BarlowCondensed-SemiBold.woff2) format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 800; src: url(fonts/BarlowCondensed-ExtraBold.woff2) format('woff2'); }
+  @font-face { font-family: 'Share Tech Mono'; src: url(fonts/ShareTechMono.woff2) format('woff2'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 800; src: url(fonts/NotoSans-ExtraBold.woff2) format('woff2'); }
+  :root { --bg: #050304; --ink: #f4f1ea; --dim: #9a8f86; --red: #d8150e; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; }
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  canvas { width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16)); display: block; background: #000; }
+  #ui { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+        background: radial-gradient(ellipse at 50% 45%, rgba(90,8,6,.55), rgba(0,0,0,.95) 70%); transition: opacity .6s; }
+  #ui.hidden { opacity: 0; pointer-events: none; }
+  .card { text-align: center; }
+  h1 { font: 900 clamp(48px, 12vw, 120px)/1 'Noto Serif JP', serif; margin: 0; transform: scaleX(.82); letter-spacing: -.02em; }
+  .sub { font: 800 clamp(16px, 3vw, 24px) 'Barlow Condensed', sans-serif; letter-spacing: .3em; color: var(--dim); margin: .8em 0 1.8em; }
+  button { font: 800 20px 'Barlow Condensed', sans-serif; letter-spacing: .25em; color: var(--ink); background: var(--red);
+           border: 0; padding: 14px 34px; cursor: pointer; clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%); }
+  button:hover, button:focus-visible { background: var(--ink); color: #000; outline: none; }
+  button:disabled { opacity: .45; cursor: wait; }
+  #status { font: 14px 'Share Tech Mono', monospace; color: var(--dim); margin-top: 1.4em; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+<div id="ui">
+  <div class="card">
+    <h1>蒼キ嬰児</h1>
+    <div class="sub">LOS NIÑOS DE AZUL · EPISODIO 1</div>
+    <button id="play">▶ REPRODUCIR</button>
+    <div id="status"></div>
+  </div>
+</div>
+<script src="js/shaders.js"></script>
+<script src="js/anime.js"></script>
+<script src="js/music.js"></script>
+<script>
+(function () {
+  const qs = new URLSearchParams(location.search);
+  const canvas = document.getElementById('c');
+  const q = qs.get('q');
+  const film = new AEAnime.Anime(canvas, {
+    sceneScale: parseFloat(qs.get('s')) || (q === 'low' ? 0.4 : q === 'high' ? 1 : 2 / 3),
+    width: parseInt(qs.get('w'), 10) || 1920,
+    height: parseInt(qs.get('h'), 10) || 1080,
+  });
+  function toB64(u8) {
+    let s = '';
+    for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  if (qs.has('render')) {
+    document.getElementById('ui').remove();
+    window.AE = {
+      ready: film.init().then(() => ({ frames: film.frameCount, fps: film.fps, w: film.W, h: film.H, duration: film.duration })),
+      frame(i) { film.renderAt(i / film.fps); return toB64(film.readPixels()); },
+      still(t) { film.renderAt(t); return canvas.toDataURL('image/png'); },
+      shot(name, lt) { film.renderAt(0, { shot: name, lt, overlay: true }); return canvas.toDataURL('image/png'); },
+      debug(name, lt, cam) { film.renderAt(0, { shot: name, lt, cam }); return canvas.toDataURL('image/png'); },
+      async audio() { const buf = await AEMusic.render(film.duration, { missiles: AEAnime.MISSILES }); return toB64(AEMusic.toWav(buf)); },
+    };
+    return;
+  }
+  const ui = document.getElementById('ui'), btn = document.getElementById('play'), status = document.getElementById('status');
+  let ready = null, actx = null, buffer = null, src = null, t0 = 0, raf = 0, lastFrame = -1;
+  const startAt = parseFloat(qs.get('t') || '0') || 0;
+  async function prepare() {
+    status.textContent = 'Compilando shaders…';
+    await film.init(k => { status.textContent = 'Compilando shaders… ' + Math.round(k * 100) + '%'; });
+    status.textContent = 'Sintetizando la música…';
+    buffer = await AEMusic.render(film.duration, { missiles: AEAnime.MISSILES });
+    status.textContent = '';
+  }
+  function loop() {
+    const t = actx.currentTime - t0;
+    if (t >= film.duration) { stop(); return; }
+    const f = Math.floor(t * film.fps);
+    if (f !== lastFrame) { film.renderAt(t); lastFrame = f; }
+    raf = requestAnimationFrame(loop);
+  }
+  function stop() {
+    cancelAnimationFrame(raf);
+    if (src) { try { src.stop(); } catch (e) {} src = null; }
+    btn.textContent = '↺ OTRA VEZ'; btn.disabled = false; ui.classList.remove('hidden');
+  }
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      await actx.resume();
+      if (!ready) ready = prepare();
+      await ready;
+    } catch (e) { status.textContent = 'Error: ' + e.message; console.error(e); btn.disabled = false; return; }
+    ui.classList.add('hidden');
+    src = actx.createBufferSource(); src.buffer = buffer; src.connect(actx.destination);
+    t0 = actx.currentTime + 0.05 - startAt;
+    src.start(actx.currentTime + 0.05, startAt);
+    lastFrame = -1; loop();
+  });
+  canvas.addEventListener('click', () => { if (src) stop(); });
+})();
+</script>
+</body>
+</html>

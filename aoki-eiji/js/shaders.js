@@ -32,14 +32,16 @@ uniform vec2  uPoint;
 uniform vec4  uTip;                  // punta del dedo (mundo) + brillo
 uniform vec3  uKeyDir, uKeyCol, uShadowCol, uRimDir, uRimCol, uTermCol;
 uniform float uRimW;
-uniform vec3  uFogCol, uZenith; uniform float uFogK;
+uniform vec3  uFogCol, uZenith, uHaze; uniform float uFogK;
 uniform vec3  uMoonDir, uMoonCol; uniform float uMoonR;
 uniform float uFlashL;               // relámpago
 uniform vec4  uXL[4];                // luces puntuales (explosiones)
 uniform vec4  uDome;                 // cúpula: centro + radio
 uniform vec4  uFx;                   // cúpula, radio del anillo, intensidad del anillo, pilar
 uniform vec4  uDestroy;              // centro xz, radio, cantidad
-uniform float uWet;
+uniform float uWet, uEyeLight;
+uniform vec3  uFillDir, uFillCol;
+uniform vec4  uCityBox;
 uniform vec4  uEarth;                // radio de grietas, radio de la onda, intensidad onda, -
 layout(location=0) out vec4 outCol;
 layout(location=1) out vec4 outND;
@@ -113,6 +115,7 @@ const mat3 EAR_ROT = mat3(.9394,0.,.3429, 0.,1.,0., -.3429,0.,.9394);
 vec3 gazeL = vec3(0.,0.,1.), gazeR = vec3(0.,0.,1.);
 vec3 eyeWL = vec3(0.,-1e4,0.), eyeWR = vec3(0.,-1e4,0.);
 bool gExact = false;
+vec3 gRd = vec3(0.,0.,-1.);
 
 vec2 mapHead(vec3 p){
   float lidUp = uFace.x, lidLo = uFace.y, sm = uFace.z;
@@ -250,7 +253,15 @@ float cityHeight(vec2 id){
 }
 vec2 mapCity(vec3 p){
   float dg = p.y;
-  if (p.y > 3.6) return vec2(p.y - 3.55, 5.);
+  vec2 bq = abs(p.xz - uCityBox.xy) - uCityBox.zw;
+  float bout = max(p.y - 3.55, max(bq.x, bq.y));
+  if (bout > 0.) {
+    // si el rayo ya se aleja de la ciudad no volverá a entrar: la ignoramos
+    bool away = !gExact && ((p.y > 3.55 && gRd.y >= 0.) || (bq.x > 0. && (p.x - uCityBox.x)*gRd.x >= 0.) || (bq.y > 0. && (p.z - uCityBox.y)*gRd.z >= 0.));
+    float dc = away ? 1e4 : max(bout, .1);
+    if (!gExact) return vec2(dc, 5.);
+    return dg < dc ? vec2(dg, 6.) : vec2(dc, 5.);
+  }
   vec2 id = floor(p.xz/CELL);
   vec2 q = p.xz - (id + .5)*CELL;
   float h = cityHeight(id);
@@ -264,9 +275,14 @@ vec2 mapCity(vec3 p){
 #endif
   }
   if (!gExact) {
-    vec2 bd = CELL*.5 - abs(q);
-    db = min(db, max(min(bd.x, bd.y), 0.) + .07);
+    // salto hasta la pared de la celda en la dirección del rayo (tipo DDA)
+    vec2 rdc = gRd.xz + vec2(gRd.x >= 0. ? 1e-5 : -1e-5, gRd.z >= 0. ? 1e-5 : -1e-5);
+    vec2 tb = (sign(rdc)*CELL*.5 - q)/rdc;
+    float tex = max(min(tb.x, tb.y), 0.) + .03;
+    if (gRd.y > 0. && p.y > 3.55) tex = 1e4;
+    db = min(db, tex);
   }
+  if (!gExact) return vec2(db, 5.);
   return dg < db ? vec2(dg, 6.) : vec2(db, 5.);
 }
 
@@ -280,12 +296,16 @@ vec4 hordeT(int i){   // posición xz, escala, giro
   if (i == 3) return vec4( 70., -185., 4.2, -.5);
   return vec4(4., -260., 4.6, .05);
 }
+vec4 HD[NH]; mat3 HRi[NH];
+void hordeSetup(){ for (int i=0;i<NH;i++){ HD[i] = hordeT(i); HRi[i] = rotY(-HD[i].w); } }
 vec2 mapHorde(vec3 p){
   vec2 res = vec2(1e5, 0.);
   for (int i=0;i<NH;i++){
-    vec4 h = hordeT(i);
+    vec4 h = HD[i];
     vec3 bp = vec3(h.x, 5.62*h.z, h.y);
-    vec3 q = (rotY(-h.w)*(p - bp))/h.z;
+    vec3 dp = p - bp;
+    if (length(dp - vec3(0.,-2.3*h.z,0.)) - 5.6*h.z > 1.) { res = opU(res, vec2(length(dp - vec3(0.,-2.3*h.z,0.)) - 5.6*h.z, 1.)); continue; }
+    vec3 q = (HRi[i]*dp)/h.z;
     float b = length(q - vec3(0.,-2.3,.3)) - 4.9;
     vec2 r = b > .6 ? vec2(b, 1.) : mapBaby(q);
     r.x *= h.z;
@@ -310,8 +330,9 @@ vec2 map(vec3 p){
   return res;
 }
 vec2 march(vec3 ro, vec3 rd, float tmax){
+  gRd = rd;
   float t = .02;
-  for (int i=0;i<200;i++){
+  for (int i=0;i<260;i++){
     vec2 h = map(ro + rd*t);
     if (h.x < .00025*t + .0004) return vec2(t, h.y);
     t += h.x*.92;
@@ -359,18 +380,38 @@ vec3 stars(vec3 rd){
   if (h.x < .93) return vec3(0.);
   return vec3(.9,.8,.8)*h.y*ss(.12,.0,length(f - (h - .5)*.6))*1.5;
 }
+vec3 skyline(vec3 rd, vec3 col, vec3 bcol, float ruins){
+  float az = atan(rd.x, -rd.z), el = rd.y;
+  for (int l=1;l>=0;l--){
+    float fl = float(l);
+    float sc = 70. + fl*60.;
+    float x = az*sc;
+    float cell = floor(x);
+    float h = hash11(cell*1.31 + fl*7.);
+    float H = (.006 + .03*h*h + step(.92, hash11(cell*.71 + fl*3.))*.035)*(1. - fl*.4);
+    if (ruins > .5) H *= .45 + .55*abs(fract(x*1.7 + h) - .5)*2.;
+    if (el < H) {
+      col = bcol*(1. + fl*.8);
+      vec2 w = vec2(x*6., el*520.);
+      float win = step(.78, hash21(floor(w) + fl*13.))*step(.3, fract(w.x))*step(.35, fract(w.y));
+      col += mix(vec3(1.,.7,.35), vec3(.6,.75,1.), step(.6, hash21(floor(w)*1.3)))*win*(.35 - ruins*.25)*(1. - fl*.5);
+      if (ruins > .5) col += vec3(1.,.3,.05)*ss(.012, .0, el)*(.6 + .4*noise2(vec2(x*.5, uG*2.)));
+    }
+  }
+  return col;
+}
 vec3 skyNight(vec3 rd){
   float y = rd.y;
   vec3 col = mix(uFogCol, uZenith, ss(-.05, .55, y));
   col += stars(rd)*ss(.08, .35, y);
   float mc = clamp(dot(rd, uMoonDir), -1., 1.);
   float md = acos(mc);
-  col += uMoonCol*(.55*exp(-max(md - uMoonR, 0.)*10.) + .1*exp(-md*2.2));
+  col += uMoonCol*(.3*exp(-max(md - uMoonR, 0.)*14.) + .03*exp(-md*2.));
   if (md < uMoonR) {
     vec3 tx = normalize(cross(uMoonDir, vec3(0.,1.,0.))); vec3 ty = cross(tx, uMoonDir);
     vec2 mp = vec2(dot(rd, tx), dot(rd, ty))/sin(uMoonR);
     float cr = fbm2(mp*2.1 + 3.), cr2 = noise2(mp*6.5 + 1.);
-    vec3 mcol = uMoonCol*1.7;
+    vec3 mcol = uMoonCol*1.15;
     mcol *= mix(1., .7, ss(.53, .55, cr));
     mcol *= mix(1., .85, ss(.62, .64, cr2));
     mcol *= mix(1., .78, ss(.8, .82, length(mp)));
@@ -386,13 +427,16 @@ vec3 skyNight(vec3 rd){
     float th = .62 - .25*dens;
     float mask = ss(th, th + .01, c);
     vec2 toMoon = normalize(vec2(maz*2.4, uMoonDir.y*11.) - cp + 1e-4);
-    float c2 = fbm2((cp + toMoon*.05)*vec2(1., 1.6) + 7.);
+    float c2 = fbm2((cp + toMoon*.018)*vec2(1., 1.6) + 7.);
     float rim = sat(mask - ss(th, th + .01, c2));
     float near = exp(-md*3.);
-    vec3 cc = mix(vec3(.018,.008,.02), vec3(.05,.012,.03), ss(th, th + .25, c));
+    vec3 cc = mix(vec3(.008,.003,.008), vec3(.025,.006,.014), ss(th, th + .25, c));
     col = mix(col, cc, mask);
-    col += uMoonCol*rim*(.25 + 2.2*near);
+    col += uMoonCol*rim*(.06 + 1.5*near);
   }
+#endif
+#ifdef SKYLINE
+  col = skyline(rd, col, vec3(.012,.01,.02), 0.);
 #endif
   return col;
 }
@@ -416,6 +460,7 @@ vec3 skyFire(vec3 rd){
   float mc = clamp(dot(rd, uMoonDir), -1., 1.); float md = acos(mc);
   col += uMoonCol*(.4*exp(-max(md - uMoonR, 0.)*10.));
   if (md < uMoonR) col = uMoonCol*1.5*mix(1., .8, ss(.8,.82, md/uMoonR));
+  col = skyline(rd, col, vec3(.02,.008,.008), 1.);
   return col;
 }
 vec3 background(vec3 rd){
@@ -447,7 +492,7 @@ vec3 shadeEye(vec3 ph, vec3 rdh){
   ic = mix(ic, vec3(.2,0.,.01), ss(.86, .95, r));
   float pupil = 1. - ss(.92, 1.06, length(vec2(ip.x/uFace.w, ip.y/.78)));
   ic = mix(ic, vec3(.015,0.,0.), pupil);
-  col = mix(col, ic*2.4*uEyeGlow, iris);
+  col = mix(col, ic*1.9*uEyeGlow, iris);
   vec3 hl = normalize(-rdh + vec3(-.32,.42,0.));
   vec3 hl2 = normalize(-rdh + vec3(.26,-.3,0.));
   float s1 = ss(.972, .976, dot(en, hl));
@@ -480,8 +525,9 @@ vec3 shadeBaby(vec3 p, vec3 n, vec3 rd, float mat, float t, vec3 bpos, mat3 brot
   float rim = ss(uRimW, uRimW + .035, fres*rimAlign);
   col = mix(col, uRimCol*(.7 + .6*alb), rim);
   // ojos que iluminan la cara (en bandas, como en el anime)
+  col += alb*uFillCol*ss(-.02, .02, dot(n, uFillDir))*(1. - lit)*ss(.3, .6, ao);
   float eg = bandPt(p, n, eyeWL, bsc*.34) + bandPt(p, n, eyeWR, bsc*.34);
-  col += EYE_GLOW*uEyeGlow*eg*(alb + .08)*2.2;
+  col += EYE_GLOW*uEyeGlow*eg*(alb*.8 + vec3(.03,0.,0.))*uEyeLight;
   if (uTip.w > 0.) col += vec3(1.,.25,.08)*uTip.w*bandPt(p, n, uTip.xyz, bsc*.5)*(alb + .1)*2.;
   for (int i=0;i<4;i++){
     if (uXL[i].w > 0.) col += vec3(1.,.5,.15)*uXL[i].w*bandPt(p, n, uXL[i].xyz, bsc*1.4)*(alb + .05)*2.5;
@@ -505,8 +551,8 @@ vec3 shadeBaby(vec3 p, vec3 n, vec3 rd, float mat, float t, vec3 bpos, mat3 brot
     float w = uWet*exp(-max(p.y, 0.)*.18/bsc);
     float st = noise2(vec2((pl.x*1.3 + pl.z)*16., pl.y*2.2 + uG*2.6));
     float st2 = noise2(vec2((pl.x - pl.z*1.2)*30., pl.y*3.5 + uG*3.8));
-    float lines = ss(.66, .7, st)*.8 + ss(.72, .75, st2)*.6;
-    col += vec3(.45,.6,.9)*lines*w*(.25 + .75*sat(1. - fres*.5));
+    float lines = ss(.7, .73, st)*.6 + ss(.78, .8, st2)*.3;
+    col += vec3(.35,.5,.85)*lines*w*.35;
     col *= 1. - .25*w;
   }
   return col;
@@ -572,7 +618,7 @@ void searchBeam(int i, out vec3 B, out vec3 D){
   float fi = float(i);
   B = vec3(-10. + fi*5.2 + hash11(fi)*2., 0., -8. - 6.*hash11(fi*3.1));
   float a = .35*sin(uG*(.35 + .1*fi) + fi*1.7) + (fi - 2.)*.12;
-  float e = .9 + .25*sin(uG*(.27 + .07*fi) + fi);
+  float e = .55 + .38*sin(uG*(.27 + .07*fi) + fi*1.9);
   D = normalize(vec3(sin(a)*cos(e), sin(e), -cos(a)*cos(e)));
 }
 vec3 searchVolume(vec3 ro, vec3 rd, float tHit){
@@ -661,9 +707,9 @@ vec3 shadeOcean(vec3 p, vec3 rd, float t){
   float fres = .03 + .97*pow(1. - sat(dot(n, -rd)), 5.);
   vec3 col = vec3(.003,.004,.01);
   vec3 sky = skyNight(r);
-  col = mix(col, sky*.8, ss(.15, .35, fres)*.6 + .2*fres);
+  col = mix(col, sky*.35, ss(.15, .35, fres)*.6 + .2*fres);
   float g = dot(r, uMoonDir);
-  col += uMoonCol*ss(cos(uMoonR*2.8), cos(uMoonR*2.3), g)*2.2*ss(.45, .55, noise2(p.xz*vec2(3., 9.) + uG));
+  col += uMoonCol*ss(cos(uMoonR*1.7), cos(uMoonR*1.25), g)*1.5*ss(.5, .56, noise2(p.xz*vec2(3., 9.) + uG));
   // reflejo de los ojos: dos columnas temblorosas
   vec3 rr = reflect(rd, vec3(0.,1.,0.));
   float eyeR = glowLine(p, normalize(rr + (n - vec3(0.,1.,0.))*1.4), 400., eyeWL, .004*uBScale) + glowLine(p, normalize(rr + (n - vec3(0.,1.,0.))*1.4), 400., eyeWR, .004*uBScale);
@@ -683,6 +729,9 @@ vec3 shadeOcean(vec3 p, vec3 rd, float t){
 const RENDER = `
 void main(){
   finishSetup();
+#ifdef HORDE
+  hordeSetup();
+#endif
   vec2 uv = (gl_FragCoord.xy - .5*uRes)/uRes.y;
   mat3 ca = camLook(uCamPos, uCamTar, uCamRoll);
   vec3 ro = uCamPos, rd = ca*normalize(vec3(uv, uCamFl));
@@ -693,10 +742,17 @@ void main(){
 #ifdef HAS_OCEAN
   if (rd.y < 0.) tO = -ro.y/rd.y;
 #endif
-  vec2 h = march(ro, rd, min(tO, 900.));
+  float tG = 1e4;
+#ifdef HAS_CITY
+  if (rd.y < 0.) tG = -ro.y/rd.y;
+#endif
+  vec2 h = march(ro, rd, min(min(tO, tG), 900.));
+#ifdef HAS_CITY
+  if (h.y < 0. && tG < 1e4) h = vec2(tG, 6.);
+#endif
   if (h.y > 0. && h.x < tO) {
     vec3 p = ro + rd*h.x;
-    vec3 n = calcNormal(p, h.x);
+    vec3 n = h.y > 5.5 ? vec3(0.,1.,0.) : calcNormal(p, h.x);
     tHit = h.x; nOut = n;
     if (h.y < 4.5) {
 #ifdef HORDE
@@ -713,12 +769,12 @@ void main(){
       col = shadeCity(p, n, rd, h.y, h.x);
 #endif
     }
-    col = mix(col, uFogCol, 1. - exp(-h.x*uFogK));
+    col = mix(col, uHaze, 1. - exp(-h.x*uFogK));
   } else if (tO < 1e4) {
 #ifdef HAS_OCEAN
     vec3 p = ro + rd*tO;
     col = shadeOcean(p, rd, tO);
-    col = mix(col, uFogCol*.8, 1. - exp(-tO*uFogK));
+    col = mix(col, uHaze*.8, 1. - exp(-tO*uFogK));
     tHit = tO; nOut = vec3(0.,1.,0.);
 #endif
   }
@@ -802,10 +858,10 @@ void main(){
 const SHOTS = {
   SEA:    { defs: ['HAS_HEAD', 'BODY 2', 'HAS_OCEAN', 'BG_NIGHT', 'HAS_CLOUDS'], mods: [OCEAN] },
   EYES:   { defs: ['HAS_HEAD', 'BG_DARK'], mods: [] },
-  CITY:   { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'HAS_CITY', 'BG_NIGHT', 'HAS_CLOUDS', 'SEARCHLIGHTS'], mods: [SEARCH], pre: true },
-  ATTACK: { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'BG_NIGHT', 'HAS_CLOUDS'], mods: [] },
-  RAISE:  { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'BG_NIGHT', 'HAS_CLOUDS'], mods: [] },
-  TOUCH:  { defs: ['HAS_ARM_R', 'HAS_CITY', 'BG_NIGHT', 'HAS_DOME'], mods: [DOME], pre: true },
+  CITY:   { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'HAS_CITY', 'BG_NIGHT', 'HAS_CLOUDS', 'SEARCHLIGHTS', 'SKYLINE'], mods: [SEARCH], pre: true },
+  ATTACK: { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'BG_NIGHT', 'HAS_CLOUDS', 'SKYLINE'], mods: [] },
+  RAISE:  { defs: ['HAS_HEAD', 'BODY 2', 'HAS_ARM_R', 'HAS_ARM_L', 'BG_NIGHT', 'HAS_CLOUDS', 'SKYLINE'], mods: [] },
+  TOUCH:  { defs: ['HAS_ARM_R', 'HAS_CITY', 'BG_NIGHT', 'HAS_DOME', 'SKYLINE'], mods: [DOME], pre: true },
   EARTH:  { defs: [], mods: [], main: EARTH },
   HORDE:  { defs: ['HAS_HEAD', 'BODY 2', 'HORDE', 'HAS_CITY', 'RUINS', 'BG_FIRE'], mods: [] },
   SMILE:  { defs: ['HAS_HEAD', 'BODY 2', 'BG_DARK'], mods: [] },
@@ -905,7 +961,7 @@ void main(){
   vec3 col = texture(uScene, uv).rgb;
   float cov = 0.;
   vec4 fx = texture(uFxTex, uv);
-  col = col*(1. - fx.a) + fx.rgb*1.6;
+  col = col*(1. - fx.a) + fx.rgb;
   cov = max(cov, fx.a);
   for (int i=0;i<12;i++){
     if (i >= uExpN) break;
