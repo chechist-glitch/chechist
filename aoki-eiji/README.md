@@ -22,6 +22,7 @@ Abre la página y dale a **▶ REPRODUCIR**. Parámetros:
 |---|---|
 | `?q=low` / `?q=high` | Resolución interna de la escena (0,4 / 1; por defecto 2/3) |
 | `?t=25` | Empieza en el segundo 25 |
+| `?v` | Versión vertical 9:16 (1080×1920) |
 
 ## Sacar el MP4
 
@@ -33,6 +34,7 @@ node render.mjs --workers 2          # → aoki-eiji.mp4 (1920×1080, 24 fps, co
 Necesita `ffmpeg` en el `PATH` (o `FFMPEG=/ruta/ffmpeg`). Otras opciones:
 
 ```bash
+node render.mjs --size 1080x1920 --out vertical.mp4   # versión 9:16 (TikTok, Reels, Shorts)
 node render.mjs --size 960x540 --out prueba.mp4        # previsualización rápida
 node render.mjs --shots touch@1.0,horde@2.5 --outdir fotos   # plano@segundo_local
 node render.mjs --audio-only --out musica.wav

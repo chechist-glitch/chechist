@@ -15,7 +15,7 @@
   :root { --bg: #050304; --ink: #f4f1ea; --dim: #9a8f86; --red: #d8150e; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; }
   #stage { position: fixed; inset: 0; display: grid; place-items: center; }
-  canvas { width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16)); display: block; background: #000; }
+  canvas { display: block; background: #000; }
   #ui { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
         background: radial-gradient(ellipse at 50% 45%, rgba(90,8,6,.55), rgba(0,0,0,.95) 70%); transition: opacity .6s; }
   #ui.hidden { opacity: 0; pointer-events: none; }
@@ -47,11 +47,17 @@
   const qs = new URLSearchParams(location.search);
   const canvas = document.getElementById('c');
   const q = qs.get('q');
+  const vertical = qs.has('v');
   const film = new AEAnime.Anime(canvas, {
     sceneScale: parseFloat(qs.get('s')) || (q === 'low' ? 0.4 : q === 'high' ? 1 : 2 / 3),
-    width: parseInt(qs.get('w'), 10) || 1920,
-    height: parseInt(qs.get('h'), 10) || 1080,
+    width: parseInt(qs.get('w'), 10) || (vertical ? 1080 : 1920),
+    height: parseInt(qs.get('h'), 10) || (vertical ? 1920 : 1080),
   });
+  const fit = () => {
+    const a = canvas.width / canvas.height, w = Math.min(innerWidth, innerHeight * a);
+    canvas.style.width = w + 'px'; canvas.style.height = w / a + 'px';
+  };
+  addEventListener('resize', fit); fit();
   function toB64(u8) {
     let s = '';
     for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));

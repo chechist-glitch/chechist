@@ -147,7 +147,7 @@ const SHOTS = [
   { name: 'intro', dur: 3.75 },
   /* ---------------------------------------------------------------- 1 */
   {
-    name: 'sea', dur: 6.0, prog: 'SEA', twos: false,
+    name: 'sea', dur: 6.0, prog: 'SEA', twos: false, pfl: 0.8,
     cam: t => ({ pos: lerp3([1.8, 0.55, 14], [1.0, 0.8, 10], ease(t / 6)), tar: [0, lerp(1.8, 4.0, ease((t - 0.8) / 5.2)), -38], fl: 3.0, roll: -0.02 }),
     rig: t => baseRig({ bPos: [0, lerp(-4.4, 4.4, ease((t - 0.9) / 5.0)), -38], bScale: 3.4, head: [0.05, 0.14, 0.03], face: [-0.07, -0.06, 0, 0.14], eyeGlow: 0, gaze: [0, 1, 10] }),
     light: t => ({
@@ -166,7 +166,7 @@ const SHOTS = [
   },
   /* ---------------------------------------------------------------- 2 */
   {
-    name: 'eyes', dur: 2.75, prog: 'EYES', twos: true,
+    name: 'eyes', dur: 2.75, prog: 'EYES', twos: true, pfl: 0.4,
     cam: t => ({ pos: lerp3([0, -0.05, 2.2], [0, -0.04, 2.6], ease((t - 0.3) / 2.45)), tar: [0, -0.07, 0], fl: 2.0, roll: 0 }),
     rig: (t, cam) => baseRig({
       face: [kf(t, [[0.25, -0.07], [0.33, 0.125], [0.6, 0.085]]), kf(t, [[0.25, -0.06], [0.33, -0.135], [0.6, -0.12]]), 0, kf(t, [[0.25, 0.5], [0.7, 0.09]])],
@@ -568,7 +568,9 @@ class Anime {
     });
     if (shot.prog) {
       hasScene = 1;
-      cam3 = (override && override.cam) ? Object.assign({ roll: 0 }, override.cam) : shot.cam(st); cam3.b = camBasis(cam3);
+      cam3 = (override && override.cam) ? Object.assign({ roll: 0 }, override.cam) : shot.cam(st);
+      if (this.H > this.W) { cam3.fl *= shot.pfl || 0.62; if (shot.pcam) Object.assign(cam3, shot.pcam(st, cam3)); }
+      cam3.b = camBasis(cam3);
       rig3 = shot.rig(st, cam3);
       const L = Object.assign({}, LIGHT0, shot.light ? shot.light(st, cam3) : {});
       if (shot.post) Object.assign(post, shot.post(lt, cam3, asp));
@@ -750,13 +752,14 @@ const F = {
 const typed = (s, t0, t, cps) => s.slice(0, Math.max(0, Math.min(s.length, Math.floor((t - t0) * cps))));
 
 function drawOverlay(ctx, t, shot, lt, W0, H0, frame, cam, rig) {
+  const V = H0 > W0;
+  const W = V ? 1080 : 1920, H = V ? 1920 : 1080;
   ctx.save();
-  ctx.scale(W0 / 1920, H0 / 1080);
-  const W = 1920, H = 1080;
-  if (shot.name === 'intro') drawIntro(ctx, lt, W, H, frame);
-  if (shot.name === 'title') drawTitle(ctx, lt, W, H, frame);
-  if (shot.overlay) shot.overlay(ctx, lt, cam, rig, HUD(W, H, frame));
-  drawSubs(ctx, t, W, H);
+  ctx.scale(W0 / W, H0 / H);
+  if (shot.name === 'intro') drawIntro(ctx, lt, W, H, frame, V);
+  if (shot.name === 'title') drawTitle(ctx, lt, W, H, frame, V);
+  if (shot.overlay) shot.overlay(ctx, lt, cam, rig, HUD(W, H, frame, V));
+  drawSubs(ctx, t, W, H, V);
   ctx.restore();
 }
 
@@ -776,7 +779,7 @@ function vtext(ctx, str, x, y, size, n, t0, t, glow) {
   }
 }
 
-function drawIntro(ctx, t, W, H, frame) {
+function drawIntro(ctx, t, W, H, frame, V) {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   const g = ctx.createRadialGradient(W * 0.55, H * 0.45, 0, W * 0.55, H * 0.45, H * 0.8);
   g.addColorStop(0, `rgba(90,6,10,${0.35 + 0.1 * Math.sin(t * 5)})`); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -788,8 +791,9 @@ function drawIntro(ctx, t, W, H, frame) {
   }
   const out = 1 - ss(3.2, 3.45, t);
   ctx.globalAlpha = out;
-  vtext(ctx, '千年の眠りから', W * 0.585, H * 0.2, 74, 7, 0.25, t, 'rgba(255,40,20,.8)');
-  vtext(ctx, '蒼き嬰児は目覚める', W * 0.485, H * 0.16, 74, 9, 1.35, t, 'rgba(255,40,20,.8)');
+  const vs = V ? 96 : 74;
+  vtext(ctx, '千年の眠りから', W * (V ? 0.61 : 0.585), H * (V ? 0.25 : 0.2), vs, 7, 0.25, t, 'rgba(255,40,20,.8)');
+  vtext(ctx, '蒼き嬰児は目覚める', W * (V ? 0.42 : 0.485), H * (V ? 0.22 : 0.16), vs, 9, 1.35, t, 'rgba(255,40,20,.8)');
   ctx.globalAlpha = 1;
   // tajo de luz que abre el siguiente plano
   if (t > 3.35) {
@@ -803,7 +807,7 @@ function drawIntro(ctx, t, W, H, frame) {
   }
 }
 
-function drawTitle(ctx, t, W, H, frame) {
+function drawTitle(ctx, t, W, H, frame, V) {
   const hit2 = t >= 2.5 && t < 2.5 + 2 / 24;
   ctx.fillStyle = hit2 ? WHITE : '#000'; ctx.fillRect(0, 0, W, H);
   if (t < 2 / 24) { ctx.fillStyle = '#b00d08'; ctx.fillRect(0, 0, W, H); }
@@ -812,6 +816,22 @@ function drawTitle(ctx, t, W, H, frame) {
   ctx.globalAlpha = fade;
   ctx.fillStyle = ink;
   ctx.textBaseline = 'alphabetic';
+  if (V) {
+    const col = (str, x, y0, size) => {
+      ctx.font = F.serif(size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      [...str].forEach((c, i) => ctx.fillText(c, x, y0 + i * size * 1.04));
+    };
+    col('蒼キ嬰児', W * 0.64, H * 0.26, 250);
+    if (t > 1.25) { ctx.font = F.serif(96); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText('第壱話', W * 0.9, H * 0.14); }
+    if (t > 2.5) {
+      col('降臨', W * 0.27, H * 0.5, 190);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.font = F.cond(44); ctx.fillStyle = hit2 ? '#000' : '#bdb6ad'; ctx.fillText('EPISODIO 1', W / 2, H * 0.85);
+      ctx.fillStyle = ink; ctx.fillText('LOS NIÑOS DE AZUL', W / 2, H * 0.885); ctx.fillText('— EL DESCENSO —', W / 2, H * 0.915);
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
   // 蒼キ嬰児、 enorme y comprimido
   ctx.save(); ctx.translate(W * 0.5, H * 0.6); ctx.scale(0.8, 1);
   ctx.font = F.serif(250); ctx.textAlign = 'center';
@@ -833,20 +853,25 @@ function drawTitle(ctx, t, W, H, frame) {
   ctx.globalAlpha = 1;
 }
 
-function drawSubs(ctx, t, W, H) {
+function drawSubs(ctx, t, W, H, V) {
   for (const [a, b, text] of SUBS) {
     if (t < a || t > b) continue;
     const al = Math.min(1, (t - a) / 0.12, (b - t) / 0.12);
     ctx.save(); ctx.globalAlpha = al;
-    const fs = Math.round(H * 0.042);
+    const fs = V ? 54 : Math.round(H * 0.042);
     ctx.font = F.sub(fs); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.lineJoin = 'round'; ctx.lineWidth = fs * 0.2; ctx.strokeStyle = 'rgba(0,0,0,.92)';
-    ctx.strokeText(text, W / 2, H * 0.915); ctx.fillStyle = WHITE; ctx.fillText(text, W / 2, H * 0.915);
+    const lines = [];
+    let cur = '';
+    for (const w of text.split(' ')) { const tst = cur ? cur + ' ' + w : w; if (ctx.measureText(tst).width > W * 0.86 && cur) { lines.push(cur); cur = w; } else cur = tst; }
+    lines.push(cur);
+    let y = (V ? H * 0.74 : H * 0.915) - (lines.length - 1) * fs * 1.2;
+    for (const ln of lines) { ctx.strokeText(ln, W / 2, y); ctx.fillStyle = WHITE; ctx.fillText(ln, W / 2, y); y += fs * 1.2; }
     ctx.restore();
   }
 }
 
-function HUD(W, H, frame) {
+function HUD(W, H, frame, V) {
   const glow = (ctx, c, b) => { ctx.shadowColor = c; ctx.shadowBlur = b; };
   return {
     hudCity(ctx, t, cam, rig) {
@@ -861,18 +886,19 @@ function HUD(W, H, frame) {
         ctx.beginPath(); ctx.moveTo(x, y + sy * l); ctx.lineTo(x, y); ctx.lineTo(x + sx * l, y); ctx.stroke();
       }
       // banda superior de emergencia
+      const bandY = V ? 150 : 62;
       if (t > 0.3) {
-        ctx.fillStyle = 'rgba(160,10,8,.82)'; ctx.fillRect(0, 62, W, 44);
+        ctx.fillStyle = 'rgba(160,10,8,.82)'; ctx.fillRect(0, bandY, W, 44);
         ctx.font = F.jp(28); ctx.fillStyle = WHITE; ctx.textBaseline = 'middle';
         const txt = '非常事態宣言  ◆  ESTADO DE EMERGENCIA  ◆  ';
         ctx.font = F.jp(28); const tw = ctx.measureText(txt).width;
         let x0 = -((t * 220) % tw);
-        for (let x = x0; x < W; x += tw) ctx.fillText(txt, x, 84);
+        for (let x = x0; x < W; x += tw) ctx.fillText(txt, x, bandY + 22);
       }
       // aviso
       if (t > 0.45) {
         const blink = Math.floor(t * 3) % 2 === 0;
-        ctx.save(); ctx.translate(70, 150);
+        ctx.save(); ctx.translate(V ? 60 : 70, V ? 240 : 150);
         ctx.fillStyle = blink ? 'rgba(255,40,30,.9)' : 'rgba(120,10,8,.7)'; ctx.fillRect(0, 0, 250, 112);
         ctx.fillStyle = '#000'; ctx.font = F.jp(78); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
         ctx.fillText('警告', 18, 50);
@@ -884,7 +910,7 @@ function HUD(W, H, frame) {
       if (hp && t > 0.6) {
         const cx = (hp.x / (W / H) + 0.5) * W, cy = (0.5 - hp.y) * H;
         const k = easeOut((t - 0.6) / 0.5);
-        const R = lerp(260, 120, k);
+        const R = lerp(V ? 200 : 260, V ? 95 : 120, k);
         ctx.save(); ctx.translate(cx, cy); ctx.strokeStyle = RED; glow(ctx, 'rgba(255,40,20,.9)', 10);
         ctx.lineWidth = 2.5;
         for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
@@ -896,13 +922,14 @@ function HUD(W, H, frame) {
         ctx.restore();
         if (t > 1.0) {
           ctx.font = F.jp(26); ctx.fillStyle = RED; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-          ctx.fillText('目標捕捉', cx + R + 16, cy - R + 24);
-          ctx.font = F.cond(24); ctx.fillText('OBJETIVO FIJADO · 7,2 km', cx + R + 16, cy - R + 52);
+          const lx = V ? cx - R : cx + R + 16, ly = V ? cy + R + 40 : cy - R + 24;
+          ctx.fillText('目標捕捉', lx, ly);
+          ctx.font = F.cond(24); ctx.fillText('OBJETIVO FIJADO · 7,2 km', lx, ly + 28);
         }
       }
       // panel de datos
       if (t > 1.0) {
-        const x = W - 560, y = 170, w = 490, h = 430;
+        const x = V ? 60 : W - 560, y = V ? 1150 : 170, w = V ? 960 : 490, h = 430;
         ctx.fillStyle = 'rgba(12,4,4,.62)'; ctx.fillRect(x, y, w, h);
         ctx.strokeStyle = ORANGE; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
         ctx.fillStyle = ORANGE; ctx.fillRect(x, y, w, 40);
@@ -936,7 +963,7 @@ function HUD(W, H, frame) {
       }
       // monitor de pulso
       if (t > 0.8) {
-        const x = 70, y = H - 210, w = 420, h = 110;
+        const x = V ? W - 480 : 70, y = V ? 262 : H - 210, w = 420, h = 110;
         ctx.strokeStyle = ORANGE; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h);
         ctx.beginPath();
         for (let i = 0; i <= 120; i++) {
@@ -956,7 +983,7 @@ function HUD(W, H, frame) {
       const blink = Math.floor(t * 4) % 2 === 0;
       const k = easeOut(t / 0.2);
       ctx.save();
-      ctx.translate(W / 2, H * 0.2); ctx.scale(1, k);
+      ctx.translate(W / 2, V ? H * 0.16 : H * 0.2); ctx.scale(V ? 0.92 : 1, k);
       ctx.fillStyle = blink ? 'rgba(200,12,8,.9)' : 'rgba(90,6,4,.8)';
       ctx.fillRect(-380, -62, 760, 124);
       ctx.strokeStyle = WHITE; ctx.lineWidth = 3; ctx.strokeRect(-372, -54, 744, 108);
@@ -968,7 +995,7 @@ function HUD(W, H, frame) {
     count(ctx, t) {
       if (t < 0.4) return;
       const n = t < 1.4 ? 1 : t < 2.4 ? 5 : t < 3.4 ? 27 : 0;
-      ctx.save(); ctx.translate(80, 150);
+      ctx.save(); ctx.translate(V ? 60 : 80, V ? 240 : 150);
       ctx.fillStyle = 'rgba(12,4,4,.6)'; ctx.fillRect(0, 0, 470, 150);
       ctx.strokeStyle = ORANGE; ctx.lineWidth = 2; ctx.strokeRect(0, 0, 470, 150);
       ctx.fillStyle = ORANGE; ctx.font = F.jp(30); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
