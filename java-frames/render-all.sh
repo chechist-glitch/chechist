@@ -44,4 +44,17 @@ $J DadaCollage          $OUT $ILL/18-collage-dada.png
 $J ConstructivistPoster $ILL/19-cartel-constructivista.png
 $J IsoCity              $ILL/20-ciudad-isometrica.png
 $J ContactSheet         $ILL $ILL/00-hoja-de-contactos.png 4
+
+echo "Tradición y oficios raros:"
+TRA=$OUT/tradicion
+mkdir -p "$TRA"
+$J Azulejos      $TRA/21-azulejos-sevillanos.png
+$J Laceria       $TRA/22-laceria-nazari.png
+$J Linocut       $TRA/23-linograbado.png
+$J Herbarium     $TRA/24-herbario.png
+$J TreasureMap   $TRA/25-mapa-del-tesoro.png
+$J HaringDancers $TRA/26-bailarines-haring.png
+$J PixelInvaders $TRA/27-invasores-pixel.png
+$J OpArt         $TRA/28-op-art-vasarely.png
+$J ContactSheet  $TRA $TRA/00-hoja-de-contactos.png 4
 echo "Listo."

@@ -35,3 +35,16 @@ Arte generativo con Java, JShell y JavaScript, sin librerías externas.
 | 20 ciudad isométrica | bloques pastel con agua, parques y personitas (`IsoCity`) |
 
 Todas aceptan una semilla como último argumento: con otro número sale otra ilustración.
+
+## Serie 3: tradición y oficios raros (`gallery/tradicion/`)
+
+| Imagen | Técnica |
+|---|---|
+| 21 azulejos sevillanos | motivo con simetría de 8 ejes, cenefa, esmalte y craquelado (`Azulejos`) |
+| 22 lacería nazarí | teselado de estrellas de 8 puntas y cruces con cintas entrelazadas (`Laceria`) |
+| 23 linograbado | sierras talladas por píxel, sol bermellón, olas rizadas y tinta gastada (`Linocut`) |
+| 24 herbario | plantas con L-systems a tinta y acuarela (`Herbarium`) |
+| 25 mapa del tesoro | isla de ruido, costas repetidas, rosa de los vientos y monstruo (`TreasureMap`) |
+| 26 bailarines Haring | esqueletos con postura aleatoria y rayitas de movimiento (`HaringDancers`) |
+| 27 invasores pixel | 112 marcianitos de máscara simétrica y letra pixelada (`PixelInvaders`) |
+| 28 op-art Vasarely | rejilla deformada por lentes, bulto y hundimiento (`OpArt`) |
