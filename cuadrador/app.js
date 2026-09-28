@@ -102,13 +102,17 @@
     });
   }
 
-  // Worker con el mismo engine.js; si el navegador no lo permite (p. ej. al
-  // abrir el archivo en local), se analiza en la página.
+  // Worker con el mismo engine.js (o con su código, si va incrustado en la
+  // versión de un solo archivo); si el navegador no lo permite, se analiza en
+  // la página.
   var worker = null, workerBroken = false, pending = {};
   function getWorker() {
     if (worker || workerBroken || typeof Worker === 'undefined') return worker;
     try {
-      worker = new Worker('engine.js');
+      var inline = document.getElementById('engine-src');
+      worker = inline
+        ? new Worker(URL.createObjectURL(new Blob([inline.textContent], { type: 'text/javascript' })))
+        : new Worker('engine.js');
       worker.onmessage = function (e) {
         var cb = pending[e.data.id];
         delete pending[e.data.id];

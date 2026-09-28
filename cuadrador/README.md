@@ -11,8 +11,10 @@ los detalles de las piezas.
 
 ## Cómo se usa
 
-1. Abre `index.html` en el navegador (Chrome, Edge, Firefox o Safari). No hay
-   que instalar nada y nada sale de tu ordenador: todo se procesa en local.
+1. Abre `cuadrador.html` con doble clic (o arrástralo a Chrome, Edge, Firefox
+   o Safari). Es un solo archivo con todo dentro, así que se puede pasar por
+   WhatsApp o correo tal cual. No hay que instalar nada y nada sale de tu
+   ordenador: todo se procesa en local.
 2. Arrastra tus carteles a **Añadir carteles**. Puedes soltar varios a la vez;
    se analizan en segundo plano (unos segundos cada uno).
 3. Elige cómo recolocar:
@@ -69,6 +71,9 @@ las piezas por separado.
 
 ## Archivos
 
+- `cuadrador.html`: la herramienta en un solo archivo, lista para abrir.
+  Se genera con `python3 build_standalone.py` a partir de los tres de abajo;
+  regénerala si los cambias.
 - `index.html`: la página.
 - `app.js`: interfaz (lista de carteles, vista previa, arrastre, exportación y
   el cartel de ejemplo, que se dibuja por código).
