@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Fraunces";
+        font-weight: 900;
+        font-style: normal;
+        src: url("assets/fonts/fraunces-latin-900-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Fraunces";
+        font-weight: 400;
+        font-style: italic;
+        src: url("assets/fonts/fraunces-latin-400-italic.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Inter";
+        font-weight: 500;
+        src: url("assets/fonts/inter-latin-500-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Inter";
+        font-weight: 800;
+        src: url("assets/fonts/inter-latin-800-normal.woff2") format("woff2");
+      }
+
+      :root {
+        --noche: #0d1b2e;
+        --azulejo: #1f4e8c;
+        --albero: #e0a93b;
+        --cal: #f6efe2;
+        --almagra: #b5432f;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--noche);
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        font-family: "Inter", sans-serif;
+        color: var(--cal);
+      }
+
+      /* Capa de fondo compartida: no es clip, se dimensiona sola */
+      #bg {
+        position: absolute;
+        inset: 0;
+        background: var(--noche);
+        overflow: hidden;
+      }
+      #sol {
+        position: absolute;
+        left: 1340px;
+        top: 520px;
+        width: 520px;
+        height: 520px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #f3c45c 0%, var(--albero) 55%, rgba(224, 169, 59, 0) 72%);
+      }
+      #azulejos {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .clip.transparent {
+        background: transparent;
+      }
+      .escena {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-left: 180px;
+      }
+
+      /* Escena 1 */
+      #quillo {
+        font-family: "Fraunces", serif;
+        font-weight: 900;
+        font-size: 260px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--cal);
+        display: block;
+      }
+      #mira {
+        font-family: "Fraunces", serif;
+        font-style: italic;
+        font-weight: 400;
+        font-size: 72px;
+        color: var(--albero);
+        margin-top: 28px;
+        display: block;
+      }
+
+      /* Escena 2 */
+      #nombre {
+        display: flex;
+        font-family: "Fraunces", serif;
+        font-weight: 900;
+        font-size: 300px;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+      #nombre span {
+        display: inline-block;
+      }
+      #raya {
+        width: 760px;
+        height: 12px;
+        background: var(--almagra);
+        margin-top: 36px;
+        transform-origin: left center;
+      }
+      #subnombre {
+        font-size: 60px;
+        font-weight: 500;
+        margin-top: 36px;
+        display: block;
+      }
+      #subnombre em {
+        font-family: "Fraunces", serif;
+        font-weight: 400;
+        color: var(--albero);
+      }
+
+      /* Escena 3 */
+      #pasos {
+        display: flex;
+        align-items: center;
+        gap: 40px;
+      }
+      .paso {
+        display: block;
+        font-weight: 800;
+        font-size: 84px;
+        padding: 36px 56px;
+        border-radius: 28px;
+        background: var(--cal);
+        color: var(--noche);
+      }
+      .paso.fin {
+        background: var(--albero);
+      }
+      .flecha {
+        display: block;
+        font-weight: 800;
+        font-size: 84px;
+        color: var(--albero);
+      }
+      #montao {
+        font-family: "Fraunces", serif;
+        font-weight: 900;
+        font-size: 104px;
+        line-height: 1.05;
+        white-space: nowrap;
+        margin-top: 80px;
+        display: block;
+      }
+      #ole {
+        font-family: "Fraunces", serif;
+        font-style: italic;
+        font-weight: 400;
+        font-size: 96px;
+        color: var(--albero);
+        margin-top: 12px;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="13"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="bg">
+        <svg id="azulejos" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <pattern id="tile" width="160" height="160" patternUnits="userSpaceOnUse">
+              <rect width="160" height="160" fill="none" stroke="#1f4e8c" stroke-width="2" />
+              <path
+                d="M80 16 L96 64 L144 80 L96 96 L80 144 L64 96 L16 80 L64 64 Z"
+                fill="none"
+                stroke="#1f4e8c"
+                stroke-width="3"
+              />
+              <circle cx="80" cy="80" r="14" fill="#1f4e8c" />
+              <circle cx="0" cy="0" r="22" fill="none" stroke="#1f4e8c" stroke-width="3" />
+              <circle cx="160" cy="0" r="22" fill="none" stroke="#1f4e8c" stroke-width="3" />
+              <circle cx="0" cy="160" r="22" fill="none" stroke="#1f4e8c" stroke-width="3" />
+              <circle cx="160" cy="160" r="22" fill="none" stroke="#1f4e8c" stroke-width="3" />
+            </pattern>
+          </defs>
+          <rect width="1920" height="1080" fill="url(#tile)" />
+        </svg>
+        <div id="sol"></div>
+      </div>
+
+      <section id="s1" class="clip transparent" data-start="0" data-duration="4.2" data-track-index="1">
+        <div class="escena">
+          <h1 id="quillo">¡Quillo!</h1>
+          <p id="mira">mira lo que se ha montao…</p>
+        </div>
+      </section>
+
+      <section id="s2" class="clip transparent" data-start="4.2" data-duration="4.4" data-track-index="1">
+        <div class="escena">
+          <h1 id="nombre">
+            <span>c</span><span>h</span><span>e</span><span>c</span><span>h</span><span>i</span><span>s</span><span>t</span>
+          </h1>
+          <div id="raya"></div>
+          <p id="subnombre">ahora hace vídeos <em>con código</em></p>
+        </div>
+      </section>
+
+      <section id="s3" class="clip transparent" data-start="8.6" data-duration="4.4" data-track-index="1">
+        <div class="escena">
+          <div id="pasos">
+            <span class="paso" id="p1">HTML</span>
+            <span class="flecha" id="f1">→</span>
+            <span class="paso" id="p2">GSAP</span>
+            <span class="flecha" id="f2">→</span>
+            <span class="paso fin" id="p3">MP4</span>
+          </div>
+          <h2 id="montao">HyperFrames, montao y listo.</h2>
+          <p id="ole">Olé.</p>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      // Fondo: azulejos que entran, sol que sube y el cielo que se calienta
+      tl.fromTo("#azulejos", { opacity: 0, scale: 1.15 }, { opacity: 0.35, scale: 1, duration: 2.4, ease: "power2.out" }, 0);
+      tl.fromTo("#sol", { y: 420, opacity: 0 }, { y: 0, opacity: 1, duration: 3.2, ease: "power3.out" }, 0.2);
+      tl.to("#bg", { backgroundColor: "#16233a", duration: 4, ease: "sine.inOut" }, 4.2);
+      tl.to("#azulejos", { opacity: 0.18, duration: 1.2, ease: "sine.inOut" }, 4.2);
+      tl.to("#sol", { x: 60, y: -40, scale: 1.2, duration: 4.4, ease: "sine.inOut" }, 4.2);
+      tl.to("#sol", { y: 380, duration: 3.6, ease: "power2.inOut" }, 8.65);
+
+      // Escena 1
+      tl.fromTo("#quillo", { y: 120, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "back.out(1.6)" }, 0.3);
+      tl.fromTo("#mira", { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.8, ease: "power3.out" }, 1.1);
+      tl.to(["#quillo", "#mira"], { opacity: 0, y: -40, duration: 0.45, ease: "power2.in", stagger: 0.06 }, 3.65);
+
+      // Escena 2
+      tl.fromTo(
+        "#nombre span",
+        { yPercent: 110, opacity: 0, rotation: 8 },
+        { yPercent: 0, opacity: 1, rotation: 0, duration: 0.7, ease: "power4.out", stagger: 0.07 },
+        4.35
+      );
+      tl.fromTo("#raya", { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "expo.out" }, 5.1);
+      tl.fromTo("#subnombre", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 5.5);
+      tl.to(["#nombre", "#raya", "#subnombre"], { opacity: 0, x: -60, duration: 0.45, ease: "power2.in", stagger: 0.05 }, 8.05);
+
+      // Escena 3
+      tl.fromTo("#p1", { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 8.75);
+      tl.fromTo("#f1", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "power2.out" }, 9.1);
+      tl.fromTo("#p2", { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 9.3);
+      tl.fromTo("#f2", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "power2.out" }, 9.65);
+      tl.fromTo("#p3", { y: 50, opacity: 0, scale: 0.8 }, { y: 0, opacity: 1, scale: 1, duration: 0.6, ease: "back.out(2.4)" }, 9.85);
+      tl.fromTo("#montao", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 10.4);
+      tl.fromTo("#ole", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(3)" }, 11.3);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
