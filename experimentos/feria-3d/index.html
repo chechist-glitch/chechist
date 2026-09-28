@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./assets/vendor/three.module.js"
+        }
+      }
+    </script>
+    <style>
+      @font-face {
+        font-family: "Fraunces";
+        font-weight: 900;
+        src: url("assets/fonts/fraunces-latin-900-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Inter";
+        font-weight: 500;
+        src: url("assets/fonts/inter-latin-500-normal.woff2") format("woff2");
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0b0f24;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        font-family: "Inter", sans-serif;
+        color: #fff7e8;
+      }
+      #three-layer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #vineta {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(5, 6, 20, 0.75) 100%);
+      }
+      .clip.transparent {
+        background: transparent;
+      }
+      .capa {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 0 140px 120px;
+      }
+      #etiqueta {
+        display: block;
+        font-size: 34px;
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: #ffd27a;
+      }
+      #titulo {
+        display: block;
+        font-family: "Fraunces", serif;
+        font-weight: 900;
+        font-size: 150px;
+        line-height: 1;
+        margin-top: 16px;
+        text-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+      }
+      .final {
+        justify-content: center;
+        align-items: center;
+        padding: 0;
+      }
+      #revela {
+        display: block;
+        font-family: "Fraunces", serif;
+        font-weight: 900;
+        font-size: 170px;
+        line-height: 1;
+        text-align: center;
+        text-shadow: 0 10px 60px rgba(0, 0, 0, 0.8);
+      }
+      #revela-sub {
+        display: block;
+        font-size: 44px;
+        margin-top: 28px;
+        padding: 14px 34px;
+        border-radius: 999px;
+        background: rgba(11, 15, 36, 0.82);
+        color: #ffd27a;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="12"
+      data-width="1920"
+      data-height="1080"
+    >
+      <canvas id="three-layer" width="1920" height="1080"></canvas>
+      <div id="vineta"></div>
+
+      <section id="intro" class="clip transparent" data-start="0" data-duration="4.5" data-track-index="1">
+        <div class="capa">
+          <span id="etiqueta">Experimento 01</span>
+          <h1 id="titulo">Feria en 3D</h1>
+        </div>
+      </section>
+
+      <section id="final" class="clip transparent" data-start="8.4" data-duration="3.6" data-track-index="1">
+        <div class="capa final">
+          <h2 id="revela">Todo esto es HTML.</h2>
+          <p id="revela-sub">ni cámara, ni After Effects. Código.</p>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#etiqueta", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 0.4);
+      tl.fromTo("#titulo", { y: 80, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power4.out" }, 0.6);
+      tl.to(["#etiqueta", "#titulo"], { opacity: 0, y: -30, duration: 0.5, ease: "power2.in", stagger: 0.05 }, 3.9);
+      tl.to("#vineta", { opacity: 0.4, duration: 1, ease: "sine.inOut" }, 8.4);
+      tl.fromTo("#revela", { scale: 1.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.9, ease: "expo.out" }, 8.6);
+      tl.fromTo("#revela-sub", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 9.4);
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+
+      // PRNG con semilla: mismo resultado en cada render
+      function mulberry32(a) {
+        return function () {
+          a |= 0;
+          a = (a + 0x6d2b79f5) | 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+      const rand = mulberry32(1987);
+
+      const canvas = document.getElementById("three-layer");
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(1920, 1080, false);
+      renderer.setPixelRatio(1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0b0f24);
+      scene.fog = new THREE.Fog(0x0b0f24, 18, 70);
+
+      const camera = new THREE.PerspectiveCamera(58, 1920 / 1080, 0.1, 200);
+
+      // Textura de lunares para los farolillos
+      function texturaLunares(fondo, lunar) {
+        const c = document.createElement("canvas");
+        c.width = 256;
+        c.height = 128;
+        const g = c.getContext("2d");
+        g.fillStyle = fondo;
+        g.fillRect(0, 0, 256, 128);
+        g.fillStyle = lunar;
+        for (let fila = 0; fila < 5; fila++) {
+          for (let col = 0; col < 9; col++) {
+            const x = col * 32 + (fila % 2 ? 16 : 0);
+            const y = 12 + fila * 26;
+            g.beginPath();
+            g.arc(x, y, 7, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.RepeatWrapping;
+        return tex;
+      }
+
+      const paletas = [
+        ["#d8262f", "#fff4e0"],
+        ["#1f9a4b", "#fff4e0"],
+        ["#fff4e0", "#d8262f"],
+        ["#f2b632", "#d8262f"],
+        ["#1f9a4b", "#f2b632"],
+      ];
+      const materiales = paletas.map(([f, l]) => {
+        const map = texturaLunares(f, l);
+        return new THREE.MeshStandardMaterial({
+          map,
+          emissiveMap: map,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.85,
+          roughness: 0.6,
+        });
+      });
+
+      const geoFarolillo = new THREE.SphereGeometry(0.42, 24, 16);
+      geoFarolillo.scale(1, 1.25, 1);
+
+      // Calle de guirnaldas: cada fila es una catenaria de farolillos
+      const farolillos = [];
+      const cableMat = new THREE.LineBasicMaterial({ color: 0x3a3a4a });
+      const FILAS = 34;
+      const POR_FILA = 11;
+      const ANCHO = 9;
+      for (let r = 0; r < FILAS; r++) {
+        const z = -r * 4.2;
+        const altura = 4.4 + rand() * 0.5;
+        const puntos = [];
+        for (let i = 0; i <= 40; i++) {
+          const x = -ANCHO + (i / 40) * ANCHO * 2;
+          puntos.push(new THREE.Vector3(x, altura - 1.1 * (1 - (x / ANCHO) ** 2), z));
+        }
+        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(puntos), cableMat));
+
+        for (let i = 0; i < POR_FILA; i++) {
+          const x = -ANCHO + ((i + 0.5) / POR_FILA) * ANCHO * 2;
+          const y = altura - 1.1 * (1 - (x / ANCHO) ** 2) - 0.55;
+          const m = new THREE.Mesh(geoFarolillo, materiales[Math.floor(rand() * materiales.length)]);
+          m.position.set(x, y, z);
+          scene.add(m);
+          farolillos.push({ m, y, fase: rand() * Math.PI * 2, giro: rand() * Math.PI * 2 });
+        }
+      }
+
+      // Suelo de albero
+      const suelo = new THREE.Mesh(
+        new THREE.PlaneGeometry(40, 200),
+        new THREE.MeshStandardMaterial({ color: 0xc99a4a, roughness: 1 })
+      );
+      suelo.rotation.x = -Math.PI / 2;
+      suelo.position.set(0, -1.5, -80);
+      scene.add(suelo);
+
+      // Casetas a los lados: bloques con franjas
+      const colCaseta = [0xf6efe2, 0xd8262f, 0x1f9a4b];
+      for (let r = 0; r < 26; r++) {
+        for (const lado of [-1, 1]) {
+          const caseta = new THREE.Mesh(
+            new THREE.BoxGeometry(3.2, 3.4, 4.6),
+            new THREE.MeshStandardMaterial({
+              color: colCaseta[Math.floor(rand() * colCaseta.length)],
+              emissive: 0x2a1a08,
+              roughness: 0.9,
+            })
+          );
+          caseta.position.set(lado * 11.5, 0.2, -r * 5.4);
+          scene.add(caseta);
+        }
+      }
+
+      scene.add(new THREE.HemisphereLight(0xffd9a0, 0x1a1030, 1.4));
+      const luzFrente = new THREE.PointLight(0xffc070, 60, 30);
+      scene.add(luzFrente);
+
+      function suave(t) {
+        return t * t * (3 - 2 * t);
+      }
+
+      function renderAt(time) {
+        const t = Math.max(0, Math.min(time, 12));
+        // La cámara avanza por la calle y al final sube mirando al cielo de farolillos
+        const avance = suave(Math.min(t / 12, 1));
+        const z = 6 - avance * 118;
+        const subida = t > 7.5 ? suave(Math.min((t - 7.5) / 4.5, 1)) : 0;
+        camera.position.set(Math.sin(t * 0.55) * 1.4, 1.2 + subida * 1.6, z);
+        camera.lookAt(Math.sin(t * 0.55 + 0.6) * 0.8, 2.6 + subida * 5, z - 10);
+        camera.rotation.z += Math.sin(t * 0.8) * 0.04;
+        luzFrente.position.set(0, 3, z - 6);
+
+        for (const f of farolillos) {
+          f.m.position.y = f.y + Math.sin(t * 1.6 + f.fase) * 0.08;
+          f.m.rotation.y = f.giro + t * 0.6;
+          f.m.rotation.z = Math.sin(t * 1.2 + f.fase) * 0.12;
+        }
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener("hf-seek", (e) => renderAt(e.detail.time));
+      renderAt(window.__hfThreeTime || 0);
+    </script>
+  </body>
+</html>
