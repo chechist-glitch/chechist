@@ -480,14 +480,144 @@
     lap('recortes');
 
     var groups = buildGroups(info.parts, W, H, u, P);
+
+    // 4) Modelo del fondo para generar otros formatos (rayos rectos, franjas).
+    var valid = new Uint8Array(N);
+    for (i = 0; i < N; i++) valid[i] = w[i] >= 0.99 ? 1 : 0;
+    var model = buildBgModel(Bm, valid, W, H, u);
+    lap('modelo');
+
     return {
       W: W, H: H, u: u,
       bg: Bm,
+      bgModel: model,
       noise: clamp(noise, 0.3, 1.5),
       parts: info.parts,
       groups: groups,
       timings: timings
     };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Modelo del fondo                                                    */
+  /* ------------------------------------------------------------------ */
+  // El fondo se separa en tres capas:
+  //  - viñeteado: variación muy suave, guardada en una rejilla gruesa;
+  //  - franjas horizontales con bordes nítidos (la del título);
+  //  - detalle: todo lo demás (rayos de luz, grano).
+  // Para otro formato, el viñeteado y las franjas se estiran en el eje que
+  // crece (son suaves u horizontales, no se nota) y el detalle se escala por
+  // igual en ancho y alto, así los rayos siguen rectos y con su ángulo.
+
+  function buildBgModel(B, valid, W, H, u) {
+    var N = W * H, i;
+    var lum = new Float32Array(N);
+    for (i = 0; i < N; i++) lum[i] = (B[0][i] + B[1][i] + B[2][i]) / 3;
+    var bands = findBands(lum, valid, W, H, u);
+    var F = Math.max(4, Math.round(8 * u)), sigma = 0.1 * Math.max(W, H);
+    var M = { F: F, gw: Math.ceil(W / F), gh: Math.ceil(H / F), V: null, bands: [] };
+    M.V = B.map(function (p) { return coarseBlur(fillBands(p, W, H, bands), W, H, F, sigma); });
+    // Franja = lo que sobresale del viñeteado respecto a sus filas vecinas.
+    bands.forEach(function (b) {
+      var h = b.y1 - b.y0 + 1, data = [];
+      var ya = Math.max(0, b.y0 - 3), yb = Math.min(H - 1, b.y1 + 3);
+      for (var c = 0; c < 3; c++) {
+        var d = new Float32Array(W * h), V = M.V[c], P = B[c];
+        var dev = function (x, y) { return P[y * W + x] - sampleGrid(V, M.gw, M.gh, F, x, y); };
+        // Filas de encima y de debajo, suavizadas en horizontal para que lo que
+        // queda en el detalle no tenga el grano columna a columna.
+        var ea = new Float32Array(W), eb = new Float32Array(W), x;
+        for (x = 0; x < W; x++) {
+          ea[x] = (dev(x, Math.max(0, ya - 2)) + dev(x, Math.max(0, ya - 1)) + dev(x, ya)) / 3;
+          eb[x] = (dev(x, yb) + dev(x, Math.min(H - 1, yb + 1)) + dev(x, Math.min(H - 1, yb + 2))) / 3;
+        }
+        var sr = Math.max(2, Math.round(6 * u));
+        ea = boxBlur(ea, W, 1, sr); eb = boxBlur(eb, W, 1, sr);
+        for (x = 0; x < W; x++) {
+          for (var y = b.y0; y <= b.y1; y++) {
+            var t = (y - ya) / Math.max(1, yb - ya);
+            d[(y - b.y0) * W + x] = dev(x, y) - (ea[x] + (eb[x] - ea[x]) * t);
+          }
+        }
+        data.push(d);
+      }
+      M.bands.push({ y0: b.y0, y1: b.y1, data: data });
+    });
+    return M;
+  }
+
+  // Franjas horizontales: pares de bordes nítidos (subida y bajada) en el
+  // perfil medio por filas.
+  function findBands(lum, valid, W, H, u) {
+    var prof = new Float32Array(H), has = new Uint8Array(H), y, x, k;
+    for (y = 0; y < H; y++) {
+      var s = 0, n = 0;
+      for (x = 0, k = y * W; x < W; x++, k++) if (valid[k]) { s += lum[k]; n++; }
+      if (n > W * 0.05) { prof[y] = s / n; has[y] = 1; }
+    }
+    var last = -1;
+    for (y = 0; y < H; y++) {
+      if (!has[y]) continue;
+      if (last < 0) { for (k = 0; k < y; k++) prof[k] = prof[y]; }
+      else for (k = last + 1; k < y; k++) prof[k] = prof[last] + (prof[y] - prof[last]) * (k - last) / (y - last);
+      last = y;
+    }
+    for (y = last + 1; y < H && last >= 0; y++) prof[y] = prof[last];
+    var step = Math.max(1, Math.round(2 * u)), ev = [];
+    var slope = function (yy) { return (prof[yy + step] - prof[yy - step]) / (2 * step); };
+    for (y = step; y < H - step; y++) {
+      var d = slope(y);
+      if (Math.abs(d) <= 1) continue;
+      var sg = d > 0 ? 1 : -1, y0 = y;
+      while (y + 1 < H - step && Math.abs(slope(y + 1)) > 1 && (slope(y + 1) > 0 ? 1 : -1) === sg) y++;
+      ev.push({ s: sg, y0: y0, y1: y });
+    }
+    var bands = [];
+    for (k = 0; k + 1 < ev.length; k++) {
+      var a = ev[k], b = ev[k + 1], gap = b.y0 - a.y1;
+      if (a.s !== b.s && gap >= 20 * u && gap <= 400 * u) {
+        bands.push({ y0: Math.max(0, a.y0 - step), y1: Math.min(H - 1, b.y1 + step) });
+        k++;
+      }
+    }
+    return bands;
+  }
+
+  // Copia del plano con cada franja sustituida por una interpolación vertical
+  // entre las filas limpias de encima y de debajo.
+  function fillBands(p, W, H, bands) {
+    if (!bands.length) return p;
+    var q = Float32Array.from(p);
+    bands.forEach(function (b) {
+      var ya = Math.max(0, b.y0 - 3), yb = Math.min(H - 1, b.y1 + 3);
+      for (var x = 0; x < W; x++) {
+        var va = (p[Math.max(0, ya - 2) * W + x] + p[Math.max(0, ya - 1) * W + x] + p[ya * W + x]) / 3;
+        var vb = (p[yb * W + x] + p[Math.min(H - 1, yb + 1) * W + x] + p[Math.min(H - 1, yb + 2) * W + x]) / 3;
+        for (var y = ya + 1; y < yb; y++) q[y * W + x] = va + (vb - va) * (y - ya) / (yb - ya);
+      }
+    });
+    return q;
+  }
+
+  // Media por bloques de F × F y desenfoque grande en esa rejilla.
+  function coarseBlur(p, W, H, F, sigma) {
+    var gw = Math.ceil(W / F), gh = Math.ceil(H / F), g = new Float32Array(gw * gh), n = new Float32Array(gw * gh);
+    for (var y = 0; y < H; y++) {
+      var gy = Math.floor(y / F) * gw;
+      for (var x = 0; x < W; x++) { var gi = gy + Math.floor(x / F); g[gi] += p[y * W + x]; n[gi]++; }
+    }
+    for (var i = 0; i < g.length; i++) g[i] /= n[i] || 1;
+    var r = Math.max(1, Math.round(sigma / F));
+    return boxBlur(boxBlur(boxBlur(g, gw, gh, r), gw, gh, r), gw, gh, r);
+  }
+
+  function sampleGrid(g, gw, gh, F, x, y) {
+    var fx = clamp((x + 0.5) / F - 0.5, 0, gw - 1), fy = clamp((y + 0.5) / F - 0.5, 0, gh - 1);
+    var x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(x0 + 1, gw - 1), y1 = Math.min(y0 + 1, gh - 1);
+    var tx = fx - x0, ty = fy - y0;
+    var a = g[y0 * gw + x0] + (g[y0 * gw + x1] - g[y0 * gw + x0]) * tx;
+    var b = g[y1 * gw + x0] + (g[y1 * gw + x1] - g[y1 * gw + x0]) * tx;
+    return a + (b - a) * ty;
   }
 
   function now() { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
@@ -1044,11 +1174,76 @@
     return f;
   }
 
-  // Fondo del lienzo cw × ch: el fondo modelado, estirado en el eje que crece
-  // (sin tocar la franja central del logo y el título), con un tramado suave
-  // para que los degradados no hagan escalones.
+  // Tablas de interpolación para un eje: índices y peso hacia el siguiente.
+  function lerpTable(coords, n, cell) {
+    var m = coords.length, i0 = new Int32Array(m), i1 = new Int32Array(m), t = new Float32Array(m);
+    for (var k = 0; k < m; k++) {
+      var f = cell ? clamp((coords[k] + 0.5) / cell - 0.5, 0, n - 1) : clamp(coords[k], 0, n - 1);
+      var a = Math.floor(f);
+      i0[k] = a; i1[k] = Math.min(a + 1, n - 1); t[k] = f - a;
+    }
+    return { i0: i0, i1: i1, t: t };
+  }
+
+  // Fondo del lienzo cw × ch a partir del modelo por capas:
+  //  - viñeteado y franjas, estirados en el eje que crece sin tocar la zona
+  //    central del logo y el título (ni cabecera y pie a lo alto);
+  //  - detalle (rayos, grano) escalado por igual en los dos ejes desde el
+  //    centro: las rectas siguen rectas y con el mismo ángulo.
+  function renderBackgroundModel(an, cw, ch) {
+    var M = an.bgModel, W = an.W, H = an.H, N = cw * ch, u = an.u, gw = M.gw, gh = M.gh, F = M.F;
+    var out = [new Float32Array(N), new Float32Array(N), new Float32Array(N)];
+    var src = an.bg || an.bg16, kf = an.bg ? 1 : 1 / 256;
+    var rnd = mulberry32(1234567), sigma = an.noise;
+    var ox = Math.round((cw - W) / 2);
+    var span = keepSpan(an, 'x');
+    var k0 = Math.max(span[0], 0.12 * W), k1 = Math.min(span[1], 0.88 * W);
+    var fxs = axisMap(W, cw, k0, k1, ox, 30 * u), fys = yMapArray(an, ch);
+    var zoom = Math.max(cw / W, ch / H), x, y, c;
+    var xs = new Float32Array(cw), ys = new Float32Array(ch);
+    for (x = 0; x < cw; x++) xs[x] = (x + 0.5 - cw / 2) / zoom + W / 2 - 0.5;
+    for (y = 0; y < ch; y++) ys[y] = (y + 0.5 - ch / 2) / zoom + H / 2 - 0.5;
+    var gvx = lerpTable(fxs, gw, F), gvy = lerpTable(fys, gh, F);   // viñeteado estirado
+    var bvx = lerpTable(fxs, W, 0);                                  // franja estirada
+    var rx = lerpTable(xs, W, 0), ry = lerpTable(ys, H, 0);          // detalle escalado
+    var grx = lerpTable(xs, gw, F), gry = lerpTable(ys, gh, F);      // viñeteado bajo el detalle
+    var bandOf = new Int32Array(H).fill(-1);
+    M.bands.forEach(function (b, bi) { for (var yy = b.y0; yy <= b.y1; yy++) bandOf[yy] = bi; });
+    for (y = 0; y < ch; y++) {
+      var gA = gvy.i0[y] * gw, gB = gvy.i1[y] * gw, gt = gvy.t[y];
+      var rA = ry.i0[y] * W, rB = ry.i1[y] * W, rt = ry.t[y];
+      var hA = gry.i0[y] * gw, hB = gry.i1[y] * gw, ht = gry.t[y];
+      var fyr = Math.round(clamp(fys[y], 0, H - 1)), ysr = Math.round(clamp(ys[y], 0, H - 1));
+      var bv = bandOf[fyr] >= 0 ? M.bands[bandOf[fyr]] : null, bvRow = bv ? (fyr - bv.y0) * W : 0;
+      var br = bandOf[ysr] >= 0 ? M.bands[bandOf[ysr]] : null, brRow = br ? (ysr - br.y0) * W : 0;
+      for (x = 0; x < cw; x++) {
+        var nz = (rnd() + rnd() + rnd() - 1.5) * 2 * sigma;
+        var a0 = gvx.i0[x], a1 = gvx.i1[x], at = gvx.t[x];
+        var r0 = rx.i0[x], r1 = rx.i1[x], rtx = rx.t[x];
+        var h0 = grx.i0[x], h1 = grx.i1[x], htx = grx.t[x];
+        for (c = 0; c < 3; c++) {
+          var V = M.V[c], P = src[c];
+          var v1 = V[gA + a0] + (V[gA + a1] - V[gA + a0]) * at, v2 = V[gB + a0] + (V[gB + a1] - V[gB + a0]) * at;
+          var val = v1 + (v2 - v1) * gt;
+          var p1 = P[rA + r0] + (P[rA + r1] - P[rA + r0]) * rtx, p2 = P[rB + r0] + (P[rB + r1] - P[rB + r0]) * rtx;
+          var w1 = V[hA + h0] + (V[hA + h1] - V[hA + h0]) * htx, w2 = V[hB + h0] + (V[hB + h1] - V[hB + h0]) * htx;
+          val += (p1 + (p2 - p1) * rt) * kf - (w1 + (w2 - w1) * ht);
+          if (bv) { var d = bv.data[c]; val += d[bvRow + bvx.i0[x]] + (d[bvRow + bvx.i1[x]] - d[bvRow + bvx.i0[x]]) * bvx.t[x]; }
+          if (br) { var e = br.data[c]; val -= e[brRow + r0] + (e[brRow + r1] - e[brRow + r0]) * rtx; }
+          out[c][y * cw + x] = val + nz;
+        }
+      }
+    }
+    return out;
+  }
+
+  // Fondo del lienzo cw × ch: con el modelo por capas si lo hay; si no, el
+  // fondo estirado en el eje que crece (sin tocar la franja central del logo y
+  // el título), con un tramado suave para que los degradados no hagan
+  // escalones.
   function renderBackground(an, cw, ch) {
     ch = ch || cw;
+    if (an.bgModel) return renderBackgroundModel(an, cw, ch);
     var W = an.W, H = an.H, N = cw * ch, out = [new Float32Array(N), new Float32Array(N), new Float32Array(N)];
     var rnd = mulberry32(1234567), sigma = an.noise;
     var src = an.bg || an.bg16, kf = an.bg ? 1 : 1 / 256;

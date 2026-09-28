@@ -71,9 +71,14 @@ los detalles de las piezas.
    - lo suave (reflejos, sombras y bordes con antialias), como transparencia
      calculada contra el fondo, para que se funda igual en cualquier zona del
      fondo nuevo.
-4. **Formato nuevo.** Estira el fondo en el eje que crece. A lo ancho no toca
-   la franja central donde van el logo, el título y el sello; a lo alto deja
-   la cabecera arriba y el sello abajo y estira solo la zona de las piezas.
+4. **Formato nuevo.** Rehace el fondo en tres capas:
+   - el viñeteado (la luz general, muy suave) y la franja del título se
+     estiran en el eje que crece. A lo ancho no se toca la zona central del
+     logo, el título y el sello; a lo alto se quedan la cabecera arriba y el
+     sello abajo y solo se estira la zona de las piezas;
+   - el detalle (rayos de luz, grano) se amplía lo mismo a lo ancho que a lo
+     alto desde el centro, así los rayos siguen rectos y con el mismo ángulo.
+
    Luego coloca las piezas encima: primero se pintan todos los reflejos y
    después los objetos, así un reflejo nunca tapa una pieza.
 
@@ -84,6 +89,9 @@ piezas solo se remuestrean por separado si cambias su tamaño.
 
 - Pensado para fondos lisos o con degradados suaves. Con fondos fotográficos o
   muy texturizados no funciona bien.
+- En formatos mucho más anchos o altos que el original (p. ej. 16:9 desde
+  4:5) los rayos del fondo salen más grandes: se amplían para cubrir el
+  lienzo sin torcerse.
 - Las piezas que se tocan en el cartel original se mueven juntas.
 - Los textos que no son blancos ni turquesa pueden detectarse como piezas; se
   pueden recolocar a mano.
