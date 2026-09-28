@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Cormorant Garamond";
+        src: url("assets/fonts/cormorant-garamond-latin-500-normal.woff2") format("woff2");
+        font-weight: 500;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Cormorant Garamond";
+        src: url("assets/fonts/cormorant-garamond-latin-500-italic.woff2") format("woff2");
+        font-weight: 500;
+        font-style: italic;
+      }
+      @font-face {
+        font-family: "Cormorant Garamond";
+        src: url("assets/fonts/cormorant-garamond-latin-700-normal.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Doto";
+        src: url("assets/fonts/doto-latin-900-normal.woff2") format("woff2");
+        font-weight: 900;
+        font-style: normal;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #f3eee4;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #f3eee4;
+      }
+      .layer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #world {
+        display: block;
+      }
+      #bloom {
+        background: radial-gradient(
+          ellipse 70% 60% at 62% 18%,
+          rgba(255, 252, 240, 0.85),
+          rgba(255, 250, 235, 0) 70%
+        );
+        mix-blend-mode: screen;
+        opacity: 0.5;
+      }
+      #vignette {
+        background: radial-gradient(
+          ellipse 85% 80% at 50% 48%,
+          rgba(0, 0, 0, 0) 55%,
+          rgba(74, 52, 30, 0.38) 100%
+        );
+      }
+      #flash {
+        background: #fffdf6;
+      }
+      #rule {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding-bottom: 96px;
+      }
+      #rule-card {
+        max-width: 1300px;
+        padding: 22px 64px 26px;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(250, 246, 236, 0.92) 40%,
+          rgba(250, 246, 236, 0) 72%
+        );
+      }
+      #rule-text {
+        font-family: "Cormorant Garamond", serif;
+        font-style: italic;
+        font-weight: 500;
+        font-size: 60px;
+        line-height: 1.1;
+        color: #1f1a16;
+        text-align: center;
+        letter-spacing: 0.005em;
+      }
+      #title {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #title-bg {
+        position: absolute;
+        inset: 0;
+        background: #f3eee4;
+      }
+      #title-stack {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 26px;
+      }
+      #title-kicker {
+        font-family: "Cormorant Garamond", serif;
+        font-weight: 700;
+        font-size: 26px;
+        letter-spacing: 0.42em;
+        color: #6b5a48;
+        text-transform: uppercase;
+      }
+      #title-main {
+        font-family: "Cormorant Garamond", serif;
+        font-weight: 500;
+        font-size: 132px;
+        line-height: 1;
+        color: #241e19;
+        letter-spacing: -0.01em;
+      }
+      #title-led {
+        margin-top: 14px;
+        padding: 10px 26px 12px;
+        background: #15110e;
+        border-radius: 6px;
+        font-family: "Doto", monospace;
+        font-weight: 900;
+        font-size: 54px;
+        line-height: 1;
+        color: #ff7a2a;
+        letter-spacing: 0.08em;
+        box-shadow: 0 0 22px rgba(255, 110, 30, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="16"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="scene" class="clip layer" data-start="0" data-duration="16" data-track-index="0">
+        <svg
+          id="world"
+          aria-hidden="true"
+          data-layout-allow-overflow
+          class="layer"
+          viewBox="0 0 1920 1080"
+          width="1920"
+          height="1080"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#8db3cc" />
+              <stop offset="0.28" stop-color="#bcd3de" />
+              <stop offset="0.47" stop-color="#eef0e8" />
+            </linearGradient>
+            <linearGradient
+              id="ground"
+              x1="0"
+              y1="500"
+              x2="0"
+              y2="1080"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0" stop-color="#ece5d6" />
+              <stop offset="0.35" stop-color="#d9ccb4" />
+              <stop offset="1" stop-color="#c3b296" />
+            </linearGradient>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="0.06" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter
+              id="haze"
+              x="0"
+              y="-400"
+              width="1920"
+              height="1880"
+              filterUnits="userSpaceOnUse"
+            >
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.006 0.07"
+                numOctaves="2"
+                seed="4"
+                result="noise"
+              />
+              <feOffset id="haze-offset" in="noise" dx="0" dy="0" result="moved" />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="moved"
+                scale="5"
+                xChannelSelector="R"
+                yChannelSelector="G"
+              />
+            </filter>
+            <linearGradient
+              id="haze-band"
+              x1="0"
+              y1="420"
+              x2="0"
+              y2="620"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0" stop-color="#fff" stop-opacity="0" />
+              <stop offset="0.45" stop-color="#fff" stop-opacity="1" />
+              <stop offset="1" stop-color="#fff" stop-opacity="0" />
+            </linearGradient>
+            <mask id="haze-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080">
+              <rect x="0" y="0" width="1920" height="1080" fill="url(#haze-band)" />
+            </mask>
+            <filter
+              id="grain"
+              x="0"
+              y="0"
+              width="1920"
+              height="1080"
+              filterUnits="userSpaceOnUse"
+            >
+              <feTurbulence
+                id="grain-noise"
+                type="fractalNoise"
+                baseFrequency="0.9"
+                numOctaves="1"
+                seed="1"
+              />
+              <feColorMatrix type="saturate" values="0" />
+            </filter>
+          </defs>
+          <g id="cam"></g>
+          <use id="haze-copy" href="#cam" filter="url(#haze)" mask="url(#haze-mask)" />
+          <rect
+            id="grain-rect"
+            x="0"
+            y="0"
+            width="1920"
+            height="1080"
+            filter="url(#grain)"
+            opacity="0.07"
+            style="mix-blend-mode: overlay"
+          />
+        </svg>
+        <div id="bloom" class="layer"></div>
+        <div id="vignette" class="layer"></div>
+        <div id="flash" class="layer"></div>
+      </div>
+
+      <div id="rule" class="clip layer" data-start="9.7" data-duration="3.3" data-track-index="1">
+        <div id="rule-card">
+          <p id="rule-text">Si oyes una persiana subir, no mires.</p>
+        </div>
+      </div>
+
+      <div id="title" class="clip layer" data-start="12.6" data-duration="3.4" data-track-index="2">
+        <div id="title-bg"></div>
+        <div id="title-stack">
+          <div id="title-kicker">Las Horas Muertas · Nivel 01</div>
+          <h1 id="title-main">Las Tres de la Tarde</h1>
+          <div id="title-led">15:00</div>
+        </div>
+      </div>
+
+      <audio
+        id="ambiente"
+        src="assets/ambiente.wav"
+        data-start="0"
+        data-duration="16"
+        data-track-index="3"
+        data-volume="0.9"
+      ></audio>
+    </div>
+
+    <script>
+      // ---------- Proyección: calle en perspectiva de un punto ----------
+      const NS = "http://www.w3.org/2000/svg";
+      const F = 1000; // focal en px
+      const CX = 960;
+      const CY = 500; // horizonte
+      const EYE = 1.6; // altura de los ojos (m)
+      const W = 2.8; // media anchura de la calle (m)
+      const ZEND = 34; // fachada del fondo
+
+      const P = (x, y, z) => [CX + (F * x) / z, CY - (F * (y - EYE)) / z];
+      const pts = (arr) => arr.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+
+      function el(tag, attrs, parent) {
+        const n = document.createElementNS(NS, tag);
+        for (const k in attrs) n.setAttribute(k, attrs[k]);
+        if (parent) parent.appendChild(n);
+        return n;
+      }
+      // Rectángulo en el plano de una pared lateral (side = -1 izquierda, +1 derecha)
+      const wallQuad = (side, z0, z1, y0, y1, dx = 0) => {
+        const x = side * (W - dx);
+        return pts([P(x, y0, z0), P(x, y0, z1), P(x, y1, z1), P(x, y1, z0)]);
+      };
+      // Grupo "cartel" que mira a cámara: coordenadas locales en metros, v hacia abajo
+      const billboard = (x, y, z, parent) => {
+        const [X, Y] = P(x, y, z);
+        return el("g", { transform: `translate(${X.toFixed(2)},${Y.toFixed(2)}) scale(${(F / z).toFixed(4)})` }, parent);
+      };
+      // PRNG con semilla (determinista)
+      let seed = 1234567;
+      const rnd = () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+      };
+
+      const cam = document.getElementById("cam");
+      const L = {};
+      ["sky", "far", "ground", "panels", "left", "right", "shade", "props", "wires"].forEach(
+        (k) => (L[k] = el("g", { id: "l-" + k }, cam)),
+      );
+
+      // ---------- Cielo ----------
+      el("rect", { x: -400, y: -400, width: 2720, height: 1100, fill: "url(#sky)" }, L.sky);
+
+      // ---------- Ermita del fondo con espadaña y reloj parado ----------
+      const back = billboard(0, 0, ZEND, L.far); // origen en el suelo, centro de la calle
+      el("rect", { x: -12, y: -7.4, width: 24, height: 7.4, fill: "#e4ded2" }, back);
+      el("rect", { x: -12, y: -0.9, width: 24, height: 0.9, fill: "#c9a24a" }, back);
+      el("rect", { x: -12, y: -7.55, width: 24, height: 0.22, fill: "#a4563a" }, back);
+      // espadaña
+      el("path", { d: "M-1.5,-7.4 L-1.5,-11 Q0,-12.6 1.5,-11 L1.5,-7.4 Z", fill: "#e9e3d7" }, back);
+      el("path", { d: "M-0.6,-8.1 L-0.6,-9.9 Q0,-10.6 0.6,-9.9 L0.6,-8.1 Z", fill: "#6f6a7e" }, back);
+      el("path", { d: "M-0.34,-8.35 Q-0.34,-9.45 0,-9.5 Q0.34,-9.45 0.34,-8.35 Z", fill: "#3d3226" }, back);
+      el("rect", { x: -0.05, y: -12.55, width: 0.1, height: 0.8, fill: "#2d2723" }, back);
+      el("rect", { x: -0.28, y: -12.35, width: 0.56, height: 0.09, fill: "#2d2723" }, back);
+      // reloj: las tres en punto
+      el("circle", { cx: 0, cy: -5.5, r: 0.78, fill: "#f4f0e6", stroke: "#3a322b", "stroke-width": 0.08 }, back);
+      el("line", { x1: 0, y1: -5.5, x2: 0, y2: -6.15, stroke: "#2a241f", "stroke-width": 0.08 }, back);
+      el("line", { x1: 0, y1: -5.5, x2: 0.45, y2: -5.5, stroke: "#2a241f", "stroke-width": 0.1 }, back);
+      // portón
+      el("path", { d: "M-0.95,0 L-0.95,-2.4 Q0,-3.4 0.95,-2.4 L0.95,0 Z", fill: "#5a3d27" }, back);
+      el("path", { d: "M-1.15,0 L-1.15,-2.4 Q0,-3.65 1.15,-2.4 L1.15,0", fill: "none", stroke: "#cdb58a", "stroke-width": 0.14 }, back);
+      // ventanitas enrejadas
+      [-4.2, 4.2].forEach((u) => {
+        el("rect", { x: u - 0.5, y: -4.6, width: 1, height: 1.3, fill: "#43604a" }, back);
+      });
+      // velo de calima sobre el fondo
+      el("rect", { x: -12, y: -13, width: 24, height: 13, fill: "#f2efe6", opacity: 0.38 }, back);
+
+      // ---------- Suelo empedrado ----------
+      el("polygon", { points: pts([P(-W, 0, 1), P(W, 0, 1), P(W, 0, ZEND), P(-W, 0, ZEND)]), fill: "url(#ground)" }, L.ground);
+      // losas centrales
+      el("polygon", { points: pts([P(-0.42, 0, 1), P(0.42, 0, 1), P(0.42, 0, ZEND), P(-0.42, 0, ZEND)]), fill: "#e7dfcf", opacity: 0.75 }, L.ground);
+      for (let z = 1.2; z < 22; z += 0.9) {
+        el("line", { x1: P(-0.42, 0, z)[0], y1: P(-0.42, 0, z)[1], x2: P(0.42, 0, z)[0], y2: P(0.42, 0, z)[1], stroke: "#b4a78e", "stroke-width": Math.max(0.5, 14 / z), opacity: Math.max(0, 1 - z / 22) }, L.ground);
+      }
+      [-0.42, 0.42, -W + 0.25, W - 0.25].forEach((x) => {
+        const a = P(x, 0, 1), b = P(x, 0, ZEND);
+        el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#a99b80", "stroke-width": 2.2, opacity: 0.7 }, L.ground);
+      });
+      // cantos rodados
+      for (let i = 0; i < 520; i++) {
+        const z = 1.4 + Math.pow(rnd(), 1.7) * 18;
+        const side = rnd() < 0.5 ? -1 : 1;
+        const x = side * (0.5 + rnd() * (W - 0.6));
+        const [X, Y] = P(x, 0, z);
+        const r = (F * (0.05 + rnd() * 0.04)) / z;
+        el("ellipse", { cx: X.toFixed(1), cy: Y.toFixed(1), rx: r.toFixed(2), ry: (r * 0.42).toFixed(2), fill: rnd() < 0.5 ? "#b8a98d" : "#d6c9b0", opacity: (0.6 * (1 - z / 20)).toFixed(2) }, L.ground);
+      }
+
+      // ---------- Casas ----------
+      const ZOC = ["#c9a24a", "#4a6fa5", "#a8553a", "#8f8a82", "#c9a24a", "#4a6fa5"];
+      const houses = {
+        "-1": [
+          { z0: 1, z1: 5.4, h: 6.2, tint: "#f7f2e8" },
+          { z0: 5.4, z1: 10.5, h: 4.4, tint: "#f4efe3" },
+          { z0: 10.5, z1: 15, h: 6.6, tint: "#f8f4ec" },
+          { z0: 15, z1: 20, h: 4.2, tint: "#f3eee2" },
+          { z0: 20, z1: 26, h: 5.8, tint: "#f6f1e6" },
+          { z0: 26, z1: ZEND, h: 4.6, tint: "#f2ede1" },
+        ],
+        "1": [
+          { z0: 1, z1: 4.6, h: 4.6, tint: "#f4efe5" },
+          { z0: 4.6, z1: 9.6, h: 6.4, tint: "#f6f1e7" },
+          { z0: 9.6, z1: 14.5, h: 4.8, tint: "#f2ede3" },
+          { z0: 14.5, z1: 21, h: 6.2, tint: "#f5f0e6" },
+          { z0: 21, z1: 27, h: 4.4, tint: "#f3eee4" },
+          { z0: 27, z1: ZEND, h: 5.6, tint: "#f4efe5" },
+        ],
+      };
+
+      function persiana(side, z0, z1, y0, y1, parent, lit) {
+        // hueco, cajón y persiana verde bajada
+        el("polygon", { points: wallQuad(side, z0 - 0.08, z1 + 0.08, y0 - 0.08, y1 + 0.08), fill: lit ? "#ddd6c8" : "#e2dccf" }, parent);
+        el("polygon", { points: wallQuad(side, z0, z1, y1 - 0.22, y1), fill: lit ? "#4e7757" : "#3f644a" }, parent);
+        el("polygon", { points: wallQuad(side, z0, z1, y0, y1 - 0.22), fill: lit ? "#5f8c66" : "#4a7353" }, parent);
+        for (let y = y0 + 0.07; y < y1 - 0.22; y += 0.075) {
+          const a = P(side * W, y, z0), b = P(side * W, y, z1);
+          el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: lit ? "#46704f" : "#355a3f", "stroke-width": Math.max(0.4, 5 / ((z0 + z1) / 2)) }, parent);
+        }
+      }
+      function reja(side, z0, z1, y0, y1, parent) {
+        const sw = Math.max(0.5, 26 / ((z0 + z1) / 2));
+        const x = side * (W - 0.12);
+        for (let i = 0; i <= 5; i++) {
+          const z = z0 + ((z1 - z0) * i) / 5;
+          const a = P(x, y0 - 0.05, z), b = P(x, y1 + 0.05, z);
+          el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#2a2624", "stroke-width": sw }, parent);
+        }
+        [y0 - 0.05, (y0 + y1) / 2, y1 + 0.05].forEach((y) => {
+          const a = P(x, y, z0), b = P(x, y, z1);
+          el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#2a2624", "stroke-width": sw }, parent);
+        });
+      }
+      function puerta(side, z0, z1, parent, color) {
+        el("polygon", { points: wallQuad(side, z0 - 0.1, z1 + 0.1, 0, 2.45), fill: "#d9d2c3" }, parent);
+        el("polygon", { points: wallQuad(side, z0, z1, 0, 2.3), fill: color }, parent);
+        const zm = (z0 + z1) / 2;
+        el("polygon", { points: wallQuad(side, zm - 0.01, zm + 0.01, 0.1, 2.2), fill: "#00000033" }, parent);
+      }
+      function macetas(side, z0, z1, y, parent) {
+        for (let z = z0; z <= z1; z += 0.55) {
+          const g = billboard(side * (W - 0.08), y, z, L.props);
+          el("path", { d: "M-0.12,0 L0.12,0 L0.09,0.2 L-0.09,0.2 Z", fill: "#2f5da8" }, g);
+          el("ellipse", { cx: 0, cy: -0.04, rx: 0.17, ry: 0.09, fill: "#3f7a3a" }, g);
+          [[-0.08, -0.1], [0.05, -0.13], [0.12, -0.05], [-0.13, -0.02]].forEach(([u, v], i) => {
+            el("circle", { cx: u, cy: v, r: 0.045, fill: i % 2 ? "#d8324a" : "#e8506a" }, g);
+          });
+        }
+      }
+
+      let persianaViva = null; // la que sube
+      const wallRegions = { "-1": [], "1": [] };
+
+      [-1, 1].forEach((side) => {
+        const layer = side < 0 ? L.left : L.right;
+        const list = houses[String(side)];
+        list.forEach((hs, i) => {
+          const lit = side < 0;
+          // pared
+          el("polygon", { points: wallQuad(side, hs.z0, hs.z1, 0, hs.h), fill: hs.tint }, layer);
+          wallRegions[String(side)].push(wallQuad(side, hs.z0, hs.z1, 0, hs.h + 0.02));
+          // zócalo
+          el("polygon", { points: wallQuad(side, hs.z0, hs.z1, 0, 0.85), fill: ZOC[(i + (side > 0 ? 2 : 0)) % ZOC.length] }, layer);
+          el("polygon", { points: wallQuad(side, hs.z0, hs.z1, 0.85, 0.9), fill: "#00000022" }, layer);
+          // alero de tejas: panza y borde
+          el("polygon", { points: pts([P(side * W, hs.h, hs.z0), P(side * W, hs.h, hs.z1), P(side * (W - 0.45), hs.h + 0.05, hs.z1), P(side * (W - 0.45), hs.h + 0.05, hs.z0)]), fill: "#5b3a2c" }, layer);
+          el("polygon", { points: wallQuad(side, hs.z0, hs.z1, hs.h + 0.05, hs.h + 0.28, 0.45), fill: "#b0613f" }, layer);
+          el("polygon", { points: wallQuad(side, hs.z0, hs.z1, hs.h + 0.05, hs.h + 0.1, 0.45), fill: "#7d3f2a" }, layer);
+          // sombra del alero sobre la pared encalada (solo lado soleado)
+          if (lit) el("polygon", { points: wallQuad(side, hs.z0, hs.z1, hs.h - 0.6, hs.h), fill: "#8a86a3", opacity: 0.32 }, layer);
+          // sombra que proyecta la casa de la derecha en el suelo
+          if (!lit) {
+            const sw = hs.h * 0.2;
+            el("polygon", { points: pts([P(W - sw, 0, hs.z0), P(W, 0, hs.z0), P(W, 0, hs.z1), P(W - sw, 0, hs.z1)]), fill: "#7a7596", opacity: 0.42 }, L.ground);
+          }
+          // paño lateral visible si la casa siguiente es más alta
+          const nxt = list[i + 1];
+          if (nxt && nxt.h > hs.h) {
+            const zb = nxt.z0;
+            el("polygon", { points: pts([P(side * W, hs.h, zb), P(side * (W + 7), hs.h, zb), P(side * (W + 7), nxt.h, zb), P(side * W, nxt.h, zb)]), fill: lit ? "#e6e0d4" : "#d7d2c9" }, L.panels);
+            el("polygon", { points: pts([P(side * (W - 0.45), nxt.h + 0.05, zb), P(side * (W + 7), nxt.h + 0.05, zb), P(side * (W + 7), nxt.h + 0.28, zb), P(side * (W - 0.45), nxt.h + 0.28, zb)]), fill: "#9b5236" }, L.panels);
+          }
+        });
+      });
+
+      // Ventanas, puertas y rejas (izquierda = sol, derecha = sombra)
+      const winsL = [
+        // la primera es la persiana que sube
+        [3.8, 5.0, 0.9, 2.5, "viva"],
+        [2.2, 3.1, 3.4, 4.8],
+        [3.8, 5.0, 3.4, 4.8],
+        [6.3, 7.4, 0.95, 2.35],
+        [11.2, 12.2, 1.0, 2.4],
+        [11.2, 12.2, 3.6, 4.9],
+        [15.8, 16.8, 1.0, 2.3],
+        [18.2, 19.2, 1.0, 2.3],
+        [21, 22, 1.0, 2.3],
+        [23.4, 24.4, 1.0, 2.3],
+        [21, 22, 3.4, 4.6],
+        [27.5, 28.5, 1.0, 2.3],
+        [30.5, 31.5, 1.0, 2.3],
+      ];
+      const winsR = [
+        [1.8, 3.1, 0.95, 2.4],
+        [7.8, 8.9, 1.0, 2.4],
+        [5.4, 6.6, 3.5, 4.9],
+        [7.8, 8.9, 3.5, 4.9],
+        [10.4, 11.3, 1.0, 2.35],
+        [15.3, 16.3, 1.0, 2.3],
+        [19.2, 20.2, 1.0, 2.3],
+        [15.3, 16.3, 3.6, 4.8],
+        [19.2, 20.2, 3.6, 4.8],
+        [22, 23, 1.0, 2.3],
+        [28, 29, 1.0, 2.3],
+        [31, 32, 1.0, 2.3],
+      ];
+      puerta(-1, 8.4, 9.5, L.left, "#6b4a2f");
+      puerta(-1, 13.2, 14.2, L.left, "#3f6b4a");
+      puerta(-1, 16.9, 17.8, L.left, "#6b4a2f");
+      puerta(-1, 25.0, 25.8, L.left, "#5a3d27");
+      puerta(1, 12.4, 13.4, L.right, "#6b4a2f");
+      puerta(1, 17.3, 18.2, L.right, "#3f6b4a");
+      puerta(1, 24.2, 25.0, L.right, "#5a3d27");
+      // hueco oscuro de la puerta con cortina de tiras
+      el("polygon", { points: wallQuad(1, 5.4, 6.6, 0, 2.35), fill: "#d9d2c3" }, L.right);
+      el("polygon", { points: wallQuad(1, 5.5, 6.5, 0, 2.25), fill: "#2b2521" }, L.right);
+
+      winsL.forEach(([z0, z1, y0, y1, tag]) => {
+        if (tag === "viva") {
+          el("polygon", { points: wallQuad(-1, z0 - 0.08, z1 + 0.08, y0 - 0.08, y1 + 0.08), fill: "#ddd6c8" }, L.left);
+          el("polygon", { points: wallQuad(-1, z0, z1, y1 - 0.22, y1), fill: "#4e7757" }, L.left);
+          const g = el("g", { id: "persiana-viva" }, L.left);
+          persianaViva = {
+            z0, z1, y0, y1,
+            interior: el("polygon", { fill: "#0b0908" }, g),
+            tv: el("polygon", { fill: "#6d8fe0", opacity: 0 }, g),
+            hoja: el("polygon", { fill: "#5f8c66" }, g),
+            lamas: el("g", {}, g),
+          };
+          reja(-1, z0, z1, y0, y1 - 0.22, L.left);
+        } else {
+          persiana(-1, z0, z1, y0, y1, L.left, true);
+          if (y0 < 2) reja(-1, z0, z1, y0, y1 - 0.22, L.left);
+        }
+      });
+      winsR.forEach(([z0, z1, y0, y1]) => {
+        persiana(1, z0, z1, y0, y1, L.right, false);
+        if (y0 < 2) reja(1, z0, z1, y0, y1 - 0.22, L.right);
+      });
+
+      // la pared en sombra: un velo lavanda multiplicado
+      wallRegions["1"].forEach((p) => el("polygon", { points: p, fill: "#8e89aa", opacity: 0.5, style: "mix-blend-mode:multiply" }, L.shade));
+
+      // Cortina de tiras (se moverá sin que pase nadie)
+      const TIRAS = ["#c8433a", "#e0b43a", "#3f8a55", "#3a67b0", "#e9e4d8"];
+      const tiras = [];
+      for (let i = 0; i < 13; i++) {
+        const z = 5.55 + (i * 0.9) / 12;
+        tiras.push({ z, i, node: el("polyline", { fill: "none", stroke: TIRAS[i % TIRAS.length], "stroke-width": ((F * 0.055) / z).toFixed(2), "stroke-linecap": "butt", opacity: 0.85 }, L.props) });
+      }
+
+      // Macetas azules en la pared soleada
+      macetas(-1, 6.0, 7.6, 2.75, L.props);
+      macetas(-1, 11.0, 12.4, 2.8, L.props);
+      macetas(-1, 21.0, 22.2, 2.7, L.props);
+
+      // Bombona de butano en la puerta verde
+      const bomb = billboard(-(W - 0.3), 0.62, 14.35, L.props);
+      el("rect", { x: -0.16, y: 0, width: 0.32, height: 0.6, rx: 0.1, fill: "#e0761c" }, bomb);
+      el("rect", { x: -0.06, y: -0.08, width: 0.12, height: 0.1, fill: "#8c8a86" }, bomb);
+      el("rect", { x: -0.16, y: 0.18, width: 0.32, height: 0.05, fill: "#b85d14" }, bomb);
+
+      // Silla de plástico mirando a la calle, en la sombra; su sombra apunta hacia ti
+      const silla = billboard(W - 0.55, 0, 7.3, L.props);
+      el("ellipse", { cx: -0.05, cy: 0.02, rx: 0.32, ry: 0.06, fill: "#5f5a78", opacity: 0.45 }, silla);
+      el("path", { d: "M0.02,0 L0.05,-0.45 M-0.42,0 L-0.41,-0.45 M-0.46,-0.45 L0.04,-0.45 M0.04,-0.45 L0.1,-0.92 M0.1,-0.92 L0.06,-0.92 M0.04,-0.62 L0.08,-0.62", stroke: "#dedbe6", "stroke-width": 0.045, "stroke-linecap": "round", fill: "none" }, silla);
+      el("rect", { x: -0.46, y: -0.49, width: 0.5, height: 0.06, rx: 0.02, fill: "#e6e3ec" }, silla);
+
+      // Farol apagado en la pared soleada
+      const farol = billboard(-(W - 0.1), 3.9, 12.9, L.props);
+      el("path", { d: "M0,0 L0.45,0 L0.45,0.12", stroke: "#2a2624", "stroke-width": 0.04, fill: "none" }, farol);
+      el("path", { d: "M0.3,0.12 L0.6,0.12 L0.56,0.5 L0.34,0.5 Z", fill: "#2e2a27" }, farol);
+      el("path", { d: "M0.34,0.16 L0.56,0.16 L0.53,0.46 L0.37,0.46 Z", fill: "#e6dcc6" }, farol);
+
+      // Cartel de farmacia: la hora no avanza, la temperatura sí
+      const sign = billboard(1.15, 4.3, 9.0, L.props);
+      el("rect", { x: 1.2, y: 0.55, width: 0.45, height: 0.07, fill: "#2a2624" }, sign);
+      el("rect", { x: 0, y: 0, width: 1.3, height: 1.75, rx: 0.06, fill: "#1c1a19" }, sign);
+      el("path", { d: "M0.47,0.12 H0.83 V0.4 H1.11 V0.76 H0.83 V1.04 H0.47 V0.76 H0.19 V0.4 H0.47 Z", fill: "#27d16a", filter: "url(#glow)" }, sign);
+      el("rect", { x: 0.08, y: 1.14, width: 1.14, height: 0.52, rx: 0.03, fill: "#0e0b0a" }, sign);
+      const ledAttrs = { x: 0.65, y: 1.56, "text-anchor": "middle", "font-family": "Doto, monospace", "font-weight": 900, "font-size": 0.44 };
+      el("rect", { x: 0.12, y: 1.18, width: 1.06, height: 0.44, fill: "#ff6a1a", opacity: 0.08 }, sign);
+      const led = el("text", { ...ledAttrs, fill: "#ff8a3d" }, sign);
+      led.textContent = "15:00";
+
+      // Cables cruzando la calle
+      [[6.5, 5.7], [15.5, 5.3], [24, 5.0]].forEach(([z, y]) => {
+        const a = P(-W, y, z), b = P(W, y, z + 1.2), m = P(0, y - 0.9, z + 0.6);
+        el("path", { d: `M${a[0]},${a[1]} Q${m[0]},${m[1]} ${b[0]},${b[1]}`, stroke: "#2b2724", "stroke-width": Math.max(0.8, 22 / z), fill: "none", opacity: 0.85 }, L.wires);
+      });
+
+      // ---------- Estado dependiente del tiempo (función pura de t) ----------
+      const easeOut = (u) => 1 - Math.pow(1 - u, 3);
+      const easeIn = (u) => u * u * u;
+      const clamp01 = (u) => Math.max(0, Math.min(1, u));
+
+      function persianaAbierta(t) {
+        if (t < 6.5) return 0;
+        if (t < 8.0) {
+          const k = Math.min(4, Math.floor((t - 6.5) / 0.3));
+          const u = clamp01((t - 6.5 - k * 0.3) / 0.18);
+          return 0.09 * (k + easeOut(u));
+        }
+        if (t < 9.3) return 0.45;
+        if (t < 9.48) return 0.45 * (1 - easeIn((t - 9.3) / 0.18));
+        return 0;
+      }
+      const LED_SEQ = [
+        [0, "15:00"], [2.4, "44°C"], [4.0, "15:00"], [6.0, "46°C"], [7.4, "15:00"], [9.8, "49°C"], [11.2, "15:00"],
+      ];
+
+      const hazeOffset = document.getElementById("haze-offset");
+      const grain = document.getElementById("grain-noise");
+
+      function renderAt(t) {
+        // persiana
+        const pv = persianaViva;
+        const p = persianaAbierta(t);
+        const top = pv.y1 - 0.22;
+        const yb = pv.y0 + p * (top - pv.y0);
+        pv.interior.setAttribute("points", wallQuad(-1, pv.z0, pv.z1, pv.y0, Math.max(pv.y0 + 0.001, yb)));
+        pv.tv.setAttribute("points", wallQuad(-1, pv.z0 + 0.15, pv.z1 - 0.1, pv.y0, Math.max(pv.y0 + 0.001, yb)));
+        const flick = 0.07 + 0.045 * Math.sin(t * 23) + 0.025 * Math.sin(t * 7.3 + 1.1);
+        pv.tv.setAttribute("opacity", p > 0.01 ? flick.toFixed(3) : "0");
+        pv.hoja.setAttribute("points", wallQuad(-1, pv.z0, pv.z1, yb, top));
+        while (pv.lamas.firstChild) pv.lamas.removeChild(pv.lamas.firstChild);
+        for (let y = yb + 0.07; y < top; y += 0.075) {
+          const a = P(-W, y, pv.z0), b = P(-W, y, pv.z1);
+          el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#46704f", "stroke-width": 1.2 }, pv.lamas);
+        }
+        // cortina de tiras
+        const tc = t - 3.2;
+        tiras.forEach(({ z, i, node }) => {
+          let dz = 0, dx = 0;
+          if (tc > 0) {
+            const env = Math.exp(-tc * 1.25) * clamp01(tc / 0.25);
+            dz = 0.22 * env * Math.sin(tc * 5.4 - i * 0.32);
+            dx = 0.1 * env * Math.abs(Math.sin(tc * 5.4 - i * 0.32 + 0.6));
+          }
+          const x0 = W - 0.03;
+          const a = P(x0, 2.22, z);
+          const m = P(x0 - dx * 0.4, 1.15, z + dz * 0.35);
+          const b = P(x0 - dx, 0.06, z + dz);
+          node.setAttribute("points", `${a[0].toFixed(1)},${a[1].toFixed(1)} ${m[0].toFixed(1)},${m[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}`);
+        });
+        // letrero
+        let txt = LED_SEQ[0][1];
+        for (const [at, s] of LED_SEQ) if (t >= at) txt = s;
+        if (led.textContent !== txt) led.textContent = txt;
+        // calima y grano
+        hazeOffset.setAttribute("dy", (-t * 28).toFixed(2));
+        grain.setAttribute("seed", String(1 + Math.floor(t * 30)));
+      }
+
+      // ---------- Timeline ----------
+      const clock = { t: 0 };
+      renderAt(0);
+      const tl = gsap.timeline({ paused: true });
+      tl.to(clock, { t: 16, duration: 16, ease: "none", onUpdate: () => renderAt(clock.t) }, 0);
+      // empujón lento de cámara hacia el fondo
+      tl.fromTo("#cam", { scale: 1, svgOrigin: "960 500" }, { scale: 1.22, svgOrigin: "960 500", duration: 16, ease: "power1.inOut" }, 0);
+      // te despiertas deslumbrado
+      tl.fromTo("#flash", { opacity: 1 }, { opacity: 0, duration: 2.4, ease: "power2.out" }, 0);
+      tl.fromTo("#bloom", { opacity: 0.85 }, { opacity: 0.45, duration: 3, ease: "sine.out" }, 0);
+      // la regla
+      tl.fromTo("#rule-card", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.9, ease: "power2.out" }, 9.7);
+      tl.to("#rule-card", { opacity: 0, duration: 0.6, ease: "power1.in" }, 12.4);
+      // sobreexposición hacia el título
+      tl.to("#bloom", { opacity: 1, duration: 1.2, ease: "power2.in" }, 11.8);
+      tl.fromTo("#title-bg", { opacity: 0 }, { opacity: 1, duration: 1.0, ease: "power2.inOut" }, 12.6);
+      tl.fromTo("#title-kicker", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.9, ease: "power2.out" }, 13.3);
+      tl.fromTo("#title-main", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 1.1, ease: "power2.out" }, 13.5);
+      tl.fromTo("#title-led", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "none" }, 14.4);
+      tl.to("#title-led", { opacity: 0.35, duration: 0.08, ease: "none" }, 15.0);
+      tl.to("#title-led", { opacity: 1, duration: 0.08, ease: "none" }, 15.12);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
