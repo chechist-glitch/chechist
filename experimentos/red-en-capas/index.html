@@ -275,7 +275,7 @@
         forma.moveTo(-w + rr, -d); forma.lineTo(w - rr, -d); forma.quadraticCurveTo(w, -d, w, -d + rr); forma.lineTo(w, d - rr); forma.quadraticCurveTo(w, d, w - rr, d);
         forma.lineTo(-w + rr, d); forma.quadraticCurveTo(-w, d, -w, d - rr); forma.lineTo(-w, -d + rr); forma.quadraticCurveTo(-w, -d, -w + rr, -d);
         const pts = forma.getPoints(40).map((p) => new THREE.Vector3(p.x, yCapa(L), p.y));
-        pts.push(new THREE.Vector3(w, yCapa(L), d), new THREE.Vector3(w + 1.0, yCapa(L), d));
+        pts.push(new THREE.Vector3(w, yCapa(L), d), new THREE.Vector3(w + 0.82, yCapa(L), d));
         const geo = new THREE.BufferGeometry().setFromPoints(pts);
         const mat = new THREE.LineBasicMaterial({ color: colCapa[L], transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
         const borde = new THREE.Line(geo, mat);
@@ -305,7 +305,7 @@
         [9.5, [0.35, 0.15, 8.8], [0, 0.05, 0]],
         [12.8, [0.1, 0.1, 8.3], [0, 0, 0]],
         [16.5, [9.9, 2.8, 11.0], [1.1, -0.1, 0]],
-        [20.8, [8.7, 2.2, 9.7], [1.1, 0.1, 0]],
+        [20.8, [8.8, 1.9, 9.9], [1.1, -0.3, 0]],
         [23.4, [0.3, 0.2, 8.6], [0, 0, 0]],
         [26, [0.1, 0.12, 8.0], [0, 0, 0]],
       ];
