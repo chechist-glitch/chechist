@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #fff; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Autoestereograma: un mapa de profundidad escondido en un patrón que se repite
+    // con un periodo que cambia según la profundidad. Mirando "a través" aparece en 3D.
+    (async () => {
+      await M.fuentes('300px "Anton"', '22px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(1994);
+      const n = makeNoise(1994);
+      const ALTO = H - 90;
+      const P = 130, DMAX = 34;
+
+      // Mapa de profundidad: texto y un abanico
+      const prof = M.lienzo(W, ALTO);
+      const p = prof.x;
+      p.fillStyle = "#000";
+      p.fillRect(0, 0, W, ALTO);
+      p.fillStyle = "#fff";
+      p.font = '330px "Anton"';
+      p.textAlign = "center";
+      p.fillText("OLÉ", 540, 560);
+      // abanico en escalones de profundidad
+      for (let k = 0; k < 9; k++) {
+        p.fillStyle = `rgb(${120 + k * 12},${120 + k * 12},${120 + k * 12})`;
+        p.beginPath();
+        p.moveTo(540, 1180);
+        p.arc(540, 1180, 360 - k * 30, Math.PI * 1.15, Math.PI * 1.85);
+        p.closePath();
+        p.fill();
+      }
+      p.filter = "blur(3px)";
+      p.drawImage(prof.c, 0, 0);
+      p.filter = "none";
+      const D = p.getImageData(0, 0, W, ALTO).data;
+
+      // Patrón de color (manchas de confeti) que se repite cada P píxeles
+      const patron = (x, y) => {
+        const h = n(x * 0.05, y * 0.05, 3);
+        const k = n(x * 0.21 + 50, y * 0.21, 2);
+        const base = M.rampa([[0, "#1d3557"], [0.3, "#e63946"], [0.5, "#f1c453"], [0.7, "#2a9d8f"], [1, "#f4a261"]])(h);
+        return k > 0.62 ? [250, 245, 235] : k < 0.33 ? base.map((v) => v * 0.55) : base;
+      };
+      const img = ctx.createImageData(W, H);
+      const o = img.data;
+      for (let y = 0; y < ALTO; y++) {
+        const fila = new Array(W);
+        for (let x = 0; x < W; x++) {
+          const z = D[(y * W + x) * 4] / 255;
+          const sep = Math.round(P - z * DMAX);
+          fila[x] = x < sep ? patron(x, y) : fila[x - sep];
+          const k = (y * W + x) * 4;
+          o[k] = fila[x][0]; o[k + 1] = fila[x][1]; o[k + 2] = fila[x][2]; o[k + 3] = 255;
+        }
+      }
+      for (let k = ALTO * W * 4; k < o.length; k += 4) { o[k] = o[k + 1] = o[k + 2] = 250; o[k + 3] = 255; }
+      ctx.putImageData(img, 0, 0);
+
+      // Puntos guía y explicación
+      ctx.fillStyle = "#111";
+      for (const x of [540 - P / 2, 540 + P / 2]) {
+        ctx.beginPath();
+        ctx.arc(x, ALTO + 26, 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.font = '20px "Plex Mono"';
+      ctx.textAlign = "center";
+      ctx.fillText("Acerca la nariz, relaja la vista y aléjate despacio hasta ver 3 puntos.", 540, ALTO + 66);
+      listo();
+    })();
+  </script>
+</body>
+</html>

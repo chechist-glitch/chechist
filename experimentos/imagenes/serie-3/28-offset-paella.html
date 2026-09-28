@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #f3eee2; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Cuatricromía offset: la imagen se separa en cian, magenta, amarillo y negro,
+    // cada tinta se trama con puntos a su ángulo (15º, 75º, 0º, 45º) y se imprime desregistrada.
+    // Una lupa muestra las rosetas de cerca.
+    (async () => {
+      await M.fuentes('16px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(1760);
+      const n = makeNoise(1760);
+      const X0 = 60, Y0 = 60, X1 = W - 60, Y1 = H - 150;
+
+      // --- Imagen original: paella vista desde arriba ---
+      const S = M.lienzo();
+      const s = S.x;
+      for (let y = 0; y < H; y += 60) for (let x = 0; x < W; x += 60) {
+        const a = (x / 60) % 2, b = (y / 60) % 2;
+        s.fillStyle = a && b ? "#b3202a" : a || b ? "#e37a7f" : "#f7f2ea";
+        s.fillRect(x, y, 60, 60);
+      }
+      const C = [540, 620];
+      s.fillStyle = "#3a3a3c";
+      for (const sx of [-1, 1]) { s.beginPath(); s.ellipse(C[0] + sx * 445, C[1], 70, 34, 0, 0, Math.PI * 2); s.fill(); }
+      s.fillStyle = "#2b2b2e";
+      s.beginPath(); s.arc(C[0], C[1], 425, 0, Math.PI * 2); s.fill();
+      const arroz = s.createRadialGradient(C[0], C[1], 60, C[0], C[1], 395);
+      arroz.addColorStop(0, "#f2b441");
+      arroz.addColorStop(0.85, "#e59a2c");
+      arroz.addColorStop(1, "#8a4a16");
+      s.fillStyle = arroz;
+      s.beginPath(); s.arc(C[0], C[1], 395, 0, Math.PI * 2); s.fill();
+      for (let i = 0; i < 5000; i++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 385;
+        s.fillStyle = r() < 0.5 ? "#f7cf6a" : "#c9791f";
+        s.beginPath();
+        s.ellipse(C[0] + Math.cos(a) * d, C[1] + Math.sin(a) * d, 5, 2.3, r() * 3, 0, Math.PI * 2);
+        s.fill();
+      }
+      const polar = (a, d) => [C[0] + Math.cos(a) * d, C[1] + Math.sin(a) * d];
+      // tiras de pimiento y trozos de pollo
+      for (let i = 0; i < 12; i++) {
+        const [x, y] = polar(r() * 6.28, 60 + r() * 290);
+        s.save(); s.translate(x, y); s.rotate(r() * 3);
+        s.fillStyle = "#c81d1d"; s.beginPath(); s.roundRect(-45, -9, 90, 18, 9); s.fill();
+        s.restore();
+      }
+      for (let i = 0; i < 7; i++) {
+        const [x, y] = polar(r() * 6.28, 80 + r() * 250);
+        s.fillStyle = "#a8642a"; s.beginPath(); s.ellipse(x, y, 38, 28, r() * 3, 0, Math.PI * 2); s.fill();
+        s.fillStyle = "#cf8a44"; s.beginPath(); s.ellipse(x - 8, y - 6, 20, 12, r() * 3, 0, Math.PI * 2); s.fill();
+      }
+      // mejillones en corona
+      for (let i = 0; i < 9; i++) {
+        const [x, y] = polar((i / 9) * 6.28 + 0.2, 300);
+        s.save(); s.translate(x, y); s.rotate((i / 9) * 6.28 + 1.57);
+        s.fillStyle = "#15161c"; s.beginPath(); s.ellipse(0, 0, 30, 58, 0, 0, Math.PI * 2); s.fill();
+        s.fillStyle = "#3b4460"; s.beginPath(); s.ellipse(-8, -10, 8, 30, 0.2, 0, Math.PI * 2); s.fill();
+        s.fillStyle = "#f08a3c"; s.beginPath(); s.ellipse(4, 6, 17, 36, 0, 0, Math.PI * 2); s.fill();
+        s.restore();
+      }
+      // gambas
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * 6.28 + 0.5;
+        const [x, y] = polar(a, 175);
+        s.save(); s.translate(x, y); s.rotate(a);
+        s.lineCap = "round";
+        s.strokeStyle = "#e8583a"; s.lineWidth = 34;
+        s.beginPath(); s.arc(0, 0, 48, -0.4, 2.6); s.stroke();
+        s.strokeStyle = "#c63b24"; s.lineWidth = 3;
+        for (let k = 0; k < 6; k++) { const b = -0.2 + k * 0.45; s.beginPath(); s.moveTo(Math.cos(b) * 31, Math.sin(b) * 31); s.lineTo(Math.cos(b) * 65, Math.sin(b) * 65); s.stroke(); }
+        s.fillStyle = "#b8321f"; s.beginPath(); s.ellipse(Math.cos(-0.4) * 48 + 14, Math.sin(-0.4) * 48 - 8, 26, 20, -0.4, 0, Math.PI * 2); s.fill();
+        s.strokeStyle = "#7a1d10"; s.lineWidth = 2;
+        s.beginPath(); s.moveTo(Math.cos(-0.4) * 48 + 30, Math.sin(-0.4) * 48 - 18); s.quadraticCurveTo(120, -90, 150, -40); s.stroke();
+        s.restore();
+      }
+      // guisantes, perejil y limones
+      for (let i = 0; i < 90; i++) { const [x, y] = polar(r() * 6.28, Math.sqrt(r()) * 380); s.fillStyle = "#4f9a2a"; s.beginPath(); s.arc(x, y, 8, 0, Math.PI * 2); s.fill(); }
+      for (let i = 0; i < 300; i++) { const [x, y] = polar(r() * 6.28, Math.sqrt(r()) * 380); s.fillStyle = "#2f6d1f"; s.fillRect(x, y, 4, 3); }
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * 6.28 + 0.8;
+        const [x, y] = polar(a, 355);
+        s.save(); s.translate(x, y); s.rotate(a + Math.PI / 2);
+        s.fillStyle = "#f6f0c8"; s.beginPath(); s.arc(0, 0, 62, 0, Math.PI); s.fill();
+        s.fillStyle = "#f7d51d"; s.beginPath(); s.arc(0, 0, 54, 0, Math.PI); s.fill();
+        s.strokeStyle = "#fff7c9"; s.lineWidth = 3;
+        for (let k = 1; k < 6; k++) { const b = (k / 6) * Math.PI; s.beginPath(); s.moveTo(0, 0); s.lineTo(Math.cos(b) * 52, Math.sin(b) * 52); s.stroke(); }
+        s.restore();
+      }
+      const src = s.getImageData(0, 0, W, H).data;
+
+      // --- Separación y tramado ---
+      const PASO = 7;
+      const tintas = [
+        { ang: 15, col: "rgb(0,166,226)", dx: 2.2, dy: -1.4, f: (c, m, y, k) => c },
+        { ang: 75, col: "rgb(228,0,124)", dx: -1.6, dy: 1.8, f: (c, m, y, k) => m },
+        { ang: 0, col: "rgb(255,228,0)", dx: 0, dy: 0, f: (c, m, y, k) => y },
+        { ang: 45, col: "rgb(32,30,32)", dx: 0.8, dy: 1, f: (c, m, y, k) => k },
+      ];
+      const cmyk = (x, y) => {
+        x = Math.min(W - 1, Math.max(0, x | 0));
+        y = Math.min(H - 1, Math.max(0, y | 0));
+        const i = (y * W + x) * 4;
+        const R = src[i] / 255, G = src[i + 1] / 255, B = src[i + 2] / 255;
+        const k = 1 - Math.max(R, G, B);
+        if (k > 0.999) return [0, 0, 0, 1];
+        return [(1 - R - k) / (1 - k), (1 - G - k) / (1 - k), (1 - B - k) / (1 - k), k * 0.9];
+      };
+      const puntos = tintas.map((t) => {
+        const a = (t.ang * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+        const lista = [];
+        const R = Math.hypot(W, H);
+        for (let v = -R; v < R; v += PASO) for (let u = -R; u < R; u += PASO) {
+          const x = W / 2 + u * ca - v * sa, y = H / 2 + u * sa + v * ca;
+          if (x < X0 - PASO || x > X1 + PASO || y < Y0 - PASO || y > Y1 + PASO) continue;
+          const val = t.f(...cmyk(x, y));
+          if (val < 0.02) continue;
+          lista.push([x + t.dx, y + t.dy, PASO * 0.7 * Math.sqrt(val)]);
+        }
+        return lista;
+      });
+      function imprime(filtro) {
+        ctx.globalCompositeOperation = "multiply";
+        tintas.forEach((t, i) => {
+          ctx.fillStyle = t.col;
+          ctx.beginPath();
+          for (const [x, y, rad] of puntos[i]) {
+            if (filtro && !filtro(x, y)) continue;
+            ctx.moveTo(x + rad, y);
+            ctx.arc(x, y, rad, 0, Math.PI * 2);
+          }
+          ctx.fill();
+        });
+        ctx.globalCompositeOperation = "source-over";
+      }
+      // Papel de prensa
+      M.porPixel(ctx, (x, y) => { const v = 0.97 + (n(x * 0.6, y * 0.6, 1) - 0.5) * 0.05; return [243 * v, 238 * v, 226 * v]; });
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(X0, Y0, X1 - X0, Y1 - Y0);
+      ctx.clip();
+      imprime();
+      ctx.restore();
+
+      // --- Lupa ---
+      const LX = 800, LY = 420, LR = 190, Z = 4.5;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(LX, LY, LR, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = "#f3eee2";
+      ctx.fillRect(LX - LR, LY - LR, LR * 2, LR * 2);
+      ctx.translate(LX, LY);
+      ctx.scale(Z, Z);
+      ctx.translate(-LX, -LY);
+      imprime((x, y) => Math.hypot(x - LX, y - LY) < LR / Z + PASO);
+      ctx.restore();
+      ctx.lineWidth = 24;
+      const aro = ctx.createLinearGradient(LX - LR, LY - LR, LX + LR, LY + LR);
+      aro.addColorStop(0, "#5a5a5e");
+      aro.addColorStop(0.5, "#1c1c1f");
+      aro.addColorStop(1, "#6c6c70");
+      ctx.strokeStyle = aro;
+      ctx.beginPath(); ctx.arc(LX, LY, LR + 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(LX, LY, LR - 26, Math.PI * 1.1, Math.PI * 1.45); ctx.stroke();
+      ctx.save();
+      ctx.translate(LX + (LR + 10) * 0.707, LY + (LR + 10) * 0.707);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = "#1c1c1f";
+      ctx.beginPath(); ctx.roundRect(0, -22, 230, 44, 18); ctx.fill();
+      ctx.restore();
+
+      // --- Marcas de imprenta ---
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 1.5;
+      for (const [x, y] of [[X0, Y0], [X1, Y0], [X0, Y1], [X1, Y1]]) {
+        ctx.beginPath();
+        ctx.moveTo(x, y - (y < 300 ? 12 : -12)); ctx.lineTo(x, y - (y < 300 ? 48 : -48));
+        ctx.moveTo(x - (x < 300 ? 12 : -12), y); ctx.lineTo(x - (x < 300 ? 48 : -48), y);
+        ctx.stroke();
+      }
+      const registro = (x, y) => { ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.moveTo(x - 20, y); ctx.lineTo(x + 20, y); ctx.moveTo(x, y - 20); ctx.lineTo(x, y + 20); ctx.stroke(); };
+      registro(W / 2, 30); registro(W / 2, Y1 + 30); registro(30, (Y0 + Y1) / 2); registro(W - 30, (Y0 + Y1) / 2);
+      const parches = ["rgb(0,166,226)", "rgb(228,0,124)", "rgb(255,228,0)", "rgb(32,30,32)", "rgb(0,120,70)", "rgb(40,40,140)", "rgb(230,40,30)"];
+      parches.forEach((c, i) => {
+        ctx.fillStyle = c;
+        ctx.fillRect(X0 + i * 46, Y1 + 62, 40, 30);
+        ctx.globalAlpha = 0.5;
+        ctx.fillRect(X0 + i * 46, Y1 + 96, 40, 18);
+        ctx.globalAlpha = 1;
+      });
+      ctx.fillStyle = "#222";
+      ctx.font = '16px "Plex Mono"';
+      ctx.fillText("PAELLA · CMYK 15/75/0/45 · 65 lpi · pliego 3 de 12", X0 + 340, Y1 + 84);
+      ctx.fillText("tinta de prensa sobre papel reciclado · Valencia–Sevilla", X0 + 340, Y1 + 108);
+      listo();
+    })();
+  </script>
+</body>
+</html>

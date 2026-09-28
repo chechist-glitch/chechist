@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/gl.js"></script>
+<style>body { background: #0b0a09; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Placa de colodión húmedo (1860): escena 3D en raymarching, luego todo lo químico:
+    // cielo quemado (la placa solo ve el azul), mar de seda por la exposición larga,
+    // bordes del vertido, manchas, cometas, polvo y barniz negro
+    trazar({
+      muestras: 16,
+      tono: false,
+      vineta: 0,
+      grano: 0.018,
+      frag: `
+      float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+      float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+        return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 6; i++) { s += a * vn(p); p = p * 2.07 + 3.1; a *= .5; } return s; }
+      float roca(vec2 p) {
+        float base = 2.4 * exp(-(pow(p.x - 3.5, 2.) / 16. + p.y * p.y / 7.)) + 1.2 * exp(-(pow(p.x - 9., 2.) / 30. + pow(p.y + 2., 2.) / 12.));
+        return base + (fbm(p * .7) - .5) * .9 * min(base, 1.) - .25;
+      }
+      float cil(vec3 p, float r, float h) { vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h); return min(max(d.x, d.y), 0.) + length(max(d, 0.)); }
+      vec2 escena(vec3 p) {
+        float suelo = (p.y - max(roca(p.xz), -1.)) * .5;
+        vec2 m = vec2(suelo, 1.);
+        vec3 t = p - vec3(3.3, 2.1, .2);
+        float r = .52 - t.y * .025;
+        float torre = max(length(t.xz) - r, abs(t.y - 2.8) - 2.8);
+        if (torre < m.x) m = vec2(torre, 2.);
+        float galeria = cil(t - vec3(0., 5.65, 0.), .58, .06);
+        float linterna = cil(t - vec3(0., 6.05, 0.), .36, .35);
+        float cupula = max(length(t - vec3(0., 6.4, 0.)) - .38, -(t.y - 6.4));
+        float g = min(min(galeria, linterna), cupula);
+        if (g < m.x) m = vec2(g, 3.);
+        vec3 c = p - vec3(4.6, 2.2, .6);
+        float casa = length(max(abs(c) - vec3(.9, .55, .6), 0.)) - .02;
+        float tejado = max(abs(c.x) - .95, dot(vec2(abs(c.z), c.y - .55), normalize(vec2(.5, 1.))) - .35);
+        tejado = max(tejado, -(c.y - .5));
+        if (min(casa, tejado) < m.x) m = vec2(min(casa, tejado), 4.);
+        return m;
+      }
+      vec3 normal(vec3 p) { vec2 e = vec2(.003, 0.); return normalize(vec3(escena(p + e.xyy).x - escena(p - e.xyy).x, escena(p + e.yxy).x - escena(p - e.yxy).x, escena(p + e.yyx).x - escena(p - e.yyx).x)); }
+      float sombra(vec3 ro, vec3 rd) { float t = .05, s = 1.; for (int i = 0; i < 48; i++) { float h = escena(ro + rd * t).x; s = min(s, 10. * h / t); if (s < .01) break; t += clamp(h, .03, .5); } return clamp(s, 0., 1.); }
+
+      // Luminancia de la escena tal y como la vería una placa sensible al azul
+      float escenaLum(vec2 px) {
+        vec2 uv = (px - uRes * .5) / uRes.y;
+        vec3 ro = vec3(-13., 1.5, 25.);
+        vec3 ta = vec3(3.4, 3.4, 0.);
+        vec3 w = normalize(ta - ro), u = normalize(cross(w, vec3(0, 1, 0))), v = cross(u, w);
+        vec3 rd = normalize(uv.x * u + uv.y * v + 2.1 * w);
+        vec3 sol = normalize(vec3(-.7, .55, .45));
+        // mar: plano y=0, liso por la exposición larga
+        float tMar = rd.y < 0. ? -ro.y / rd.y : 1e9;
+        float t = .1; vec2 h = vec2(0.);
+        bool choca = false;
+        for (int i = 0; i < 160; i++) {
+          h = escena(ro + rd * t);
+          if (h.x < .002 * t) { choca = true; break; }
+          t += h.x;
+          if (t > min(tMar, 80.)) break;
+        }
+        float cielo = .93 + .07 * rd.y;
+        if (choca && t < tMar) {
+          vec3 p = ro + rd * t;
+          vec3 n = normal(p);
+          float dif = max(dot(n, sol), 0.) * sombra(p + n * .01, sol);
+          float alb = h.y < 1.5 ? .12 + .14 * fbm(p.xz * 4.) : (h.y < 2.5 ? .9 : (h.y < 3.5 ? .15 : .8));
+          if (h.y > 1.5 && h.y < 2.5 && fract(p.y * .9) < .12) alb = .55;
+          float l = alb * (dif * 1.1 + .25 + .15 * n.y);
+          float niebla = 1. - exp(-t * .025);
+          return mix(l, cielo, niebla);
+        }
+        if (tMar < 1e8) {
+          // seda: reflejo difuso del cielo, más oscuro cerca y con bruma al fondo
+          float d = tMar;
+          float l = .78 - .35 * exp(-d * .08) + .05 * vn(vec2(d * .6, uv.x * 3.));
+          return mix(l, cielo, 1. - exp(-d * .02));
+        }
+        return cielo;
+      }
+
+      vec3 muestra(vec2 px) {
+        vec2 uv = px / uRes;
+        float l = escenaLum(px);
+        // Curva de la placa: altas luces que se empastan y sombras profundas
+        l = smoothstep(.04, .98, l);
+        l = pow(l, 1.25);
+        // Borde del vertido: rectángulo con esquinas redondeadas y un contorno irregular
+        vec2 q = abs(uv - .5) - vec2(.44, .455);
+        float borde = length(max(q, 0.)) + min(max(q.x, q.y), 0.) - .02;
+        borde += (fbm(uv * 14.) - .5) * .03 + (vn(uv * 90.) - .5) * .004;
+        // chorreones hacia la esquina inferior derecha por donde se escurre la placa
+        float chorro = smoothstep(.62, .95, uv.x) * smoothstep(.3, 0., uv.y) * (vn(vec2(uv.x * 60., 0.)) - .4) * .08;
+        borde -= max(chorro, 0.);
+        // Viñeta irregular y halos de revelado
+        vec2 c = uv - .5;
+        float vin = 1. - dot(c * vec2(1.1, 1.), c * vec2(1.1, 1.)) * 2.1 - (fbm(uv * 3.) - .5) * .35;
+        l *= clamp(vin, 0., 1.2);
+        float halo = smoothstep(-.06, 0., borde);
+        l = mix(l, l * .55 + .22 * vn(uv * vec2(8., 40.)), halo);
+        // Cometas, polvo y arañazos
+        vec2 g = floor(px / 3.);
+        if (h21(g) > .9993) l = 1.;
+        if (h21(g + 7.3) > .9992) l = 0.;
+        vec2 cp = px / vec2(20., 90.);
+        float cometa = smoothstep(.9985, 1., h21(floor(cp))) * smoothstep(.5, 0., length(fract(cp) - vec2(.5, .8)) - .05);
+        l = mix(l, .95, cometa);
+        float fa = fract(uv.x * 1.7 + uv.y * .31 + .2);
+        float aran = smoothstep(.0012, 0., min(fa, 1. - fa)) * step(.6, vn(uv * 5.));
+        l = mix(l, .9, aran * .5);
+        // Tono del ambrotipo: negro cálido a crema, con el barniz negro fuera de la placa
+        vec3 tono = mix(vec3(.035, .03, .026), vec3(.9, .86, .76), l);
+        vec3 barniz = vec3(.028, .024, .02) * (.8 + .4 * fbm(uv * 20.));
+        vec3 col = mix(tono, barniz, smoothstep(0., .004, borde));
+        // brillo plateado en el borde del colodión
+        col += vec3(.1, .11, .12) * smoothstep(.012, 0., abs(borde)) * vn(uv * 200.);
+        return pow(col, vec3(2.2));
+      }`,
+    }).then(listo);
+  </script>
+</body>
+</html>

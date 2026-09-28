@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/gl.js"></script>
+<style>body { background: #d9d2c0; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Pueblo blanco visto desde arriba con efecto maqueta (tilt-shift):
+    // cientos de casas generadas por celdas sobre una loma, luz de mediodía,
+    // y una lente con muchísimo desenfoque fuera de una franja estrecha
+    trazar({
+      muestras: 48,
+      tono: true,
+      expo: 0.95,
+      vineta: 0.2,
+      grano: 0.015,
+      frag: `
+      float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+      vec4 h24(vec2 p) { vec4 q = fract(vec4(p.xyxy) * vec4(.1031, .103, .0973, .1099)); q += dot(q, q.wzxy + 33.33); return fract((q.xxyz + q.yzzw) * q.zywx); }
+      float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+        return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+      float loma(vec2 p) { return 1.6 * exp(-dot(p, p) / 70.) + .35 * vn(p * .25) - .2; }
+      float caja(vec3 p, vec3 b) { vec3 q = abs(p) - b; return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.); }
+
+      // Qué hay en cada celda de 1×1: 0 calle, 1 casa azotea, 2 casa tejado, 3 árbol, 4 iglesia
+      vec4 celda(vec2 id) {
+        vec4 h = h24(id + 17.);
+        float tipo = h.x < .13 ? 0. : (h.x < .2 ? 3. : (h.x < .62 ? 1. : 2.));
+        if (abs(id.x) + abs(id.y) > 9. + 3. * h.w) tipo = h.x < .35 ? 3. : 0.;
+        if (id.x == 0. && id.y == 0.) tipo = 4.;
+        if (id.x == 1. && id.y == 0.) tipo = 1.;
+        return vec4(tipo, h.yzw);
+      }
+      // devuelve (distancia, material)
+      vec2 escena(vec3 p) {
+        vec2 id = floor(p.xz);
+        vec2 c = id + .5;
+        vec3 q = vec3(p.x - c.x, p.y, p.z - c.y);
+        float suelo = (p.y - loma(p.xz)) * .6;
+        vec2 m = vec2(suelo, 1.);
+        vec4 ce = celda(id);
+        float base = loma(c);
+        // distancia al borde de la celda para no saltarse casas vecinas
+        vec2 dc = .5 - abs(q.xz);
+        float limite = min(dc.x, dc.y) + .03;
+        if (ce.x == 1. || ce.x == 2.) {
+          float marg = .05 + ce.y * .08;
+          float alto = .38 + ce.z * .5;
+          vec3 b = vec3(.5 - marg, alto * .5 + .15, .5 - marg - ce.w * .06);
+          float d = caja(q - vec3(0., base - .15 + b.y, 0.), b);
+          if (ce.x == 2.) {
+            // tejado a dos aguas
+            vec3 t = q - vec3(0., base + alto, 0.);
+            float tej = max(abs(t.x) - b.x - .03, max(abs(t.z) * .55 + t.y - .22, -t.y));
+            if (min(d, tej) < m.x) m = vec2(min(d, tej), tej < d ? 3. : 2.);
+            d = 1e9;
+          } else {
+            // pretil de la azotea
+            vec3 t = q - vec3(0., base + alto + .02, 0.);
+            float hueco = caja(t - vec3(0., .05, 0.), vec3(b.x - .03, .06, b.z - .03));
+            d = max(d, -hueco);
+            d = min(d, max(caja(t, vec3(b.x, .06, b.z)), -hueco));
+          }
+          if (d < m.x) m = vec2(d, 2.);
+        } else if (ce.x == 3.) {
+          float tronco = max(length(q.xz) - .04, abs(q.y - base - .15) - .15);
+          float copa = length(q - vec3(0., base + .38, 0.)) - .24 - ce.y * .08;
+          if (tronco < m.x) m = vec2(tronco, 5.);
+          if (copa < m.x) m = vec2(copa, 4.);
+        } else if (ce.x == 4.) {
+          float nave = caja(q - vec3(0., base + .45, .1), vec3(.42, .5, .42));
+          float torre = caja(q - vec3(.28, base + 1.2, -.28), vec3(.16, 1.2, .16));
+          vec3 t = q - vec3(.28, base + 2.4, -.28);
+          float chapitel = max(abs(t.x) + abs(t.z) + t.y * .5 - .2, -t.y);
+          float d = min(min(nave, torre), chapitel);
+          if (d < m.x) m = vec2(d, chapitel < .003 ? 6. : 2.);
+        }
+        m.x = min(m.x, limite);
+        return m;
+      }
+      vec3 normal(vec3 p) { vec2 e = vec2(.001, 0.); return normalize(vec3(escena(p + e.xyy).x - escena(p - e.xyy).x, escena(p + e.yxy).x - escena(p - e.yxy).x, escena(p + e.yyx).x - escena(p - e.yyx).x)); }
+      vec2 marcha(vec3 ro, vec3 rd) {
+        float t = 0.;
+        for (int i = 0; i < 260; i++) {
+          vec3 p = ro + rd * t;
+          vec2 h = escena(p);
+          if (h.x < .0006 * t) return vec2(t, h.y);
+          t += max(h.x, .004);
+          if (t > 60.) break;
+        }
+        return vec2(-1.);
+      }
+      float sombra(vec3 ro, vec3 rd) {
+        float t = .01;
+        for (int i = 0; i < 80; i++) { float h = escena(ro + rd * t).x; if (h < .0005) return 0.; t += max(h, .01); if (t > 6.) break; }
+        return 1.;
+      }
+      float oclusion(vec3 p, vec3 n) { float o = 0., s = 1.; for (int i = 1; i <= 4; i++) { float d = .05 * float(i); o += (d - escena(p + n * d).x) * s; s *= .6; } return clamp(1. - 3. * o, 0., 1.); }
+
+      vec3 color(float mat, vec3 p, vec3 n) {
+        vec2 id = floor(p.xz);
+        vec4 h = h24(id + 3.);
+        if (mat < 1.5) {
+          // calles empedradas y huertas en las afueras
+          float lejos = smoothstep(9., 12., abs(id.x) + abs(id.y));
+          vec3 piedra = vec3(.72, .66, .56) * (.85 + .15 * vn(p.xz * 40.));
+          vec3 campo = mix(vec3(.46, .5, .22), vec3(.62, .52, .3), vn(p.xz * .7));
+          return mix(piedra, campo, lejos);
+        }
+        if (mat < 2.5) {
+          vec3 cal = vec3(.94, .92, .87) * (.93 + .07 * h.x);
+          // ventanas y puertas en las paredes
+          if (abs(n.y) < .5) {
+            vec2 w = abs(n.x) > .5 ? p.zy : p.xy;
+            vec2 f = fract(w * vec2(3.3, 4.));
+            if (f.x > .38 && f.x < .62 && f.y > .3 && f.y < .72) return h.y < .3 ? vec3(.1, .3, .55) : (h.y < .5 ? vec3(.12, .38, .22) : vec3(.12, .1, .09));
+          } else if (h.w < .12) {
+            // alguna piscina en la azotea
+            vec2 f = fract(p.xz) - .5;
+            if (abs(f.x) < .22 && abs(f.y) < .14) return vec3(.2, .6, .78);
+          }
+          return cal;
+        }
+        if (mat < 3.5) {
+          float teja = smoothstep(.3, .5, fract(p.x * 18.)) * .15 + smoothstep(.85, 1., fract(p.z * 10.)) * .12;
+          return vec3(.72, .33, .19) * (1. - teja) * (.9 + .15 * h.z);
+        }
+        if (mat < 4.5) return vec3(.18, .38, .14) * (.7 + .5 * vn(p.xz * 30. + p.y * 20.));
+        if (mat < 5.5) return vec3(.3, .2, .12);
+        return vec3(.35, .55, .62);
+      }
+
+      vec3 muestra(vec2 px) {
+        vec2 uv = (px - uRes * .5) / uRes.y;
+        vec3 ro = vec3(11., 20., 15.);
+        vec3 ta = vec3(0., 1.3, 0.3);
+        vec3 w = normalize(ta - ro), u = normalize(cross(w, vec3(0, 1, 0))), v = cross(u, w);
+        vec3 rd = normalize(uv.x * u + uv.y * v + 1.45 * w);
+        // Tilt-shift: diafragma enorme enfocado en la iglesia
+        float foco = length(ta - ro);
+        vec2 ap = rnd2();
+        float ra = sqrt(ap.x) * .75, th = ap.y * 6.2832;
+        vec3 pf = ro + rd * (foco / dot(rd, w));
+        ro += (u * cos(th) + v * sin(th)) * ra;
+        rd = normalize(pf - ro);
+
+        vec2 h = marcha(ro, rd);
+        vec3 cielo = vec3(.55, .7, .85);
+        if (h.x < 0.) return cielo;
+        vec3 p = ro + rd * h.x;
+        vec3 n = normal(p);
+        vec3 alb = color(h.y, p, n);
+        vec2 z = rnd2() - .5;
+        vec3 sol = normalize(vec3(.55, .75, .28) + vec3(z.x, 0., z.y) * .06);
+        float dif = max(dot(n, sol), 0.);
+        float som = dif > 0. ? sombra(p + n * .002, sol) : 0.;
+        float ao = oclusion(p, n);
+        vec3 col = alb * (dif * som * vec3(1.35, 1.24, 1.05) + ao * (vec3(.2, .27, .4) * (.5 + .5 * n.y) + vec3(.06, .05, .04)));
+        // saturación de maqueta
+        float l = dot(col, vec3(.3, .59, .11));
+        col = mix(vec3(l), col, 1.35);
+        return max(col, 0.);
+      }`,
+    }).then(listo);
+  </script>
+</body>
+</html>
