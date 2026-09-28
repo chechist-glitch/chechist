@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/gl.js"></script>
+<style>body { background: #000; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Mandelbulb de potencia 8: un fractal 3D infinito. Se traza por
+    // distancia estimada, con oclusión ambiental, sombras suaves,
+    // color por "trampa de órbita" y desenfoque de lente.
+    const frag = `
+    vec4 trampa;
+    float bulbo(vec3 p) {
+      vec3 w = p; float m = dot(w, w);
+      trampa = vec4(abs(w), m);
+      float dz = 1.;
+      for (int i = 0; i < 5; i++) {
+        dz = 8. * pow(m, 3.5) * dz + 1.;
+        float r = length(w), b = 8. * acos(clamp(w.y / r, -1., 1.)), a = 8. * atan(w.x, w.z);
+        w = p + pow(r, 8.) * vec3(sin(b) * sin(a), cos(b), sin(b) * cos(a));
+        trampa = min(trampa, vec4(abs(w), m));
+        m = dot(w, w);
+        if (m > 256.) break;
+      }
+      return .25 * log(m) * sqrt(m) / dz;
+    }
+    float traza(vec3 ro, vec3 rd, out vec4 col) {
+      float t = 0.;
+      vec2 b = vec2(-1);
+      { float bb = dot(ro, rd), c = dot(ro, ro) - 1.25 * 1.25, h = bb * bb - c; if (h < 0.) return -1.; h = sqrt(h); b = vec2(-bb - h, -bb + h); }
+      t = max(b.x, 0.);
+      for (int i = 0; i < 260; i++) {
+        vec3 p = ro + rd * t;
+        float d = bulbo(p);
+        if (d < .00025 * t || t > b.y) break;
+        t += d;
+      }
+      col = trampa;
+      return t > b.y ? -1. : t;
+    }
+    vec3 normal(vec3 p, float t) {
+      vec2 e = vec2(1, -1) * .0004 * t;
+      return normalize(e.xyy * bulbo(p + e.xyy) + e.yyx * bulbo(p + e.yyx) + e.yxy * bulbo(p + e.yxy) + e.xxx * bulbo(p + e.xxx));
+    }
+    float sombra(vec3 ro, vec3 rd) {
+      float res = 1., t = .002;
+      for (int i = 0; i < 64; i++) { float h = bulbo(ro + rd * t); res = min(res, 12. * h / t); if (res < .001 || t > 2.) break; t += clamp(h, .002, .1); }
+      return clamp(res, 0., 1.);
+    }
+    vec3 muestra(vec2 px) {
+      vec2 uv = (px - uRes * .5) / uRes.y;
+      vec3 ro = vec3(1.7, .95, 1.55) * 1.3;
+      vec3 ta = vec3(0., -.12, 0.);
+      vec3 ww = normalize(ta - ro), uu = normalize(cross(ww, vec3(0, 1, 0))), vv = cross(uu, ww);
+      vec3 rd = normalize(uv.x * uu + uv.y * vv + 1.35 * ww);
+      // Profundidad de campo
+      float foco = length(ro) - 1.;
+      vec3 fp = ro + rd * foco;
+      vec2 ap = rnd2(); float ang = ap.x * 2. * PI, rad = sqrt(ap.y) * .012;
+      ro += (uu * cos(ang) + vv * sin(ang)) * rad;
+      rd = normalize(fp - ro);
+
+      vec3 fondo = mix(vec3(.02, .015, .03), vec3(.12, .06, .1), pow(max(0., 1. - length(uv - vec2(.1, .15))), 2.));
+      vec4 tr;
+      float t = traza(ro, rd, tr);
+      if (t < 0.) return fondo;
+      vec3 p = ro + rd * t;
+      vec3 n = normal(p, t);
+      // Color por la trampa de órbita: nácar, oro y cobre
+      vec3 col = vec3(.02);
+      col = mix(col, vec3(.95, .55, .25), clamp(tr.y, 0., 1.));
+      col = mix(col, vec3(.25, .45, .75), clamp(tr.z * tr.z, 0., 1.));
+      col = mix(col, vec3(1., .85, .6), clamp(pow(tr.w, 6.), 0., 1.));
+      col *= .55;
+      // Oclusión ambiental por "profundidad" de la órbita
+      float ao = clamp(.05 * log(tr.x), 0., 1.) * 0. + clamp(tr.w * 1.2 - .2, 0., 1.);
+      vec3 L1 = normalize(vec3(.6, .9, .3)), L2 = normalize(vec3(-.7, -.2, -.6));
+      float d1 = clamp(dot(n, L1), 0., 1.);
+      float s1 = d1 > .001 ? sombra(p + n * .001, L1) : 0.;
+      float d2 = clamp(.2 + .8 * dot(n, L2), 0., 1.);
+      float amb = .7 + .3 * n.y;
+      vec3 h = normalize(L1 - rd);
+      float spec = pow(clamp(dot(n, h), 0., 1.), 32.) * s1 * d1;
+      vec3 luz = vec3(3.2, 2.6, 2.0) * d1 * s1 + vec3(.5, .35, .6) * d2 * ao + vec3(.25, .3, .4) * amb * ao;
+      vec3 c = col * luz + vec3(1., .9, .8) * spec * .5;
+      c = mix(c, fondo, 1. - exp(-.02 * t * t));
+      return c;
+    }`;
+    trazar({ frag, muestras: 48, franjas: 12, expo: 1.1, vineta: .5, grano: .02 }).then(listo);
+  </script>
+</body>
+</html>

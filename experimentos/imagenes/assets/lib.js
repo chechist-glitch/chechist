@@ -68,3 +68,7 @@ function listo() {
     window.__listo = true;
   });
 }
+
+// Si algo peta, se avisa al script de render en vez de dejarlo esperando
+window.addEventListener("error", (e) => { window.__error = String(e.message); });
+window.addEventListener("unhandledrejection", (e) => { window.__error = String(e.reason && e.reason.message || e.reason); });

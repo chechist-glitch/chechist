@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/gl.js"></script>
+<style>body { background: #000; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Terreno por raymarching: el relieve es ruido fractal cuyas derivadas
+    // "erosionan" las laderas; luz de sol rasante, atmósfera y un lago.
+    const frag = `
+    float h12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+    vec3 noised(vec2 x) {
+      vec2 i = floor(x), f = fract(x);
+      vec2 u = f * f * f * (f * (f * 6. - 15.) + 10.), du = 30. * f * f * (f * (f - 2.) + 1.);
+      float a = h12(i), b = h12(i + vec2(1, 0)), c = h12(i + vec2(0, 1)), d = h12(i + vec2(1, 1));
+      return vec3(a + (b - a) * u.x + (c - a) * u.y + (a - b - c + d) * u.x * u.y,
+                  du * (vec2(b - a, c - a) + (a - b - c + d) * u.yx));
+    }
+    const mat2 M2 = mat2(.8, -.6, .6, .8);
+    float terreno(vec2 x, int oct) {
+      vec2 p = x * .0022; float a = 0., b = 1.; vec2 d = vec2(0);
+      for (int i = 0; i < 16; i++) {
+        if (i >= oct) break;
+        vec3 n = noised(p); d += n.yz;
+        a += b * n.x / (1. + dot(d, d));
+        b *= .5; p = M2 * p * 2.;
+      }
+      float valle = smoothstep(0., 700., abs(x.x - 60. + sin(x.y * .0025) * 260.));
+      return 330. * a * (.25 + .75 * valle) - 20.;
+    }
+    const float AGUA = 22.;
+    const vec3 SOL = normalize(vec3(.8, .11, .3));
+    float marcha(vec3 ro, vec3 rd, float tmax) {
+      float t = 1.;
+      for (int i = 0; i < 400; i++) {
+        vec3 p = ro + rd * t;
+        float h = p.y - terreno(p.xz, 9);
+        if (abs(h) < .0015 * t || t > tmax) break;
+        t += .45 * h;
+      }
+      return t;
+    }
+    float sombra(vec3 ro, vec3 rd) {
+      float res = 1., t = 2.;
+      for (int i = 0; i < 90; i++) {
+        vec3 p = ro + rd * t;
+        float h = p.y - terreno(p.xz, 8);
+        res = min(res, 16. * h / t);
+        if (res < .001 || p.y > 450.) break;
+        t += clamp(h, 2., 60.);
+      }
+      return clamp(res, 0., 1.);
+    }
+    vec3 normal(vec3 p, float t) {
+      float e = .0025 * t;
+      return normalize(vec3(terreno(p.xz - vec2(e, 0), 15) - terreno(p.xz + vec2(e, 0), 15), 2. * e,
+                            terreno(p.xz - vec2(0, e), 15) - terreno(p.xz + vec2(0, e), 15)));
+    }
+    float fbm2(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 6; i++) { s += a * noised(p).x; p = M2 * p * 2.1; a *= .5; } return s; }
+    vec3 cielo(vec3 rd) {
+      float s = max(dot(rd, SOL), 0.);
+      float y = max(rd.y, 0.);
+      vec3 c = mix(vec3(1.0, .62, .55), vec3(.1, .2, .48), pow(y, .5));
+      c = mix(c, vec3(1.1, .62, .3), pow(s, 6.) * .8 * (1. - y));
+      c += vec3(1., .7, .4) * pow(s, 64.) * 1.2;
+      c += vec3(1., .85, .6) * 30. * smoothstep(.99975, .9999, s);
+      // Nubes altas
+      if (rd.y > 0.) {
+        vec2 uv = rd.xz / (rd.y + .06) * 1.6;
+        float n = smoothstep(.45, .85, fbm2(uv * 1.3 + vec2(3., 1.)));
+        vec3 cn = mix(vec3(.55, .38, .45), vec3(1.3, .7, .55), .45 + .4 * n);
+        c = mix(c, cn, n * .85 * smoothstep(0., .1, rd.y));
+      }
+      return c;
+    }
+    vec3 niebla(vec3 c, vec3 rd, float t) {
+      float s = max(dot(rd, SOL), 0.);
+      vec3 fc = mix(vec3(.62, .55, .68), vec3(1., .66, .45), pow(s, 3.));
+      vec3 ext = exp(-t * .00013 * vec3(1., 1.4, 2.1));
+      return c * ext + fc * (1. - ext);
+    }
+    vec3 terrenoColor(vec3 p, vec3 n, float t, vec3 rd) {
+      vec3 roca = mix(vec3(.11, .075, .05), vec3(.2, .15, .11), fbm2(p.xz * .05));
+      vec3 hierba = mix(vec3(.06, .08, .025), vec3(.12, .11, .04), fbm2(p.xz * .02));
+      vec3 alb = mix(roca, hierba, smoothstep(.72, .9, n.y) * (1. - smoothstep(150., 230., p.y)));
+      float nieve = smoothstep(240., 270., p.y + fbm2(p.xz * .03) * 60.) * smoothstep(.55, .8, n.y);
+      alb = mix(alb, vec3(.72, .74, .8), nieve);
+      float dif = clamp(dot(n, SOL), 0., 1.);
+      float sh = dif > 0. ? sombra(p + n * .5, SOL) : 0.;
+      float amb = clamp(.5 + .5 * n.y, 0., 1.);
+      float reb = clamp(.2 - .8 * n.y, 0., 1.);
+      vec3 luz = vec3(9., 5.2, 2.8) * dif * vec3(sh, sh * sh * .6 + .4 * sh, sh * sh);
+      luz += amb * vec3(.3, .42, .75) * .7;
+      luz += reb * vec3(.3, .2, .12);
+      return alb * luz;
+    }
+    vec3 muestra(vec2 px) {
+      vec2 uv = (px - uRes * .5) / uRes.y;
+      vec3 ro = vec3(0., 0., 400.);
+      ro.y = max(terreno(ro.xz, 9), AGUA) + 36.;
+      vec3 ta = vec3(-120., ro.y - 60., -600.);
+      vec3 ww = normalize(ta - ro), uu = normalize(cross(ww, vec3(0, 1, 0))), vv = cross(uu, ww);
+      vec3 rd = normalize(uv.x * uu + uv.y * vv + 1.3 * ww);
+      float tmax = 9000.;
+      float t = marcha(ro, rd, tmax);
+      float tAgua = rd.y < 0. ? (AGUA - ro.y) / rd.y : 1e9;
+      vec3 col;
+      if (tAgua < t && tAgua > 0.) {
+        // Lago: refleja cielo y montes, con ondas finas
+        vec3 p = ro + rd * tAgua;
+        vec2 w = vec2(fbm2(p.xz * .08 + 3.), fbm2(p.xz * .08 + 7.)) - .5;
+        vec3 n = normalize(vec3(w.x * .08, 1., w.y * .08));
+        vec3 rr = reflect(rd, n);
+        float tr = marcha(p + vec3(0, .1, 0), rr, 5000.);
+        vec3 refl;
+        if (tr < 5000.) { vec3 q = p + rr * tr; refl = niebla(terrenoColor(q, normal(q, tr), tr, rr), rr, tr); }
+        else refl = cielo(rr);
+        float F = .02 + .98 * pow(1. - max(dot(-rd, n), 0.), 5.);
+        col = mix(vec3(.01, .025, .03), refl, clamp(F * 1.4 + .15, 0., 1.));
+        col = niebla(col, rd, tAgua);
+      } else if (t < tmax) {
+        vec3 p = ro + rd * t;
+        col = niebla(terrenoColor(p, normal(p, t), t, rd), rd, t);
+      } else {
+        col = cielo(rd);
+      }
+      return col * .9;
+    }`;
+    trazar({ frag, muestras: 12, franjas: 16, expo: 1.0, vineta: .3, grano: .02 }).then(listo);
+  </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #f7f1e1; }
+  svg { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+  <svg id="s" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+  <script>
+    const r = rng(1963);
+    const NEGRO = "#141414", ROJO = "#e8262f", AMARILLO = "#ffd400", AZUL = "#1f6fd1", PIEL = "#f7c6a6";
+    let s = `<defs>
+      <pattern id="benRojo" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(20)"><rect width="16" height="16" fill="${AMARILLO}"/><circle cx="8" cy="8" r="4.2" fill="${ROJO}"/></pattern>
+      <pattern id="benRojoG" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(20)"><rect width="22" height="22" fill="#fff4c2"/><circle cx="11" cy="11" r="7.5" fill="${ROJO}"/></pattern>
+      <pattern id="benAzul" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="#fff"/><circle cx="7" cy="7" r="4.6" fill="${AZUL}"/></pattern>
+      <pattern id="benPiel" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(15)"><rect width="12" height="12" fill="#fffaf2"/><circle cx="6" cy="6" r="3.2" fill="#f29a8b"/></pattern>
+      <clipPath id="v1"><rect x="30" y="30" width="1020" height="760"/></clipPath>
+      <clipPath id="v2"><rect x="30" y="820" width="1020" height="500"/></clipPath>
+      <filter id="papel"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 .5 0 0 0 0 .45 0 0 0 0 .35 0 0 0 -1.6 1"/></filter>
+    </defs>`;
+
+    // ---- Viñeta 1: explosión ----
+    let v1 = `<rect x="30" y="30" width="1020" height="760" fill="url(#benRojoG)"/>`;
+    // Líneas de velocidad hacia el centro
+    const cx = 560, cy = 440;
+    for (let i = 0; i < 90; i++) {
+      const a = (i / 90) * Math.PI * 2 + r() * 0.03, a2 = a + 0.012 + r() * 0.02;
+      const R1 = 330 + r() * 80, R2 = 1100;
+      v1 += `<polygon points="${cx + Math.cos(a) * R1},${cy + Math.sin(a) * R1} ${cx + Math.cos(a) * R2},${cy + Math.sin(a) * R2} ${cx + Math.cos(a2) * R2},${cy + Math.sin(a2) * R2}" fill="${NEGRO}" opacity=".85"/>`;
+    }
+    // Estallido de picos
+    const estallido = (R, Rin, picos, jit) => {
+      const p = [];
+      for (let i = 0; i < picos * 2; i++) {
+        const a = (i / (picos * 2)) * Math.PI * 2;
+        const rad = i % 2 ? Rin * (0.85 + r() * 0.2) : R * (0.8 + r() * jit);
+        p.push(`${(cx + Math.cos(a) * rad * 1.25).toFixed(1)},${(cy + Math.sin(a) * rad).toFixed(1)}`);
+      }
+      return p.join(" ");
+    };
+    v1 += `<polygon points="${estallido(360, 250, 17, 0.45)}" fill="${ROJO}" stroke="${NEGRO}" stroke-width="9" stroke-linejoin="round"/>`;
+    v1 += `<polygon points="${estallido(300, 215, 15, 0.35)}" fill="url(#benRojo)" stroke="${NEGRO}" stroke-width="7" stroke-linejoin="round"/>`;
+    v1 += `<polygon points="${estallido(250, 190, 13, 0.25)}" fill="${AMARILLO}" stroke="${NEGRO}" stroke-width="6" stroke-linejoin="round"/>`;
+    // Onomatopeya con volumen: capas desplazadas
+    const texto = (dx, dy, fill, stroke, sw) => `<text x="${cx + dx}" y="${cy + 70 + dy}" text-anchor="middle" font-family="Anton" font-size="215" letter-spacing="4" transform="rotate(-9 ${cx} ${cy}) skewX(-8)" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" paint-order="stroke">¡QUILLO!</text>`;
+    for (let k = 14; k > 0; k -= 2) v1 += texto(k, k, NEGRO, NEGRO, 16);
+    v1 += texto(0, 0, "#fff", NEGRO, 16);
+    // Cartucho de narrador
+    v1 += `<g transform="rotate(-1.5 60 60)"><rect x="52" y="52" width="520" height="92" fill="${AMARILLO}" stroke="${NEGRO}" stroke-width="6"/>
+      <text x="74" y="92" font-family="Archivo Black" font-size="27" fill="${NEGRO}">MIENTRAS TANTO, EN TRIANA...</text>
+      <text x="74" y="126" font-family="Archivo Black" font-size="21" fill="${NEGRO}">¡ALGUIEN DESCUBRE HYPERFRAMES!</text></g>`;
+    s += `<g clip-path="url(#v1)">${v1}</g><rect x="30" y="30" width="1020" height="760" fill="none" stroke="${NEGRO}" stroke-width="10"/>`;
+
+    // ---- Viñeta 2: el ojo ----
+    let v2 = `<rect x="30" y="820" width="1020" height="500" fill="url(#benPiel)"/>`;
+    const ox = 640, oy = 1075;
+    // Ceja
+    v2 += `<path d="M ${ox - 290} ${oy - 150} Q ${ox - 40} ${oy - 250} ${ox + 260} ${oy - 170} Q ${ox - 20} ${oy - 210} ${ox - 290} ${oy - 150} Z" fill="${NEGRO}"/>`;
+    // Párpado y ojo
+    v2 += `<path d="M ${ox - 300} ${oy} Q ${ox - 30} ${oy - 190} ${ox + 280} ${oy - 20} Q ${ox} ${oy + 140} ${ox - 300} ${oy} Z" fill="#fff" stroke="${NEGRO}" stroke-width="9"/>`;
+    v2 += `<clipPath id="ojo"><path d="M ${ox - 300} ${oy} Q ${ox - 30} ${oy - 190} ${ox + 280} ${oy - 20} Q ${ox} ${oy + 140} ${ox - 300} ${oy} Z"/></clipPath>`;
+    v2 += `<g clip-path="url(#ojo)"><circle cx="${ox - 10}" cy="${oy - 30}" r="112" fill="url(#benAzul)" stroke="${NEGRO}" stroke-width="7"/>
+      <circle cx="${ox - 10}" cy="${oy - 30}" r="52" fill="${NEGRO}"/>
+      <ellipse cx="${ox + 22}" cy="${oy - 70}" rx="26" ry="18" fill="#fff"/><circle cx="${ox - 40}" cy="${oy + 5}" r="9" fill="#fff"/>
+      <path d="M ${ox - 300} ${oy - 200} L ${ox + 300} ${oy - 200} L ${ox + 300} ${oy - 70} Q ${ox} ${oy - 150} ${ox - 300} ${oy - 40} Z" fill="${NEGRO}" opacity=".12"/></g>`;
+    // Pestañas
+    for (let i = 0; i < 11; i++) {
+      const t = i / 10;
+      const x = ox - 290 + t * 560, y = oy - 5 - Math.sin(t * Math.PI) * 95;
+      const a = -Math.PI / 2 - 0.9 + t * 1.5;
+      v2 += `<path d="M ${x} ${y} q ${Math.cos(a) * 30} ${Math.sin(a) * 40} ${Math.cos(a) * 58 + 12} ${Math.sin(a) * 58}" stroke="${NEGRO}" stroke-width="${9 - Math.abs(t - .6) * 6}" fill="none" stroke-linecap="round"/>`;
+    }
+    // Lágrima
+    v2 += `<path d="M ${ox + 180} ${oy + 40} q -28 50 0 70 q 28 -20 0 -70 Z" fill="#bfe3ff" stroke="${NEGRO}" stroke-width="5"/>`;
+    v2 += `<ellipse cx="${ox + 172}" cy="${oy + 88}" rx="5" ry="9" fill="#fff"/>`;
+    // Bocadillo de pensamiento
+    v2 += `<g><path d="M 70 860 h 330 a 30 30 0 0 1 30 30 v 150 a 30 30 0 0 1 -30 30 h -180 l -40 60 l 5 -60 h -115 a 30 30 0 0 1 -30 -30 v -150 a 30 30 0 0 1 30 -30 z" fill="#fff" stroke="${NEGRO}" stroke-width="6"/>
+      <text font-family="Archivo Black" font-size="31" fill="${NEGRO}"><tspan x="92" y="920">¡¿TODO ESTO</tspan><tspan x="92" y="960">ES CÓDIGO?!</tspan><tspan x="92" y="1010" font-size="24">¡NO ME LO PUEDO</tspan><tspan x="92" y="1042" font-size="24">CREER, QUILLO!</tspan></text></g>`;
+    s += `<g clip-path="url(#v2)">${v2}</g><rect x="30" y="820" width="1020" height="500" fill="none" stroke="${NEGRO}" stroke-width="10"/>`;
+    // Textura de papel de cómic viejo
+    s += `<rect width="1080" height="1350" filter="url(#papel)" opacity=".35" style="mix-blend-mode:multiply"/>`;
+    s += `<text x="1040" y="1340" text-anchor="end" font-family="Space Mono" font-size="12" fill="#6b5a3a">Nº 1 · 25 PTS</text>`;
+    document.getElementById("s").innerHTML = s;
+    listo();
+  </script>
+</body>
+</html>

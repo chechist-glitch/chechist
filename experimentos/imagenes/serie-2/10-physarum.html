@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #020306; }
+  .t { position: absolute; right: 50px; bottom: 50px; background: rgba(2, 3, 6, .82); padding: 18px 24px; border-radius: 6px; text-align: right; font-family: "Space Mono"; font-size: 18px; color: rgba(200, 230, 225, .55); line-height: 1.7; }
+  .t b { display: block; font-family: "DM Serif"; font-style: italic; font-weight: 400; font-size: 46px; color: rgba(235, 245, 240, .9); }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t"><b>Physarum</b>160.000 agentes · huelen, giran, avanzan y dejan rastro<br />260 pasos · nadie dibuja la red, sale sola</div>
+  <script>
+    // Moho mucilaginoso: cada agente huele el rastro delante, a la izquierda
+    // y a la derecha, gira hacia donde huele más, avanza y deja su rastro.
+    // El rastro se difumina y se evapora. De reglas tan simples sale una red.
+    const GW = 540, GH = 675, N = 160000;
+    const r = rng(2010);
+    const px = new Float32Array(N), py = new Float32Array(N), pa = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      px[i] = r() * GW; py[i] = r() * GH;
+      pa[i] = r() * Math.PI * 2;
+    }
+    let T = new Float32Array(GW * GH), T2 = new Float32Array(GW * GH);
+    const SA = 0.785, SO = 9, RA = 0.785, VEL = 1, DEP = 5, DECAE = 0.9;
+    const oler = (x, y) => {
+      const xi = ((x | 0) + GW) % GW, yi = ((y | 0) + GH) % GH;
+      return T[yi * GW + xi];
+    };
+    for (let paso = 0; paso < 260; paso++) {
+      for (let i = 0; i < N; i++) {
+        const a = pa[i], x = px[i], y = py[i];
+        const f = oler(x + Math.cos(a) * SO, y + Math.sin(a) * SO);
+        const fl = oler(x + Math.cos(a - SA) * SO, y + Math.sin(a - SA) * SO);
+        const fr = oler(x + Math.cos(a + SA) * SO, y + Math.sin(a + SA) * SO);
+        let na = a;
+        if (f > fl && f > fr) {}
+        else if (f < fl && f < fr) na += (r() < 0.5 ? -1 : 1) * RA;
+        else if (fl > fr) na -= RA;
+        else if (fr > fl) na += RA;
+        let nx = x + Math.cos(na) * VEL, ny = y + Math.sin(na) * VEL;
+        if (nx < 0) nx += GW; else if (nx >= GW) nx -= GW;
+        if (ny < 0) ny += GH; else if (ny >= GH) ny -= GH;
+        px[i] = nx; py[i] = ny; pa[i] = na;
+        T[(ny | 0) * GW + (nx | 0)] += DEP;
+      }
+      // Difusión 3x3 y evaporación
+      for (let y = 0; y < GH; y++) {
+        const ya = ((y - 1 + GH) % GH) * GW, yb = y * GW, yc = ((y + 1) % GH) * GW;
+        for (let x = 0; x < GW; x++) {
+          const xa = (x - 1 + GW) % GW, xc = (x + 1) % GW;
+          const s = T[ya + xa] + T[ya + x] + T[ya + xc] + T[yb + xa] + T[yb + x] + T[yb + xc] + T[yc + xa] + T[yc + x] + T[yc + xc];
+          T2[yb + x] = (s / 9) * DECAE;
+        }
+      }
+      [T, T2] = [T2, T];
+    }
+    // Colorear: negro → verde azulado → oro → blanco
+    let mx = 0;
+    for (let k = 0; k < T.length; k++) mx = Math.max(mx, T[k]);
+    const pequeño = document.createElement("canvas"); pequeño.width = GW; pequeño.height = GH;
+    const sc = pequeño.getContext("2d");
+    const img = sc.createImageData(GW, GH);
+    const paleta = [[2, 3, 6], [8, 40, 52], [30, 120, 120], [220, 170, 80], [255, 245, 220]];
+    for (let k = 0; k < T.length; k++) {
+      const v = Math.min(1, Math.pow(Math.log(1 + T[k]) / Math.log(1 + mx * 0.45), 1.3));
+      const f = v * (paleta.length - 1), i = Math.min(paleta.length - 2, Math.floor(f)), t = f - i;
+      for (let c = 0; c < 3; c++) img.data[k * 4 + c] = paleta[i][c] + (paleta[i + 1][c] - paleta[i][c]) * t;
+      img.data[k * 4 + 3] = 255;
+    }
+    sc.putImageData(img, 0, 0);
+    const ctx = canvas2d();
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(pequeño, 0, 0, W, H);
+    // Resplandor suave encima
+    ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.35; ctx.filter = "blur(6px)";
+    ctx.drawImage(pequeño, 0, 0, W, H);
+    listo();
+  </script>
+</body>
+</html>

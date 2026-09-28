@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>body { background: #efe3c8; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(1753);
+    const n = makeNoise(1753);
+    const TINTA = "#3a2616";
+
+    // Papel envejecido con manchas de humedad (foxing)
+    const fondo = ctx.createRadialGradient(540, 620, 200, 540, 675, 900);
+    fondo.addColorStop(0, "#f3e8cf"); fondo.addColorStop(1, "#e2cfa6");
+    ctx.fillStyle = fondo; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 70; i++) {
+      const x = r() * W, y = r() * H, rad = 2 + r() * 14;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      g.addColorStop(0, "rgba(150, 100, 50, .22)"); g.addColorStop(1, "rgba(150, 100, 50, 0)");
+      ctx.fillStyle = g; ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+
+    // --- utilidades de grabado ---
+    const lav = (path, color, a) => { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = color; path(); ctx.fill(); ctx.restore(); };
+    const tinta = (path, w = 1.6) => { ctx.save(); ctx.strokeStyle = TINTA; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.lineCap = "round"; path(); ctx.stroke(); ctx.restore(); };
+    // Trama de líneas dentro de un camino, solo donde manda la sombra
+    function tramar(path, sombra, ang = 0.7, sep = 4.5, w = 0.8) {
+      ctx.save(); path(); ctx.clip();
+      ctx.strokeStyle = TINTA; ctx.lineWidth = w; ctx.globalAlpha = 0.8;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      for (let d = -1500; d < 1500; d += sep) {
+        ctx.beginPath();
+        let dentro = false;
+        for (let t = -1500; t < 1500; t += 4) {
+          const x = 540 + ca * t - sa * d, y = 675 + sa * t + ca * d;
+          if (x < -10 || x > W + 10 || y < -10 || y > H + 10) { dentro = false; continue; }
+          const on = sombra(x, y) > (r() * 0.25 + 0.4);
+          if (on && !dentro) ctx.moveTo(x, y); else if (on) ctx.lineTo(x, y);
+          dentro = on;
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    function punteado(path, sombra, num, rad = 0.9) {
+      ctx.save(); path(); ctx.clip(); ctx.fillStyle = TINTA;
+      for (let i = 0; i < num; i++) {
+        const x = r() * W, y = r() * H;
+        if (r() < sombra(x, y)) { ctx.beginPath(); ctx.arc(x, y, rad * (0.6 + r() * 0.6), 0, Math.PI * 2); ctx.fill(); }
+      }
+      ctx.restore();
+    }
+
+    // --- Fig. 1: rama ---
+    const rama = [[130, 1110], [260, 900], [380, 760], [520, 600], [640, 470], [760, 330]];
+    const camRama = (w) => () => { ctx.beginPath(); ctx.moveTo(...rama[0]); for (let i = 1; i < rama.length - 1; i++) { const [x1, y1] = rama[i], [x2, y2] = rama[i + 1]; ctx.quadraticCurveTo(x1, y1, (x1 + x2) / 2, (y1 + y2) / 2); } ctx.lineTo(...rama[rama.length - 1]); ctx.lineWidth = w; };
+    ctx.save(); ctx.strokeStyle = "#6b4a2b"; camRama(18)(); ctx.lineCap = "round"; ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.strokeStyle = TINTA; camRama(20)(); ctx.lineCap = "round"; ctx.globalAlpha = .9; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+
+    // Hojas
+    function hoja(x, y, ang, L, Wd) {
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      const P = (u, v) => [x + ca * u - sa * v, y + sa * u + ca * v];
+      const cam = () => { ctx.beginPath(); ctx.moveTo(...P(0, 0)); ctx.bezierCurveTo(...P(L * 0.25, Wd), ...P(L * 0.7, Wd * 0.9), ...P(L, 0)); ctx.bezierCurveTo(...P(L * 0.7, -Wd * 0.9), ...P(L * 0.25, -Wd), ...P(0, 0)); ctx.closePath(); };
+      lav(cam, "#4f7a33", 0.75);
+      lav(() => { ctx.beginPath(); ctx.moveTo(...P(0, 0)); ctx.bezierCurveTo(...P(L * 0.25, -Wd), ...P(L * 0.7, -Wd * 0.9), ...P(L, 0)); ctx.closePath(); }, "#9bbd5a", 0.45);
+      // Sombra: la mitad de abajo de la hoja
+      tramar(cam, (px, py) => { const v = -(px - x) * sa + (py - y) * ca; return v > 0 ? 0.55 + v / Wd * 0.5 : 0; }, ang + 0.9, 4.2, 0.7);
+      tinta(cam, 1.5);
+      tinta(() => { ctx.beginPath(); ctx.moveTo(...P(0, 0)); ctx.quadraticCurveTo(...P(L * 0.5, 2), ...P(L * 0.97, 0)); }, 1.1);
+      ctx.save(); cam(); ctx.clip();
+      for (let k = 1; k < 8; k++) {
+        const u = L * k / 8.5;
+        tinta(() => { ctx.beginPath(); ctx.moveTo(...P(u, 0)); ctx.quadraticCurveTo(...P(u + L * 0.06, Wd * 0.35), ...P(u + L * 0.12, Wd * 0.7)); ctx.moveTo(...P(u, 0)); ctx.quadraticCurveTo(...P(u + L * 0.06, -Wd * 0.35), ...P(u + L * 0.12, -Wd * 0.7)); }, 0.6);
+      }
+      ctx.restore();
+    }
+    const hojas = [[250, 920, -2.4, 190, 55], [300, 860, -0.3, 200, 58], [380, 770, -2.0, 210, 60], [440, 700, 0.2, 190, 55], [520, 610, -1.6, 220, 62], [600, 520, 0.5, 200, 56], [660, 450, -2.6, 180, 52], [720, 380, -0.8, 170, 50], [760, 335, -1.9, 150, 45], [200, 1000, 0.5, 170, 50]];
+    for (const h of hojas) hoja(...h);
+
+    // Naranjas
+    function naranja(x, y, R) {
+      const cam = () => { ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); };
+      const g = ctx.createRadialGradient(x - R * 0.35, y - R * 0.4, R * 0.1, x, y, R);
+      g.addColorStop(0, "#ffc46b"); g.addColorStop(0.6, "#f08a1c"); g.addColorStop(1, "#c65f10");
+      lav(cam, g, 0.9);
+      punteado(cam, (px, py) => Math.max(0, ((px - x) + (py - y)) / (R * 1.4) + 0.25) * 0.8, 9000, 0.9);
+      tramar(cam, (px, py) => Math.max(0, ((px - x) * 0.6 + (py - y)) / R) * 1.2, 2.3, 4, 0.8);
+      tinta(cam, 2);
+      // Pedúnculo y cáliz
+      tinta(() => { ctx.beginPath(); ctx.moveTo(x - 4, y - R + 2); ctx.lineTo(x - 8, y - R - 26); }, 3);
+      lav(() => { ctx.beginPath(); ctx.ellipse(x - 4, y - R + 4, 14, 6, 0, 0, Math.PI * 2); }, "#5d7f35", 0.9);
+      tinta(() => { ctx.beginPath(); ctx.ellipse(x - 4, y - R + 4, 14, 6, 0, 0, Math.PI * 2); }, 1);
+    }
+    naranja(470, 780, 100);
+    naranja(640, 640, 82);
+
+    // Azahar
+    function flor(x, y, s) {
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 - 0.3;
+        const cam = () => { ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * 22 * s, y + Math.sin(a) * 22 * s, 24 * s, 10 * s, a, 0, Math.PI * 2); };
+        lav(cam, "#fffaf0", 0.95);
+        tramar(cam, (px, py) => Math.hypot(px - x, py - y) < 18 * s ? 0.9 : 0.2, a + 1.4, 3.5, 0.5);
+        tinta(cam, 1);
+      }
+      for (let i = 0; i < 14; i++) {
+        const a = r() * Math.PI * 2, l = (10 + r() * 10) * s;
+        tinta(() => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); }, 0.8);
+        lav(() => { ctx.beginPath(); ctx.arc(x + Math.cos(a) * l, y + Math.sin(a) * l, 2.4 * s, 0, Math.PI * 2); }, "#e6b62e", 1);
+      }
+    }
+    flor(795, 300, 1.2);
+    flor(330, 880, 1);
+
+    // --- Fig. 2: corte transversal ---
+    function corte(x, y, R) {
+      lav(() => { ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); }, "#ee8a1f", 0.95);
+      lav(() => { ctx.beginPath(); ctx.arc(x, y, R * 0.9, 0, Math.PI * 2); }, "#fbf2de", 1);
+      const gajos = 11;
+      for (let i = 0; i < gajos; i++) {
+        const a0 = (i / gajos) * Math.PI * 2 + 0.03, a1 = ((i + 1) / gajos) * Math.PI * 2 - 0.03;
+        const cam = () => { ctx.beginPath(); ctx.moveTo(x + Math.cos((a0 + a1) / 2) * R * 0.1, y + Math.sin((a0 + a1) / 2) * R * 0.1); ctx.arc(x, y, R * 0.84, a0, a1); ctx.closePath(); };
+        lav(cam, "#f7a43a", 0.9);
+        ctx.save(); cam(); ctx.clip(); ctx.strokeStyle = "rgba(200, 90, 10, .5)"; ctx.lineWidth = 1;
+        for (let k = 0; k < 40; k++) {
+          const a = a0 + r() * (a1 - a0), d = R * (0.2 + r() * 0.6);
+          ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d, 7, 2.2, a, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
+        tinta(cam, 1);
+        if (i % 3 === 0) { const a = (a0 + a1) / 2; lav(() => { ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * R * 0.25, y + Math.sin(a) * R * 0.25, 7, 4, a, 0, Math.PI * 2); }, "#f4ecd6", 1); tinta(() => { ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * R * 0.25, y + Math.sin(a) * R * 0.25, 7, 4, a, 0, Math.PI * 2); }, 0.8); }
+      }
+      punteado(() => { ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.arc(x, y, R * 0.9, 0, Math.PI * 2, true); }, () => 0.5, 2500, 0.8);
+      tinta(() => { ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); }, 1.8);
+    }
+    corte(830, 1010, 125);
+
+    // --- Fig. 3: semilla ---
+    const semilla = () => { ctx.beginPath(); ctx.ellipse(330, 1160, 26, 15, -0.4, 0, Math.PI * 2); };
+    lav(semilla, "#efe2bf", 1);
+    tramar(semilla, (px, py) => (py - 1155) / 20 + 0.4, 0.2, 3, 0.6);
+    tinta(semilla, 1.3);
+
+    // --- Rótulos y marco ---
+    ctx.strokeStyle = TINTA; ctx.lineWidth = 2; ctx.strokeRect(40, 40, W - 80, H - 80);
+    ctx.lineWidth = 0.8; ctx.strokeRect(50, 50, W - 100, H - 100);
+    document.fonts.load("italic 40px Playfair").then(() => document.fonts.load("900 40px Playfair")).then(() => {
+      ctx.fillStyle = TINTA; ctx.textAlign = "center";
+      ctx.font = "900 44px Playfair"; ctx.fillText("CITRUS × SINENSIS", 540, 115);
+      ctx.font = "italic 26px Playfair"; ctx.fillText("Naranjo dulce · vulgo «naranja de Sevilla, la buena»", 540, 152);
+      ctx.font = "italic 22px Playfair"; ctx.textAlign = "left"; ctx.fillText("Tab. XXVII", 75, 100);
+      ctx.textAlign = "right"; ctx.fillText("Hisp. Bætica", W - 75, 100);
+      ctx.textAlign = "left"; ctx.font = "italic 20px Playfair";
+      ctx.fillText("Fig. 1  Ramus florens et fructifer.", 80, 1222);
+      ctx.fillText("Fig. 2  Fructus transverse sectus.", 80, 1248);
+      ctx.fillText("Fig. 3  Semen.", 80, 1274);
+      ctx.fillText("2", 950, 1160); ctx.fillText("3", 370, 1140); ctx.fillText("1", 820, 250);
+      ctx.textAlign = "right"; ctx.font = "italic 16px Playfair"; ctx.fillText("chechist del. et sculp.", W - 80, 1274);
+      listo();
+    });
+  </script>
+</body>
+</html>

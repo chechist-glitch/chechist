@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: radial-gradient(ellipse at 40% 35%, #2b2a2e, #0e0e10 75%); }
+  #billete { position: absolute; left: 230px; top: 60px; width: 620px; height: 1230px; transform: rotate(-3.5deg); box-shadow: 0 30px 70px rgba(0,0,0,.65), 0 4px 10px rgba(0,0,0,.4); }
+  svg { display: block; }
+</style>
+</head>
+<body>
+  <div id="billete"></div>
+  <script>
+    const r = rng(100);
+    const n = makeNoise(100);
+    const BW = 620, BH = 1230;
+    const TINTA = "#1d5a55", TINTA2 = "#7a3b1c", ACENTO = "#d9772b";
+    let s = "";
+    const pts = (arr) => arr.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+
+    // Fondo de papel con fibras de colores (las de los billetes)
+    s += `<rect width="${BW}" height="${BH}" fill="#efe6cf"/>`;
+    s += `<rect width="${BW}" height="${BH}" fill="url(#grad)"/>`;
+    for (let i = 0; i < 160; i++) {
+      const x = r() * BW, y = r() * BH, a = r() * Math.PI;
+      s += `<path d="M${x} ${y} q${Math.cos(a) * 5} ${Math.sin(a) * 5 + 3} ${Math.cos(a) * 12} ${Math.sin(a) * 12}" stroke="${r() < .5 ? "#c0392b" : "#2e6fb5"}" stroke-width=".6" fill="none" opacity=".5"/>`;
+    }
+    // Trama de ondas finas de fondo (fondo de seguridad)
+    for (let k = 0; k < 150; k++) {
+      const y0 = k * 8.3;
+      const p = [];
+      for (let x = 0; x <= BW; x += 6) p.push([x, y0 + Math.sin(x * 0.045 + k * 0.35) * 5 + Math.sin(x * 0.011 + k * 0.1) * 9]);
+      s += `<polyline points="${pts(p)}" fill="none" stroke="${k % 2 ? TINTA : ACENTO}" stroke-width=".45" opacity=".35"/>`;
+    }
+    // Rosetas de guilloché (hipotrocoides superpuestas)
+    function roseta(cx, cy, R, rr, d, copias, col, ancho, op) {
+      let out = "";
+      for (let c = 0; c < copias; c++) {
+        const giro = (c / copias) * Math.PI * 2 / 7;
+        const p = [];
+        for (let t = 0; t <= Math.PI * 2 * rr / gcd(R, rr) + 0.01; t += 0.02) {
+          const x = (R - rr) * Math.cos(t) + d * Math.cos(((R - rr) / rr) * t);
+          const y = (R - rr) * Math.sin(t) - d * Math.sin(((R - rr) / rr) * t);
+          p.push([cx + x * Math.cos(giro) - y * Math.sin(giro), cy + x * Math.sin(giro) + y * Math.cos(giro)]);
+        }
+        out += `<polyline points="${pts(p)}" fill="none" stroke="${col}" stroke-width="${ancho}" opacity="${op}"/>`;
+      }
+      return out;
+    }
+    function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+    s += roseta(310, 250, 140, 20, 60, 6, TINTA, .5, .8);
+    s += roseta(310, 250, 105, 15, 22, 5, ACENTO, .5, .9);
+    s += roseta(470, 1085, 70, 10, 34, 4, TINTA, .45, .8);
+    s += roseta(150, 1085, 70, 14, 30, 4, TINTA2, .45, .8);
+
+    // Número grande con relleno de líneas
+    s += `<defs>
+      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6f0e4" stop-opacity=".6"/><stop offset=".5" stop-color="#f4e6cf" stop-opacity="0"/><stop offset="1" stop-color="#f1d9c4" stop-opacity=".6"/></linearGradient>
+      <pattern id="rayas" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="1.6" height="4" fill="${TINTA}"/></pattern>
+      <clipPath id="ovalo"><ellipse cx="310" cy="650" rx="230" ry="270"/></clipPath>
+      <path id="curvaMicro" d="M 90 650 A 220 260 0 1 1 90 651"/>
+    </defs>`;
+    s += `<text x="310" y="300" text-anchor="middle" font-family="Playfair" font-weight="900" font-size="150" fill="url(#rayas)" stroke="${TINTA}" stroke-width="2">100</text>`;
+
+    // Viñeta grabada: sierra, sol y mar hechos con líneas de grosor variable
+    function luz(x, y) {
+      const cx = 310, cy = 650;
+      const sol = Math.hypot(x - 390, y - 520);
+      const monte = 640 + Math.sin(x * 0.02) * 30 + Math.sin(x * 0.051 + 1) * 18 - Math.max(0, 120 - Math.abs(x - 220) * 0.9);
+      if (y < monte) {
+        let v = 0.9 - (y - 380) / 900;
+        if (sol < 48) v = 1;
+        else if (sol < 90) v = Math.max(v, 1 - (sol - 48) / 60);
+        return v;
+      }
+      if (y < 760) {
+        const pend = Math.cos(x * 0.02) * 0.3 + (n(x * 0.03, y * 0.03) - 0.5) * 0.6;
+        return 0.35 + pend * 0.4 - (y - monte) / 500;
+      }
+      const reflejo = Math.exp(-Math.pow((x - 390) / 40, 2)) * (0.6 + 0.4 * Math.sin(y * 0.5));
+      return 0.3 + reflejo * 0.7 + (n(x * 0.05, y * 0.2) - 0.5) * 0.3;
+    }
+    let grab = "";
+    for (let y = 385; y < 925; y += 4.2) {
+      const arriba = [], abajo = [];
+      for (let x = 70; x <= 550; x += 3) {
+        const onda = y > 760 ? Math.sin(x * 0.08 + y * 0.3) * 1.2 : 0;
+        const w = Math.max(0.12, (1 - Math.max(0, Math.min(1, luz(x, y)))) * 3.4);
+        arriba.push([x, y + onda - w / 2]); abajo.push([x, y + onda + w / 2]);
+      }
+      grab += `<polygon points="${pts(arriba.concat(abajo.reverse()))}" fill="${TINTA}"/>`;
+    }
+    s += `<g clip-path="url(#ovalo)">${grab}</g>`;
+    s += `<ellipse cx="310" cy="650" rx="230" ry="270" fill="none" stroke="${TINTA}" stroke-width="3"/>`;
+    s += `<ellipse cx="310" cy="650" rx="240" ry="280" fill="none" stroke="${TINTA}" stroke-width="1"/>`;
+    // Microtexto alrededor del óvalo
+    s += `<text font-family="Space Mono" font-size="6.2" fill="${TINTA}" letter-spacing=".4"><textPath href="#curvaMicro">${"CHECHIST · BANCO DEL QUILLO · ".repeat(12)}</textPath></text>`;
+
+    // Textos
+    s += `<text x="310" y="95" text-anchor="middle" font-family="Fraktur" font-weight="700" font-size="46" fill="${TINTA}">Banco del Quillo</text>`;
+    s += `<text x="310" y="125" text-anchor="middle" font-family="Space Mono" font-size="13" fill="${TINTA2}" letter-spacing="4">EMISIÓN DE 2026 · SEVILLA</text>`;
+    s += `<text x="310" y="975" text-anchor="middle" font-family="Playfair" font-weight="900" font-size="50" fill="${TINTA}" letter-spacing="6">CIEN QUILLOS</text>`;
+    s += `<text x="310" y="1005" text-anchor="middle" font-family="Playfair" font-style="italic" font-size="17" fill="${TINTA2}">pagaderos en cañas, tapas o buena conversación</text>`;
+    // Número de serie en rojo, en dos sitios
+    s += `<text x="300" y="1190" font-family="Space Mono" font-weight="700" font-size="24" fill="#b3261e" letter-spacing="3">AQ 0000017 S</text>`;
+    s += `<text x="560" y="420" font-family="Space Mono" font-weight="700" font-size="20" fill="#b3261e" letter-spacing="3" transform="rotate(90 560 420)">AQ 0000017 S</text>`;
+    // Hilo de seguridad metálico
+    for (let y = 0; y < BH; y += 44) s += `<rect x="72" y="${y}" width="9" height="30" rx="2" fill="url(#hilo)"/>`;
+    s += `<defs><linearGradient id="hilo" x1="0" x2="1"><stop offset="0" stop-color="#8a8f99"/><stop offset=".5" stop-color="#f2f4f8"/><stop offset="1" stop-color="#7d828c"/></linearGradient></defs>`;
+    // Sello
+    s += `<circle cx="470" cy="1085" r="34" fill="${ACENTO}" opacity=".85"/><text x="470" y="1095" text-anchor="middle" font-family="Anton" font-size="28" fill="#efe6cf">100</text>`;
+    s += `<text x="150" y="1092" text-anchor="middle" font-family="Pacifico" font-size="26" fill="${TINTA2}">Paco</text>`;
+    s += `<text x="150" y="1125" text-anchor="middle" font-family="Space Mono" font-size="9" fill="${TINTA2}">EL GOBERNADOR</text>`;
+    // Marco
+    s += `<rect x="18" y="18" width="${BW - 36}" height="${BH - 36}" fill="none" stroke="${TINTA}" stroke-width="3"/>`;
+    s += `<rect x="28" y="28" width="${BW - 56}" height="${BH - 56}" fill="none" stroke="${TINTA}" stroke-width=".8"/>`;
+    // Desgaste: arrugas suaves por encima
+    let arr = "";
+    for (let i = 0; i < 7; i++) {
+      const x = 40 + r() * 540;
+      arr += `<line x1="${x}" y1="0" x2="${x + (r() - .5) * 120}" y2="${BH}" stroke="#000" stroke-width="${6 + r() * 10}" opacity=".035"/>`;
+    }
+    s += arr;
+    document.getElementById("billete").innerHTML = `<svg width="${BW}" height="${BH}" viewBox="0 0 ${BW} ${BH}">${s}</svg>`;
+    listo();
+  </script>
+</body>
+</html>

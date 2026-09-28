@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>body { background: #f4efe4; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(1250);
+    const n = makeNoise(1250);
+    const gauss = () => { let u = 0, v = 0; while (u === 0) u = r(); while (v === 0) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+
+    // Papel
+    ctx.fillStyle = "#f6f1e6"; ctx.fillRect(0, 0, W, H);
+
+    // Deformación recursiva: cada lado recibe un punto medio desplazado al azar
+    function deformar(poly, prof, varianza) {
+      let p = poly;
+      for (let d = 0; d < prof; d++) {
+        const q = [];
+        for (let i = 0; i < p.length; i++) {
+          const [x1, y1, v1] = p[i], [x2, y2] = p[(i + 1) % p.length];
+          q.push(p[i]);
+          const len = Math.hypot(x2 - x1, y2 - y1);
+          const vv = v1 * (0.6 + r() * 0.8);
+          q.push([(x1 + x2) / 2 + gauss() * len * 0.11 * vv * varianza, (y1 + y2) / 2 + gauss() * len * 0.11 * vv * varianza, vv]);
+        }
+        p = q;
+      }
+      return p;
+    }
+    // Subdivide lados largos para que la deformación sea local
+    function densificar(poly, max = 40) {
+      const q = [];
+      for (let i = 0; i < poly.length; i++) {
+        const [x1, y1] = poly[i], [x2, y2] = poly[(i + 1) % poly.length];
+        const k = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / max));
+        for (let j = 0; j < k; j++) q.push([x1 + (x2 - x1) * j / k, y1 + (y2 - y1) * j / k]);
+      }
+      return q;
+    }
+    // Capa aparte para cada mancha y textura de grano (el pigmento se queda en los huecos del papel)
+    const capa = document.createElement("canvas"); capa.width = W; capa.height = H;
+    const cc = capa.getContext("2d");
+    const GW2 = W + 400, GH2 = H + 400;
+    const grano = document.createElement("canvas"); grano.width = GW2; grano.height = GH2;
+    const gc = grano.getContext("2d");
+    const gi = gc.createImageData(GW2, GH2);
+    for (let i = 0; i < GW2 * GH2; i++) {
+      const x = i % GW2, y = (i / GW2) | 0;
+      const v = n(x * 0.01, y * 0.01, 4) * 0.7 + n(x * 0.08 + 50, y * 0.08, 2) * 0.3;
+      gi.data[i * 4] = gi.data[i * 4 + 1] = gi.data[i * 4 + 2] = 255;
+      gi.data[i * 4 + 3] = Math.max(0, Math.min(255, (v - 0.35) * 2.2 * 255));
+    }
+    gc.putImageData(gi, 0, 0);
+    // Una mancha: 40 capas finas del mismo color, cada una deformada distinto
+    function mancha(poly, color, capas = 40, alfa = 0.04, varianza = 1, opac = 0.72) {
+      const base = deformar(densificar(poly, 50 * varianza + 8).map(([x, y]) => [x, y, 0.5 + r()]), 2, varianza);
+      cc.clearRect(0, 0, W, H);
+      const camino = (p) => { cc.beginPath(); cc.moveTo(p[0][0], p[0][1]); for (const [x, y] of p) cc.lineTo(x, y); cc.closePath(); };
+      for (let c = 0; c < capas; c++) {
+        const p = deformar(base, 2, varianza * 0.8);
+        cc.globalAlpha = alfa; cc.fillStyle = color; camino(p); cc.fill();
+        // El agua acumula pigmento en el borde
+        cc.globalAlpha = alfa * 0.6; cc.strokeStyle = color; cc.lineWidth = 1.4; cc.stroke();
+      }
+      cc.globalAlpha = 0.45; cc.globalCompositeOperation = "destination-out";
+      cc.drawImage(grano, -r() * 400, -r() * 400);
+      cc.globalCompositeOperation = "source-over"; cc.globalAlpha = 1;
+      ctx.globalAlpha = opac; ctx.globalCompositeOperation = "multiply";
+      ctx.drawImage(capa, 0, 0);
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+    }
+    const rect = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+    const franja = (f, y0, y1, paso = 60) => {
+      const p = [];
+      for (let x = -80; x <= W + 80; x += paso) p.push([x, f(x)]);
+      p.push([W + 80, y1], [-80, y1]);
+      return p;
+    };
+
+    // 1. Cielo: lavados grandes, azul arriba y cálido abajo
+    mancha(rect(-100, -100, W + 200, 560), "#6fa6dc", 40, 0.035, 1);
+    mancha(rect(-100, -100, W + 200, 330), "#3e74b8", 40, 0.03, 1);
+    mancha(rect(-100, 430, W + 200, 260), "#f4b27c", 40, 0.035, 1);
+    // Nubes: se "levanta" pintura con blanco semitransparente
+    ctx.globalCompositeOperation = "source-over";
+    for (const [cx, cy, s] of [[260, 250, 1], [760, 180, 0.8], [560, 340, 0.6]]) {
+      const pol = []; for (let a = 0; a < Math.PI * 2; a += 0.6) pol.push([cx + Math.cos(a) * 170 * s, cy + Math.sin(a) * 45 * s]);
+      const b = deformar(pol.map(([x, y]) => [x, y, 1]), 4, 1);
+      for (let c = 0; c < 20; c++) {
+        const p = deformar(b, 2, 0.8);
+        ctx.globalAlpha = 0.05; ctx.fillStyle = "#fbf8f2";
+        ctx.beginPath(); p.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    // 2. Sierra lejana, violeta
+    mancha(franja((x) => 560 + Math.sin(x * 0.006 + 1) * 50 + Math.sin(x * 0.019) * 18, 0, 800), "#8b7fb3", 40, 0.03);
+    // 3. Colina del pueblo, ocre y oliva
+    const colina = (x) => 720 - Math.exp(-(((x - 600) / 260) ** 2)) * 190 + Math.sin(x * 0.02) * 10;
+    mancha(franja(colina, 0, 1080), "#c9a15d", 40, 0.035);
+    mancha(franja((x) => colina(x) + 90 + Math.sin(x * 0.03) * 20, 0, 1120), "#7f8f4a", 40, 0.035);
+    // 4. Pueblo blanco: solo se pintan sombras, tejados y ventanas
+    const casas = [];
+    for (let i = 0; i < 56; i++) {
+      const x = 420 + r() * 380, base = colina(x) + 25 + r() * 110;
+      const w = 22 + r() * 22, h = 17 + r() * 16;
+      casas.push({ x, y: base - h, w, h });
+    }
+    casas.sort((a, b) => a.y + a.h - (b.y + b.h));
+    for (const c of casas) {
+      // Hueco blanco (se tapa lo pintado con papel limpio)
+      ctx.fillStyle = "#f7f3ea"; ctx.globalAlpha = 0.86;
+      ctx.beginPath(); deformar(rect(c.x, c.y, c.w, c.h).map(([x, y]) => [x, y, 0.3]), 2, 0.2).forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.fill();
+      ctx.globalAlpha = 1;
+      mancha(rect(c.x + c.w * 0.62, c.y, c.w * 0.38, c.h), "#8fa6d4", 10, 0.05, 0.4);
+      if (r() < 0.55) mancha([[c.x - 3, c.y + 2], [c.x + c.w + 3, c.y + 2], [c.x + c.w - 6, c.y - 9], [c.x + 5, c.y - 9]], "#c8623a", 12, 0.06, 0.4);
+      if (r() < 0.7) mancha(rect(c.x + c.w * 0.2, c.y + c.h * 0.45, 7, 11), "#3f5f9a", 6, 0.12, 0.3);
+    }
+    // Iglesia
+    const tx = 640, ty = colina(640) - 60;
+    ctx.fillStyle = "#f7f3ea"; ctx.globalAlpha = 0.86; ctx.fillRect(tx, ty - 90, 34, 130); ctx.globalAlpha = 1;
+    mancha(rect(tx + 21, ty - 90, 13, 130), "#8fa6d4", 10, 0.05, 0.3);
+    mancha([[tx - 4, ty - 90], [tx + 17, ty - 122], [tx + 38, ty - 90]], "#c8623a", 12, 0.06, 0.3);
+    mancha(rect(tx + 11, ty - 70, 11, 15), "#3f5f9a", 8, 0.1, 0.3);
+    // 5. Primer plano: campo verde y amapolas
+    mancha(franja((x) => 1040 + Math.sin(x * 0.01) * 30, 0, H + 60), "#8aa653", 40, 0.04, 1.2);
+    mancha(franja((x) => 1170 + Math.sin(x * 0.013 + 2) * 30, 0, H + 60), "#5e7d3a", 40, 0.04, 1.2);
+    ctx.globalCompositeOperation = "source-over";
+    for (let i = 0; i < 420; i++) {
+      const x = r() * W, y = 1060 + Math.pow(r(), 0.7) * 290, s = 2 + (y - 1060) / 40 * r();
+      ctx.globalAlpha = 0.55 + r() * 0.35;
+      ctx.fillStyle = r() < 0.85 ? "#e0443a" : "#f3cf4a";
+      ctx.beginPath(); ctx.ellipse(x, y, s * 1.3, s, r() * 3, 0, Math.PI * 2); ctx.fill();
+    }
+    // Salpicaduras
+    for (let i = 0; i < 140; i++) {
+      ctx.globalAlpha = 0.25 + r() * 0.3;
+      ctx.fillStyle = ["#4a7fc0", "#c8623a", "#5e7d3a", "#8b7fb3"][Math.floor(r() * 4)];
+      ctx.beginPath(); ctx.arc(r() * W, r() * H, 0.8 + r() * 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // 6. Líneas de lápiz del boceto, muy suaves
+    ctx.globalCompositeOperation = "multiply";
+    ctx.strokeStyle = "rgba(80, 75, 70, .25)"; ctx.lineWidth = 0.9;
+    for (const c of casas.slice(0, 20)) { ctx.beginPath(); ctx.moveTo(c.x - 4, c.y + c.h + 1); ctx.lineTo(c.x + c.w + 6, c.y + c.h - 1); ctx.stroke(); }
+    ctx.beginPath(); for (let x = 0; x < W; x += 8) ctx.lineTo(x, colina(x) + (r() - 0.5) * 2); ctx.stroke();
+    // 7. Textura de papel de grano grueso
+    const img = ctx.getImageData(0, 0, W, H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = (y * W + x) * 4;
+      const g = 0.93 + n(x * 0.12, y * 0.12, 3) * 0.1 + (r() - 0.5) * 0.03;
+      img.data[k] *= g; img.data[k + 1] *= g; img.data[k + 2] *= g;
+    }
+    ctx.putImageData(img, 0, 0);
+    // Firma
+    ctx.globalCompositeOperation = "source-over";
+    ctx.font = "italic 26px Fraunces"; ctx.fillStyle = "rgba(70, 60, 60, .7)";
+    document.fonts.load("italic 26px Fraunces").then(() => { ctx.fillText("chechist, 26", 850, 1310); listo(); });
+  </script>
+</body>
+</html>

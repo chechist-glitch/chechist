@@ -1,5 +1,6 @@
 // Renderiza cada piezas/*.html a salida/*.png y monta una hoja de contactos.
-// Uso: node render.mjs [filtro]
+// Uso: node render.mjs [filtro]            → piezas/ a salida/
+//      node render.mjs serie-2 [filtro]    → serie-2/ a salida-serie-2/
 import { createServer } from "node:http";
 import { readFile, readdir, mkdir } from "node:fs/promises";
 import { extname, join, dirname } from "node:path";
@@ -37,11 +38,14 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const filtro = process.argv[2] || "";
-const piezas = (await readdir(join(ROOT, "piezas")))
-  .filter((f) => f.endsWith(".html") && f.includes(filtro))
+const args = process.argv.slice(2);
+const carpeta = args[0] && args[0].startsWith("serie") ? args.shift() : "piezas";
+const destino = carpeta === "piezas" ? "salida" : `salida-${carpeta}`;
+const filtro = args[0] || "";
+const piezas = (await readdir(join(ROOT, carpeta)))
+  .filter((f) => f.endsWith(".html") && filtro.split(",").some((x) => f.includes(x)))
   .sort();
-await mkdir(join(ROOT, "salida"), { recursive: true });
+await mkdir(join(ROOT, destino), { recursive: true });
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || undefined,
@@ -52,14 +56,20 @@ page.on("pageerror", (e) => console.error(`  ✗ error JS: ${e.message}`));
 
 for (const f of piezas) {
   const t0 = Date.now();
-  await page.goto(`${base}/piezas/${f}`, { timeout: 120000 });
-  await page.waitForFunction(() => window.__listo === true, null, { timeout: 60000 });
-  await page.screenshot({ path: join(ROOT, "salida", f.replace(".html", ".png")) });
-  console.log(`  ✓ ${f} (${Date.now() - t0} ms)`);
+  const m = process.env.MUESTRAS ? `?m=${process.env.MUESTRAS}` : "";
+  await page.goto(`${base}/${carpeta}/${f}${m}`, { timeout: 120000 });
+  await page.waitForFunction(() => window.__listo === true || window.__error, null, { timeout: 30 * 60000, polling: 1000 });
+  const error = await page.evaluate(() => window.__error);
+  if (error) {
+    console.log(`  ✗ ${f}: ${error}`);
+    continue;
+  }
+  await page.screenshot({ path: join(ROOT, destino, f.replace(".html", ".png")), timeout: 120000 });
+  console.log(`  ✓ ${f} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 }
 
 // Hoja de contactos con todas las salidas
-const todas = (await readdir(join(ROOT, "salida")))
+const todas = (await readdir(join(ROOT, destino)))
   .filter((f) => f.endsWith(".png") && !f.startsWith("_"))
   .sort();
 const cols = 6;
@@ -72,13 +82,13 @@ await page.setContent(
     todas
       .map(
         (f) =>
-          `<div style="height:${celdaH}px;padding:0 6px"><img src="${base}/salida/${f}" style="width:100%;display:block"><div style="padding:6px 0">${f.replace(".png", "")}</div></div>`
+          `<div style="height:${celdaH}px;padding:0 6px"><img src="${base}/${destino}/${f}" style="width:100%;display:block"><div style="padding:6px 0">${f.replace(".png", "")}</div></div>`
       )
       .join("") +
     "</body>"
 );
 await page.waitForLoadState("networkidle");
-await page.screenshot({ path: join(ROOT, "salida", "_hoja-de-contactos.png"), fullPage: true });
+await page.screenshot({ path: join(ROOT, destino, "_hoja-de-contactos.png"), fullPage: true });
 console.log(`  ✓ hoja de contactos (${todas.length} imágenes)`);
 
 await browser.close();
