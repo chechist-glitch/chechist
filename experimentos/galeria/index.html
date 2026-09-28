@@ -1,0 +1,205 @@
+<title>Recetario de estilos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fondo: #f2f3f5;
+    --tarjeta: #ffffff;
+    --tinta: #16181d;
+    --suave: #5f6573;
+    --linea: #dfe2e8;
+    --acento: #2448b8;
+    --caja: #eef1f8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --fondo: #101217;
+      --tarjeta: #181b22;
+      --tinta: #e9ebf1;
+      --suave: #9aa1b0;
+      --linea: #2a2f3a;
+      --acento: #8fb0ff;
+      --caja: #20242e;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --fondo: #101217;
+    --tarjeta: #181b22;
+    --tinta: #e9ebf1;
+    --suave: #9aa1b0;
+    --linea: #2a2f3a;
+    --acento: #8fb0ff;
+    --caja: #20242e;
+  }
+  body {
+    background: var(--fondo);
+    color: var(--tinta);
+    font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding-inline: 16px;
+    padding-block: 32px 64px;
+  }
+  main { max-width: 1180px; margin: 0 auto; display: grid; gap: 48px; }
+  header { display: grid; gap: 8px; max-width: 62ch; }
+  h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.05; margin: 0; font-weight: 700; text-wrap: balance; }
+  header p { margin: 0; color: var(--suave); font-size: 16px; line-height: 1.5; }
+  section { display: grid; gap: 16px; }
+  h2 { margin: 0; font-size: 20px; font-weight: 700; display: flex; align-items: baseline; gap: 10px; }
+  h2 small { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; font-weight: 400; color: var(--suave); }
+  .rejilla { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .rejilla.videos { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .pieza { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+  .pieza img, .pieza video { display: block; width: 100%; max-width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: var(--caja); }
+  .pieza video { aspect-ratio: 16 / 9; }
+  .texto { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .nombre { font-size: 15px; font-weight: 700; margin: 0; }
+  .receta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.5; background: var(--caja); border-radius: 6px; padding: 10px 12px; margin: 0; flex: 1; user-select: all; }
+  button {
+    align-self: flex-start; font: inherit; font-size: 13px; font-weight: 500;
+    color: var(--acento); background: none; border: 1px solid var(--acento);
+    border-radius: 999px; padding: 5px 14px; cursor: pointer;
+  }
+  button:hover { background: var(--caja); }
+  button:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+</style>
+
+<main>
+  <header>
+    <h1>Recetario de estilos</h1>
+    <p>Todas las pruebas que hemos hecho. Debajo de cada una tienes la frase para pedírmela: cópiala, pégamela en el chat y cambia el tema por lo que quieras.</p>
+  </header>
+
+  <section>
+    <h2>Vídeos <small>3</small></h2>
+    <div class="rejilla videos" id="videos"></div>
+  </section>
+
+  <section>
+    <h2>Estilos rápidos <small>30</small></h2>
+    <div class="rejilla" id="rapidos"></div>
+  </section>
+
+  <section>
+    <h2>Hiperrealismo, ilustración y experimentos <small>15</small></h2>
+    <div class="rejilla" id="serie2"></div>
+  </section>
+</main>
+
+<script>
+  const VIDEOS = [
+    ["primer-video", "Intro andaluza", "Hazme una intro animada de 13 segundos con HyperFrames, estilo andaluz moderno: fondo de azulejos, un sol que sale y se pone, tipografía serif gorda y el texto «¡Quillo!»."],
+    ["feria-3d", "Feria en 3D", "Hazme un vídeo 3D con Three.js en HyperFrames: la cámara vuela por una calle de feria llena de farolillos de lunares, con casetas y albero, y al final aparece «Todo esto es HTML»."],
+    ["red-en-capas", "Red en capas", "Hazme un vídeo de un tramado de líneas finas que se deshila en la red neuronal de una persona, se abre en capas con las funciones del cerebro rotuladas y vuelve a cerrarse. Muy fino y bien hilado."],
+  ];
+  const RAPIDOS = [
+    ["01-cartel-suizo", "Cartel suizo", "Hazme un cartel de estilo suizo: rejilla, tipografía condensada gigante, un bloque rojo y un círculo negro. Solo CSS."],
+    ["02-bauhaus", "Bauhaus", "Hazme una composición Bauhaus con formas geométricas al azar (círculos, cuartos de círculo, triángulos) en rojo, amarillo, azul y negro."],
+    ["03-azulejo-generativo", "Azulejo generativo", "Hazme un azulejo generativo en SVG con simetría de 8 ejes, azul cobalto y ocre, repetido en mosaico."],
+    ["04-campo-de-flujo", "Campo de flujo", "Hazme un campo de flujo: miles de partículas siguiendo un ruido, con colores de atardecer sobre fondo oscuro, en Canvas."],
+    ["05-synthwave", "Synthwave", "Hazme un póster synthwave de los 80: sol a rayas, rejilla de neón en perspectiva y título con letras de neón."],
+    ["06-ascii", "Arte ASCII", "Hazme un atardecer en el mar dibujado solo con caracteres ASCII, en ámbar sobre negro."],
+    ["07-pixel-art", "Pixel art", "Hazme un pixel art de un pueblo blanco andaluz al atardecer, con tramado en el cielo y estética de videojuego retro."],
+    ["08-shader-fractal", "Fractal con shader", "Hazme un fractal de Julia con un shader GLSL, en tonos cobre y azul."],
+    ["09-naranjas-3d", "Naranjas 3D", "Hazme una escena 3D con Three.js: naranjas brillantes y esferas de cromo y cristal sobre fondo rosa, con sombras suaves."],
+    ["10-risografia", "Risografía", "Hazme un cartel de risografía a dos tintas (rosa y azul) con tramas de semitono, desajuste de registro y grano."],
+    ["11-glitch", "Glitch", "Hazme un póster glitch: texto enorme con separación RGB, franjas desplazadas y líneas de escaneo."],
+    ["12-brutalista", "Brutalista", "Hazme una web brutalista estilo 1995: bordes gordos, sombras duras, azul de enlace y amarillo chillón."],
+    ["13-topografico", "Mapa topográfico", "Hazme un mapa topográfico inventado con curvas de nivel (marching squares) y tintas de altura."],
+    ["14-periodico", "Periódico antiguo", "Hazme la portada de un periódico antiguo con cabecera gótica, titular en serif y una foto en semitono."],
+    ["15-neon", "Neón", "Hazme un letrero de neón de un bar sobre una pared de ladrillo, con resplandor rosa y cian."],
+    ["16-empaquetado-circulos", "Empaquetado de círculos", "Hazme un empaquetado de círculos (circle packing) que parezcan aceitunas, sobre fondo verde oscuro."],
+    ["17-vidriera-voronoi", "Vidriera Voronoi", "Hazme un rosetón de vidriera con un diagrama de Voronoi y simetría radial."],
+    ["18-isometrico", "Isométrico", "Hazme un pueblo blanco en proyección isométrica, con tejados de teja y naranjos, en SVG."],
+    ["19-terminal", "Terminal", "Hazme una maqueta de ventana de terminal con código, un logo en ASCII y fondo en degradado."],
+    ["20-olivo-fractal", "Árbol fractal", "Hazme un árbol fractal recursivo con forma de olivo, en silueta contra un atardecer."],
+    ["21-truchet", "Truchet", "Hazme un laberinto de azulejos de Truchet con arcos naranjas sobre azul marino."],
+    ["22-aurora-grano", "Aurora con grano", "Hazme un fondo de degradados borrosos tipo aurora, con grano de película y una palabra en serif cursiva."],
+    ["23-ondas", "Joy Division", "Hazme líneas de cresta estilo Joy Division (Unknown Pleasures), blanco sobre negro."],
+    ["24-tarot", "Carta de tarot", "Hazme una carta de tarot ilustrada en SVG: un sol con gafas de sol, playa y marco dorado."],
+    ["25-texto-particulas", "Texto en partículas", "Hazme un texto convertido en miles de partículas de colores que se lleva el viento."],
+    ["26-memphis", "Memphis", "Hazme un patrón Memphis de los 80 con formas, zigzags y puntos en colores pastel."],
+    ["27-plano-botijo", "Plano técnico", "Hazme un plano técnico (blueprint) de un botijo, con cotas y anotaciones, líneas blancas sobre azul."],
+    ["28-ticket-bar", "Ticket de bar", "Hazme un ticket de bar realista y con humor, sobre una mesa de madera, con el borde dentado."],
+    ["29-caleidoscopio", "Caleidoscopio", "Hazme un caleidoscopio: una cuña de formas de colores reflejada 16 veces."],
+    ["30-reaccion-difusion", "Reacción-difusión", "Hazme una simulación de reacción-difusión (Gray-Scott) con aspecto de coral o laberinto."],
+  ];
+  const SERIE2 = [
+    ["01-bodegon-trazado", "Bodegón hiperrealista", "Hazme una imagen hiperrealista con trazado de rayos (path tracing): bodegón con esfera de cristal, naranjas, bola de cromo y mesa de mármol, con desenfoque de lente."],
+    ["02-sierra-atardecer", "Sierra al atardecer", "Hazme un paisaje hiperrealista por raymarching: sierra nevada al atardecer con luz rosada en las cumbres, niebla y un lago que la refleja."],
+    ["03-mar-de-alboran", "Mar realista", "Hazme un mar realista por raymarching: olas, reflejo del cielo, destellos del sol y bruma en el horizonte."],
+    ["04-planeta-azul", "Planeta desde la órbita", "Hazme un planeta visto desde la órbita, con atmósfera realista, nubes, luces de ciudades en la cara nocturna y una luna."],
+    ["05-atractor-de-seda", "Atractor extraño", "Hazme un atractor de Clifford con 40 millones de puntos, coloreado por dirección, con aspecto de seda."],
+    ["06-noche-estrellada-oleo", "Óleo Van Gogh", "Hazme una pintura al óleo estilo Van Gogh: noche estrellada con remolinos sobre un pueblo blanco y un ciprés, con las pinceladas visibles."],
+    ["07-papel-recortado", "Papel recortado", "Hazme una ilustración de papel recortado por capas: sierras al atardecer, pueblo blanco, olivos y sombras entre las capas."],
+    ["08-mandelbulb", "Mandelbulb", "Hazme un fractal 3D Mandelbulb con oclusión ambiental, sombras suaves y desenfoque de lente."],
+    ["09-marmol-liquido", "Mármol líquido", "Hazme un mármol líquido por deformación de dominio (ruido sobre ruido), tipo ágata con vetas de oro."],
+    ["10-physarum", "Physarum", "Hazme una simulación de moho Physarum: miles de agentes que tejen una red brillante."],
+    ["11-billete", "Billete", "Hazme un billete ficticio con guilloché, grabado de líneas, microtexto, número de serie y sello."],
+    ["12-acuarela", "Acuarela", "Hazme una acuarela de un pueblo blanco en una colina con un campo de amapolas, con grano de pigmento y transparencias."],
+    ["13-comic-pop", "Cómic pop art", "Hazme unas viñetas de cómic pop art estilo Lichtenstein: puntos Ben-Day, una explosión con «¡QUILLO!» y un ojo con lágrima."],
+    ["14-lamina-botanica", "Lámina botánica", "Hazme una lámina botánica antigua de un naranjo: grabado coloreado a mano, con rótulos en latín."],
+    ["15-puntillismo", "Puntillismo", "Hazme un cuadro puntillista estilo Seurat: playa al atardecer con faro, barca y sombrillas."],
+  ];
+
+  function tarjeta(media, nombre, receta) {
+    const art = document.createElement("article");
+    art.className = "pieza";
+    art.appendChild(media);
+    const texto = document.createElement("div");
+    texto.className = "texto";
+    const h = document.createElement("p");
+    h.className = "nombre";
+    h.textContent = nombre;
+    const p = document.createElement("p");
+    p.className = "receta";
+    p.textContent = receta;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "Copiar frase";
+    b.addEventListener("click", () => {
+      const hecho = () => { b.textContent = "Copiada"; setTimeout(() => (b.textContent = "Copiar frase"), 1600); };
+      const seleccionar = () => {
+        const rango = document.createRange();
+        rango.selectNodeContents(p);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(rango);
+        b.textContent = "Seleccionada, cópiala";
+      };
+      try {
+        navigator.clipboard.writeText(receta).then(hecho, seleccionar);
+      } catch (e) {
+        seleccionar();
+      }
+    });
+    texto.append(h, p, b);
+    art.appendChild(texto);
+    return art;
+  }
+
+  const cajaVideos = document.getElementById("videos");
+  for (const [id, nombre, receta] of VIDEOS) {
+    const v = document.createElement("video");
+    v.src = `vid/${id}.mp4`;
+    v.poster = `vid/${id}.jpg`;
+    v.controls = true;
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = "metadata";
+    cajaVideos.appendChild(tarjeta(v, nombre, receta));
+  }
+  const pintar = (lista, prefijo, destino) => {
+    const caja = document.getElementById(destino);
+    for (const [id, nombre, receta] of lista) {
+      const img = document.createElement("img");
+      img.src = `img/${prefijo}-${id}.jpg`;
+      img.alt = nombre;
+      img.loading = "lazy";
+      caja.appendChild(tarjeta(img, nombre, receta));
+    }
+  };
+  pintar(RAPIDOS, "a", "rapidos");
+  pintar(SERIE2, "b", "serie2");
+</script>
