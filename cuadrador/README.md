@@ -35,6 +35,10 @@ los detalles de las piezas.
    - Arrastra las piezas. Tienen imanes al centro del cartel y a la línea de
      suelo de las demás piezas (mantén Alt para soltarlos).
    - Flechas: 1 px; con Mayús, 10 px.
+   - **Tiradores**: al seleccionar una pieza salen tiradores en las esquinas.
+     Arrastrando uno cambia de tamaño sin deformarse, anclada en la esquina
+     contraria (con Alt, desde el centro). Se ve el porcentaje mientras
+     arrastras, y cerca del 100 % se engancha al tamaño original.
    - **+** y **−** agrandan o encogen la selección desde su base; **0** la deja
      al 100 %.
    - Mayús + clic para seleccionar varias. **Unir** hace que se muevan juntas;

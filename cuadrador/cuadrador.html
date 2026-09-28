@@ -282,7 +282,7 @@
       </div>
       <div class="mat">
         <div class="frame" id="frame">
-          <canvas id="view" tabindex="0" aria-label="Vista previa del cartel final. Arrastra las piezas para moverlas; con una seleccionada, las flechas la mueven y + y − cambian su tamaño."></canvas>
+          <canvas id="view" tabindex="0" aria-label="Vista previa del cartel final. Arrastra las piezas para moverlas y los tiradores de las esquinas para cambiar su tamaño; con una seleccionada, las flechas la mueven y + y − cambian su tamaño."></canvas>
           <div class="busy" id="busy" hidden><span class="spinner" aria-hidden="true"></span><span id="busy-text">Analizando…</span></div>
         </div>
       </div>
@@ -375,6 +375,7 @@
           <dt>Arrastrar</dt><dd>mover una pieza</dd>
           <dt>Mayús + clic</dt><dd>seleccionar varias</dd>
           <dt>Flechas</dt><dd>mover 1 px (con Mayús, 10 px)</dd>
+          <dt>Esquinas</dt><dd>tiradores para cambiar el tamaño (con Alt, desde el centro)</dd>
           <dt>+ / −</dt><dd>agrandar o encoger la selección</dd>
           <dt>0</dt><dd>selección al 100 %</dd>
           <dt>Alt</dt><dd>arrastrar sin imanes</dd>
@@ -2042,22 +2043,28 @@
     v.future = [];
   }
 
+  // Deshacer/rehacer conserva la selección si los grupos no han cambiado.
+  function sameGroups(a, b) {
+    return a.length === b.length && a.every(function (g, i) { return g.parts.join() === b[i].parts.join(); });
+  }
+
+  function travel(v, from, to) {
+    var before = v.groups;
+    to.push(snapshot(v));
+    restore(v, from.pop());
+    if (!sameGroups(before, v.groups)) state.selection = [];
+    state.selection = state.selection.filter(function (gi) { return v.groups[gi] && !isGroupHidden(v, gi); });
+    refresh();
+  }
+
   function undo() {
     var v = curView();
-    if (!v || !v.history.length) return;
-    v.future.push(snapshot(v));
-    restore(v, v.history.pop());
-    state.selection = [];
-    refresh();
+    if (v && v.history.length) travel(v, v.history, v.future);
   }
 
   function redo() {
     var v = curView();
-    if (!v || !v.future.length) return;
-    v.history.push(snapshot(v));
-    restore(v, v.future.pop());
-    state.selection = [];
-    refresh();
+    if (v && v.future.length) travel(v, v.future, v.history);
   }
 
   function selectedParts(v) {
@@ -2145,6 +2152,34 @@
       ctx.lineWidth = 2 * px;
       ctx.strokeRect(b.x0 - 6 * px, b.y0 - 6 * px, b.x1 - b.x0 + 12 * px, b.y1 - b.y0 + 12 * px);
     });
+    // Tiradores en las esquinas de la selección.
+    var sb = selectionBox(p, v);
+    if (sb && !(drag && drag.type === 'move')) {
+      var hs = 10 * px;
+      handleCorners(sb, 6 * px).forEach(function (c) {
+        var active = drag && drag.type === 'resize' && drag.corner === c.name;
+        ctx.fillStyle = active ? accent : '#ffffff';
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.5 * px;
+        ctx.fillRect(c.x - hs / 2, c.y - hs / 2, hs, hs);
+        ctx.strokeRect(c.x - hs / 2, c.y - hs / 2, hs, hs);
+      });
+      if (drag && drag.type === 'resize') {
+        var c = handleCorners(sb, 6 * px).filter(function (h) { return h.name === drag.corner; })[0];
+        var label = Math.round(v.place.s[drag.ref] * 100) + ' %';
+        ctx.font = '600 ' + (12 * px) + 'px ' + getComputedStyle(document.body).fontFamily;
+        var tw = ctx.measureText(label).width, bw = tw + 12 * px, bh = 20 * px;
+        var lx = c.name[1] === 'r' ? c.x + 10 * px : c.x - 10 * px - bw;
+        var ly = c.name[0] === 'b' ? c.y + 10 * px : c.y - 10 * px - bh;
+        lx = clamp(lx, 2 * px, cw - bw - 2 * px);
+        ly = clamp(ly, 2 * px, ch - bh - 2 * px);
+        ctx.fillStyle = accent;
+        ctx.fillRect(lx, ly, bw, bh);
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, lx + 6 * px, ly + bh / 2);
+      }
+    }
     if (state.guides) {
       ctx.strokeStyle = '#ff5fa2';
       ctx.lineWidth = lw;
@@ -2417,6 +2452,29 @@
     return { x: (e.clientX - r.left) / r.width * v.cw, y: (e.clientY - r.top) / r.height * v.ch, scale: v.cw / r.width };
   }
 
+  function selectionBox(p, v) {
+    var ids = selectedParts(v);
+    return ids.length ? partsBox(p, v, ids) : null;
+  }
+
+  function handleCorners(b, pad) {
+    return [
+      { name: 'tl', x: b.x0 - pad, y: b.y0 - pad }, { name: 'tr', x: b.x1 + pad, y: b.y0 - pad },
+      { name: 'bl', x: b.x0 - pad, y: b.y1 + pad }, { name: 'br', x: b.x1 + pad, y: b.y1 + pad }
+    ];
+  }
+
+  // Tirador bajo el puntero (con más margen en pantallas táctiles).
+  function hitHandle(p, v, pt, touch) {
+    var b = selectionBox(p, v);
+    if (!b) return null;
+    var tol = (touch ? 20 : 10) * pt.scale;
+    var hit = handleCorners(b, 6 * pt.scale).filter(function (c) {
+      return Math.abs(pt.x - c.x) <= tol && Math.abs(pt.y - c.y) <= tol;
+    })[0];
+    return hit ? { name: hit.name, box: b } : null;
+  }
+
   function pick(p, v, pt) {
     var an = p.data.an, order = E.paintOrder(an, v.place);
     for (var i = order.length - 1; i >= 0; i--) {
@@ -2447,7 +2505,25 @@
     var p = cur(), v = curView();
     if (!v || !v.bmp || e.button > 0) return;
     ui.view.focus({ preventScroll: true });
-    var pt = toPoster(e, v), gi = pick(p, v, pt);
+    var pt = toPoster(e, v);
+    var h = e.shiftKey ? null : hitHandle(p, v, pt, e.pointerType === 'touch');
+    if (h) {
+      var b = h.box, ids0 = selectedParts(v), an = p.data.an;
+      var pts = { tl: [b.x0, b.y0], tr: [b.x1, b.y0], bl: [b.x0, b.y1], br: [b.x1, b.y1] };
+      var opp = { tl: 'br', tr: 'bl', bl: 'tr', br: 'tl' }[h.name];
+      drag = {
+        type: 'resize', corner: h.name, start: pt, moved: false, snap: snapshot(v), ids: ids0,
+        c0: { x: pts[h.name][0], y: pts[h.name][1] }, opp: { x: pts[opp][0], y: pts[opp][1] },
+        center: { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 },
+        base: ids0.map(function (k) { return [k, v.place.s[k], v.place.tx[k], v.place.ty[k]]; }),
+        // La pieza principal (la más grande) da el porcentaje y el imán del 100 %.
+        ref: ids0.reduce(function (a, k) { return an.parts[k].area > an.parts[a].area ? k : a; }, ids0[0])
+      };
+      try { ui.view.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ }
+      draw();
+      return;
+    }
+    var gi = pick(p, v, pt);
     if (gi < 0) {
       if (!e.shiftKey) state.selection = [];
       updateButtons(); draw();
@@ -2462,7 +2538,7 @@
     if (state.selection.indexOf(gi) < 0) state.selection = [gi];
     var ids = selectedParts(v);
     drag = {
-      start: pt, moved: false, snap: snapshot(v), ids: ids,
+      type: 'move', start: pt, moved: false, snap: snapshot(v), ids: ids,
       base: ids.map(function (k) { return [k, v.place.tx[k], v.place.ty[k]]; })
     };
     try { ui.view.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ }
@@ -2475,11 +2551,14 @@
     if (!v || !v.bmp) return;
     var pt = toPoster(e, v);
     if (!drag) {
-      var gi = pick(p, v, pt);
+      var h = hitHandle(p, v, pt, e.pointerType === 'touch');
+      ui.view.style.cursor = h ? (h.name === 'tl' || h.name === 'br' ? 'nwse-resize' : 'nesw-resize') : '';
+      var gi = h ? -1 : pick(p, v, pt);
       ui.view.classList.toggle('grab', gi >= 0);
       if (gi !== state.hover) { state.hover = gi; requestDraw(); }
       return;
     }
+    if (drag.type === 'resize') { resizeTo(v, pt, e.altKey); return; }
     var dx = Math.round(pt.x - drag.start.x), dy = Math.round(pt.y - drag.start.y);
     drag.base.forEach(function (b) { v.place.tx[b[0]] = b[1]; v.place.ty[b[0]] = b[2]; });
     var s = e.altKey ? { dx: dx, dy: dy, guides: null } : snap(p, v, drag.ids, dx, dy, pt.scale);
@@ -2489,18 +2568,52 @@
     requestDraw();
   });
 
+  // Escala uniforme desde la esquina contraria (o desde el centro con Alt),
+  // siguiendo la proyección del puntero sobre la diagonal. Cerca del 100 % se
+  // engancha al tamaño original para volver a los píxeles exactos.
+  function resizeTo(v, pt, fromCenter) {
+    var A = fromCenter ? drag.center : drag.opp;
+    var dxc = drag.c0.x - A.x, dyc = drag.c0.y - A.y;
+    var den = (drag.start.x - A.x) * dxc + (drag.start.y - A.y) * dyc;
+    var f = den > 1e-6 ? ((pt.x - A.x) * dxc + (pt.y - A.y) * dyc) / den : 1;
+    var fmin = 0, fmax = Infinity, sref = 1;
+    drag.base.forEach(function (b) {
+      fmin = Math.max(fmin, 0.2 / b[1]);
+      fmax = Math.min(fmax, 3 / b[1]);
+      if (b[0] === drag.ref) sref = b[1];
+    });
+    f = clamp(f, fmin, fmax);
+    if (Math.abs(sref * f - 1) < 0.025) f = 1 / sref;
+    drag.base.forEach(function (b) {
+      var ns = b[1] * f;
+      if (Math.abs(ns - 1) < 1e-6) ns = 1;
+      v.place.s[b[0]] = ns;
+      v.place.tx[b[0]] = Math.round(f * b[2] + (1 - f) * A.x);
+      v.place.ty[b[0]] = Math.round(f * b[3] + (1 - f) * A.y);
+    });
+    if (Math.abs(f - 1) > 1e-6) drag.moved = true;
+    updateButtons();
+    requestDraw();
+  }
+
   function endDrag() {
     var v = curView();
     if (drag && drag.moved && v) pushHistory(v, drag.snap);
+    var resized = drag && drag.type === 'resize';
     drag = null;
     state.guides = null;
     ui.view.classList.remove('grabbing');
+    if (resized && v) updateScaleUI(v);
     updateButtons();
     requestDraw();
   }
   ui.view.addEventListener('pointerup', endDrag);
   ui.view.addEventListener('pointercancel', endDrag);
-  ui.view.addEventListener('pointerleave', function () { if (!drag && state.hover >= 0) { state.hover = -1; requestDraw(); } });
+  ui.view.addEventListener('pointerleave', function () {
+    if (drag) return;
+    ui.view.style.cursor = '';
+    if (state.hover >= 0) { state.hover = -1; requestDraw(); }
+  });
 
   function nudge(dx, dy) {
     var v = curView();
