@@ -1,9 +1,9 @@
 # Cuadrador de carteles
 
-Pasa carteles de producto (renders de miniaturas sobre fondo liso) de formato
-vertical (4:5, 2:3…) a cuadrado 1:1 **sin IA generativa**. Cada pieza se
-recorta con su reflejo y se recoloca tal cual: no se redibuja ni se reescala
-ningún píxel de los renders.
+Pasa carteles de producto (renders de miniaturas sobre fondo liso) de un
+formato a otro (de 4:5 o 2:3 a cuadrado, banner 16:9, historia 9:16…) **sin IA
+generativa**. Cada pieza se recorta con su reflejo y se recoloca tal cual: al
+100 % no se redibuja ni se reescala ningún píxel de los renders.
 
 Nació para los carteles de una tienda de STL de escenografía: la web donde se
 venden pide imágenes cuadradas y ChatGPT se inventaba el fondo, los reflejos y
@@ -17,24 +17,39 @@ los detalles de las piezas.
    ordenador: todo se procesa en local.
 2. Arrastra tus carteles a **Añadir carteles**. Puedes soltar varios a la vez;
    se analizan en segundo plano (unos segundos cada uno).
-3. Elige cómo recolocar:
-   - **Abrir composición**: mantiene tu distribución y la abre hacia los
-     lados. Es la opción por defecto para carteles 4:5.
+3. Elige el **formato final**: 1:1, 4:5, 3:4, 2:3, 9:16, 4:3, 3:2, 16:9, el
+   del original u **Otro** (cualquier proporción, p. ej. 5:4). El lienzo es el
+   rectángulo más pequeño de esa forma en el que cabe el cartel entero, así que
+   nada se recorta. Cada cartel recuerda su colocación en cada formato.
+4. Elige cómo recolocar:
+   - **Abrir composición**: mantiene tu distribución y la abre hacia el lado
+     que crece. Por defecto cuando el lienzo crece poco (p. ej. 4:5 → 1:1).
    - **En filas**: ordena las piezas en filas por tamaño, respetando más o
-     menos el orden original. Por defecto en carteles muy alargados.
-4. Retoca a mano lo que quieras:
+     menos el orden original. Por defecto cuando crece mucho (2:3 → 1:1,
+     banners, historias). Puedes forzar el número de filas.
+5. Ajusta el **tamaño de las piezas** (50–150 %) si quedan pequeñas o grandes
+   en el formato elegido. Al 100 % son los píxeles originales; con otro valor
+   se remuestrean con un filtro de calidad (Mitchell, con alfa premultiplicado,
+   sin halos en los bordes).
+6. Retoca a mano lo que quieras:
    - Arrastra las piezas. Tienen imanes al centro del cartel y a la línea de
      suelo de las demás piezas (mantén Alt para soltarlos).
    - Flechas: 1 px; con Mayús, 10 px.
+   - **+** y **−** agrandan o encogen la selección desde su base; **0** la deja
+     al 100 %.
    - Mayús + clic para seleccionar varias. **Unir** hace que se muevan juntas;
      **Separar** las suelta; **Ocultar** (o Supr) las quita del cartel.
    - Ctrl + Z / Ctrl + Mayús + Z para deshacer y rehacer.
    - **Ver recortes** enseña qué ha detectado como pieza (amarillo) y como
      logo o texto (azul).
-5. Descarga en PNG (sin pérdidas) o JPG. Por defecto el lado del cuadrado es el
-   lado largo del original (un 1279 × 1600 sale a 1600 × 1600); también puedes
-   sacarlo a 1080, 1200, 1500, 2000 o 3000 px. **Descargar todos** genera un
-   .zip con todos los carteles.
+7. Exporta:
+   - **Lado largo**: original (sin reescalar), 1080, 1200, 1500, 1600, 2000,
+     2400, 3000, 4000 o el que escribas. El lado corto sale de la proporción
+     exacta del formato (9:16 a 1920 da 1080 × 1920).
+   - **PNG** (sin pérdidas), **JPG** o **WEBP**, con calidad ajustable.
+   - **Descargar este**, **Descargar todos** (.zip con todos los carteles en el
+     formato actual) o **Todos en estos formatos**: un .zip con una carpeta por
+     formato marcado.
 
 ## Cómo funciona
 
@@ -52,13 +67,14 @@ los detalles de las piezas.
    - lo suave (reflejos, sombras y bordes con antialias), como transparencia
      calculada contra el fondo, para que se funda igual en cualquier zona del
      fondo nuevo.
-4. **Cuadrado.** Estira el fondo hacia los lados sin tocar la franja central
-   donde van el logo, el título y el sello, y coloca encima las piezas. Primero
-   se pintan todos los reflejos y luego los objetos, así un reflejo nunca tapa
-   una pieza.
+4. **Formato nuevo.** Estira el fondo en el eje que crece. A lo ancho no toca
+   la franja central donde van el logo, el título y el sello; a lo alto deja
+   la cabecera arriba y el sello abajo y estira solo la zona de las piezas.
+   Luego coloca las piezas encima: primero se pintan todos los reflejos y
+   después los objetos, así un reflejo nunca tapa una pieza.
 
-Si exportas a otro tamaño se reescala la imagen final completa (Lanczos), nunca
-las piezas por separado.
+El tamaño de exportación reescala la imagen final completa (Lanczos). Las
+piezas solo se remuestrean por separado si cambias su tamaño.
 
 ## Limitaciones
 

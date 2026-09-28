@@ -754,10 +754,21 @@
 
   function squareSize(an) { return Math.max(an.W, an.H); }
 
-  // Modo por defecto: si el cartel ya es casi cuadrado (4:5), abrir la
-  // composición original queda natural; si es muy alargado, mejor en filas.
-  function defaultMode(an) {
-    return squareSize(an) / Math.min(an.W, an.H) <= 1.3 ? 'spread' : 'rows';
+  // Lienzo para una proporción (ancho / alto): el rectángulo más pequeño con
+  // esa forma que contiene el cartel original sin reducirlo.
+  function canvasSize(an, ratio) {
+    var W = an.W, H = an.H;
+    if (!(ratio > 0)) return { w: W, h: H };
+    if (ratio >= W / H) return { w: Math.max(W, Math.round(H * ratio)), h: H };
+    return { w: W, h: Math.max(H, Math.round(W / ratio)) };
+  }
+
+  // Modo por defecto: si el lienzo crece poco, abrir la composición original
+  // queda natural; si crece mucho, mejor en filas.
+  function defaultMode(an, cw, ch) {
+    cw = cw || squareSize(an);
+    ch = ch || cw;
+    return Math.max(cw / an.W, ch / an.H) <= 1.3 ? 'spread' : 'rows';
   }
 
   function describeGroup(an, partIds, idx) {
@@ -772,24 +783,33 @@
   }
 
   // Desplazamiento de los gráficos: centrados en horizontal, pegados arriba
-  // o abajo según dónde estaban.
-  function graphicPlacement(an, g, S) {
-    return {
-      tx: Math.round((S - an.W) / 2),
-      ty: g.anchor === 'bottom' ? S - an.H : 0
-    };
+  // o abajo según dónde estaban. Nunca se escalan.
+  function graphicPlacement(an, g, cw, ch) {
+    return { tx: Math.round((cw - an.W) / 2), ty: g.anchor === 'bottom' ? ch - an.H : 0, s: 1 };
   }
 
-  // Colocación automática. opts.groups: [{parts: [ids]}] (por defecto, los
-  // grupos detectados). Devuelve un {tx, ty} por grupo, en el mismo orden.
+  function scaleBox(b, s) { return { x0: b.x0 * s, y0: b.y0 * s, x1: b.x1 * s, y1: b.y1 * s }; }
+
+  // Colocación automática en un lienzo width × height.
+  //  opts.groups: [{parts: [ids]}] (por defecto, los grupos detectados)
+  //  opts.scale: tamaño de las piezas (1 = píxeles originales)
+  //  opts.mode: 'spread' | 'rows'; opts.rows: 'auto' | n
+  // Devuelve un {tx, ty, s} por grupo: el píxel (x, y) del original va a
+  // (s·x + tx, s·y + ty) en el lienzo.
   function layout(an, opts) {
     opts = opts || {};
-    var S = opts.size || squareSize(an), u = an.u, W = an.W;
-    var groups = (opts.groups || an.groups).map(function (g, i) { return describeGroup(an, g.parts, i); });
+    var cw = opts.width || opts.size || squareSize(an), ch = opts.height || opts.size || cw;
+    var u = an.u, W = an.W, sc = opts.scale > 0 ? opts.scale : 1;
+    var groups = (opts.groups || an.groups).map(function (g, i) {
+      var d = describeGroup(an, g.parts, i);
+      d.core0 = d.core; d.vis0 = d.vis; d.s = 1;
+      if (d.kind === 'piece') { d.s = sc; d.core = scaleBox(d.core0, sc); d.vis = scaleBox(d.vis0, sc); }
+      return d;
+    });
     var out = new Array(groups.length), pieces = [], header = [], footer = [];
     groups.forEach(function (g) {
       if (g.kind === 'graphic') {
-        var pl = graphicPlacement(an, g, S);
+        var pl = graphicPlacement(an, g, cw, ch);
         out[g.idx] = pl;
         var box = { x0: g.core.x0 + pl.tx, y0: g.core.y0 + pl.ty, x1: g.core.x1 + pl.tx, y1: g.core.y1 + pl.ty };
         (g.anchor === 'top' ? header : footer).push({ box: box, orig: g.core });
@@ -799,53 +819,64 @@
     });
     if (!pieces.length) return out;
 
-    var pv = unionBox(pieces.map(function (g) { return g.vis; }));
-    var margin = Math.max(Math.round(0.04 * S), Math.min(pv.x0, W - pv.x1, 60 * u));
+    var pv0 = unionBox(pieces.map(function (g) { return g.vis0; }));
+    var margin = Math.max(Math.round(0.04 * Math.min(cw, ch)), Math.min(pv0.x0, W - pv0.x1, 60 * u));
     var headerBottom = header.length ? Math.max.apply(null, header.map(function (h) { return h.box.y1; })) : 0;
     var origHeaderBottom = header.length ? Math.max.apply(null, header.map(function (h) { return h.orig.y1; })) : 0;
-    var topGap = header.length ? Math.min(Math.max(24 * u, pv.y0 - origHeaderBottom), 70 * u) : margin;
+    var topGap = header.length ? Math.min(Math.max(24 * u, pv0.y0 - origHeaderBottom), 70 * u) : margin;
     var area = {
       x0: margin,
-      x1: S - margin,
+      x1: cw - margin,
       y0: headerBottom + topGap,
-      y1: S - Math.max(margin * 0.6, 24 * u)
+      y1: ch - Math.max(margin * 0.6, 24 * u)
     };
 
-    var mode = opts.mode || defaultMode(an);
-    if (mode === 'spread') spreadLayout(an, pieces, S, area, opts, out);
-    else rowsLayout(an, pieces, S, area, footer.map(function (f) { return f.box; }), opts, out);
+    var mode = opts.mode || defaultMode(an, cw, ch);
+    if (mode === 'spread') spreadLayout(an, pieces, cw, ch, area, footer.map(function (f) { return f.box; }), opts, out);
+    else rowsLayout(an, pieces, cw, ch, area, footer.map(function (f) { return f.box; }), opts, out);
     return out;
   }
 
-  // Mantiene la composición original y la abre en el eje que crece.
-  function spreadLayout(an, pieces, S, area, opts, out) {
+  // Mantiene la composición original y la abre en el eje que crece. Cada
+  // pieza escalada conserva su línea de suelo (o su centro, en el otro eje).
+  function spreadLayout(an, pieces, cw, ch, area, footer, opts, out) {
     var W = an.W, H = an.H, t = opts.spread == null ? 1 : clamp(opts.spread, 0, 1);
-    var horizontal = S > W;
-    var dim = horizontal ? W : H, cS = S / 2, cO = dim / 2;
-    var kmax = S / dim;
+    var horizontal = cw - W >= ch - H;
+    var cO, cN, lo, hi;
+    if (horizontal) {
+      cO = W / 2; cN = cw / 2; lo = area.x0; hi = area.x1;
+    } else {
+      // En vertical, las piezas se abren dentro del hueco entre cabecera y pie.
+      var bottom = area.y1;
+      footer.forEach(function (b) { bottom = Math.min(bottom, b.y0 - 28 * an.u); });
+      var pv = unionBox(pieces.map(function (g) { return g.vis0; }));
+      cO = (pv.y0 + pv.y1) / 2; lo = area.y0; hi = Math.max(area.y0 + 1, bottom); cN = (lo + hi) / 2;
+    }
+    var grow = horizontal ? cw / W : ch / H, kmax = grow;
     pieces.forEach(function (g) {
-      var v = g.vis, c = horizontal ? (v.x0 + v.x1) / 2 : (v.y0 + v.y1) / 2;
-      var half = horizontal ? (v.x1 - v.x0) / 2 : (v.y1 - v.y0) / 2;
-      var lo = horizontal ? area.x0 : area.y0, hi = horizontal ? area.x1 : area.y1;
-      if (c < cO - 1) kmax = Math.min(kmax, (cS - lo - half) / (cO - c));
-      if (c > cO + 1) kmax = Math.min(kmax, (hi - half - cS) / (c - cO));
+      var v = g.vis0, s = g.s;
+      var c = horizontal ? (v.x0 + v.x1) / 2 : (v.y0 + v.y1) / 2;
+      var half = s * (horizontal ? (v.x1 - v.x0) : (v.y1 - v.y0)) / 2;
+      if (c < cO - 1) kmax = Math.min(kmax, (cN - lo - half) / (cO - c));
+      if (c > cO + 1) kmax = Math.min(kmax, (hi - half - cN) / (c - cO));
     });
     var k = 1 + t * Math.max(0, kmax - 1);
+    if (kmax < 1) k = Math.max(0.2, kmax);
     pieces.forEach(function (g) {
-      var v = g.vis;
+      var v = g.vis0, s = g.s, floor = g.core0.y1;
+      var cx = (v.x0 + v.x1) / 2, cy = (v.y0 + v.y1) / 2;
       if (horizontal) {
-        var cx = (v.x0 + v.x1) / 2;
-        out[g.idx] = { tx: Math.round(cS + (cx - cO) * k - cx), ty: 0 };
+        out[g.idx] = { tx: Math.round(cN + (cx - cO) * k - s * cx), ty: Math.round(floor - s * floor + (ch - H) / 2), s: s };
       } else {
-        var cy = (v.y0 + v.y1) / 2;
-        out[g.idx] = { tx: Math.round((S - W) / 2), ty: Math.round(cS + (cy - cO) * k - cy) };
+        var shift = (cw - W) / 2;
+        out[g.idx] = { tx: Math.round(cx + shift - s * cx), ty: Math.round(cN + (cy - cO) * k - s * cy), s: s };
       }
     });
   }
 
   // Reparte las piezas en filas: alturas parecidas juntas, el orden vertical
   // y horizontal del cartel original se respeta en lo posible.
-  function rowsLayout(an, pieces, S, area, footer, opts, out) {
+  function rowsLayout(an, pieces, cw, ch, area, footer, opts, out) {
     var u = an.u;
     var items = pieces.map(function (g) {
       return {
@@ -854,8 +885,8 @@
         h: g.core.y1 - g.core.y0,                 // altura del objeto
         drop: Math.max(0, g.vis.y1 - g.core.y1),  // reflejo por debajo
         rise: Math.max(0, g.core.y0 - g.vis.y0),
-        cx: (g.core.x0 + g.core.x1) / 2,
-        cy: (g.core.y0 + g.core.y1) / 2
+        cx: (g.core0.x0 + g.core0.x1) / 2,
+        cy: (g.core0.y0 + g.core0.y1) / 2
       };
     });
     // El sello de abajo manda: las filas terminan encima de él.
@@ -865,7 +896,7 @@
     var minGap = 24 * u;
 
     var sorted = items.slice().sort(function (a, b) { return b.h - a.h; });
-    var maxRows = Math.min(sorted.length, 5), best = null;
+    var maxRows = Math.min(sorted.length, 6), best = null;
     var forced = opts.rows && opts.rows !== 'auto' ? clamp(+opts.rows, 1, sorted.length) : 0;
     for (var K = forced || 1; K <= (forced || maxRows); K++) {
       var rows = partition(sorted, K, availW, minGap) || (forced ? partition(sorted, K, Infinity, minGap) : null);
@@ -883,7 +914,7 @@
       var score = Math.abs(meanGh - gv) + 0.5 * spreadGh + (feasible ? 0 : 1e6);
       if (!best || score < best.score) best = { score: score, rows: rows, heights: heights, gv: gv };
     }
-    if (!best) return spreadLayout(an, pieces, S, area, { spread: 1 }, out);
+    if (!best) return spreadLayout(an, pieces, cw, ch, area, footer, { spread: 1 }, out);
     // Orden vertical: como estaban de media en el original.
     var order = best.rows.map(function (r, idx) {
       return { r: r, h: best.heights[idx], y: r.reduce(function (s, it) { return s + it.cy; }, 0) / r.length };
@@ -900,7 +931,7 @@
       var x = area.x0 + (availW - wsum - gap * (r.length - 1)) / 2;
       r.forEach(function (it) {
         var g = it.g;
-        out[g.idx] = { tx: Math.round(x - g.vis.x0), ty: Math.round(baseline - g.core.y1) };
+        out[g.idx] = { tx: Math.round(x - g.vis.x0), ty: Math.round(baseline - g.core.y1), s: g.s };
         x += it.w + gap;
       });
       y += row.h + gv;
@@ -994,11 +1025,11 @@
     return [lo, hi];
   }
 
-  // Eje vertical en carteles apaisados: cabecera arriba y pie abajo sin
-  // estirar; se estira solo la zona de las piezas.
-  function yMapArray(an, S) {
-    var H = an.H, f = new Float32Array(S), y;
-    if (S === H) { for (y = 0; y < S; y++) f[y] = y; return f; }
+  // Eje vertical cuando el lienzo es más alto que el cartel: cabecera arriba y
+  // pie abajo sin estirar; se estira solo la zona de las piezas.
+  function yMapArray(an, ch) {
+    var H = an.H, f = new Float32Array(ch), y;
+    if (ch === H) { for (y = 0; y < ch; y++) f[y] = y; return f; }
     var top = 0, bot = H;
     an.groups.forEach(function (g) {
       if (g.kind !== 'graphic') return;
@@ -1006,111 +1037,201 @@
       else bot = Math.min(bot, g.core.y0 - 20 * an.u);
     });
     if (bot <= top + 10) { top = 0; bot = H; }
-    var extra = S - H, midO = bot - top, midN = midO + extra;
-    for (y = 0; y < S; y++) {
+    var extra = ch - H, midO = bot - top, midN = midO + extra;
+    for (y = 0; y < ch; y++) {
       f[y] = y <= top ? y : y >= top + midN ? y - extra : top + (y - top) * midO / midN;
     }
     return f;
   }
 
-  // Fondo cuadrado: el fondo modelado, estirado, con un tramado suave para
-  // que los degradados no hagan escalones.
-  function renderBackground(an, S) {
-    var W = an.W, H = an.H, out = [new Float32Array(S * S), new Float32Array(S * S), new Float32Array(S * S)];
+  // Fondo del lienzo cw × ch: el fondo modelado, estirado en el eje que crece
+  // (sin tocar la franja central del logo y el título), con un tramado suave
+  // para que los degradados no hagan escalones.
+  function renderBackground(an, cw, ch) {
+    ch = ch || cw;
+    var W = an.W, H = an.H, N = cw * ch, out = [new Float32Array(N), new Float32Array(N), new Float32Array(N)];
     var rnd = mulberry32(1234567), sigma = an.noise;
+    var src = an.bg || an.bg16, kf = an.bg ? 1 : 1 / 256;
     var span = keepSpan(an, 'x');
     var k0 = Math.max(span[0], 0.12 * W), k1 = Math.min(span[1], 0.88 * W);
-    var fxs = axisMap(W, S, k0, k1, Math.round((S - W) / 2), 30 * an.u);
-    var fys = yMapArray(an, S);
-    var xs0 = new Int32Array(S), xs1 = new Int32Array(S), xt = new Float32Array(S);
-    for (var x = 0; x < S; x++) {
+    var fxs = axisMap(W, cw, k0, k1, Math.round((cw - W) / 2), 30 * an.u);
+    var fys = yMapArray(an, ch);
+    var xs0 = new Int32Array(cw), xs1 = new Int32Array(cw), xt = new Float32Array(cw);
+    for (var x = 0; x < cw; x++) {
       var fx = fxs[x], x0 = Math.floor(fx);
       xs0[x] = x0; xs1[x] = Math.min(x0 + 1, W - 1); xt[x] = fx - x0;
     }
-    for (var y = 0; y < S; y++) {
+    for (var y = 0; y < ch; y++) {
       var fy = clamp(fys[y], 0, H - 1), y0 = Math.floor(fy), y1 = Math.min(y0 + 1, H - 1), ty = fy - y0;
-      for (x = 0; x < S; x++) {
+      for (x = 0; x < cw; x++) {
         var i00 = y0 * W + xs0[x], i01 = y0 * W + xs1[x], i10 = y1 * W + xs0[x], i11 = y1 * W + xs1[x], t = xt[x];
-        // Ruido gaussiano (Box–Muller simplificado: suma de uniformes).
+        // Ruido casi gaussiano (suma de uniformes).
         var nz = (rnd() + rnd() + rnd() - 1.5) * 2 * sigma;
         for (var c = 0; c < 3; c++) {
-          var p = an.bg[c];
+          var p = src[c];
           var a = p[i00] + (p[i01] - p[i00]) * t, b = p[i10] + (p[i11] - p[i10]) * t;
-          out[c][y * S + x] = a + (b - a) * ty + nz;
+          out[c][y * cw + x] = (a + (b - a) * ty) * kf + nz;
         }
       }
     }
     return out;
   }
 
+  function scaleOf(place, k) {
+    if (!place.s) return 1;
+    var s = place.s[k];
+    return s > 0 ? s : 1;
+  }
+
   // Orden de pintado: primero todos los reflejos, luego los objetos; lo que
   // está más abajo en el cartel queda delante.
-  // place: {tx: [], ty: [], hidden: []} indexado por parte.
+  // place: {tx: [], ty: [], s: [], hidden: []} indexado por parte.
   function paintOrder(an, place) {
     var order = [];
     for (var k = 0; k < an.parts.length; k++) if (!place.hidden || !place.hidden[k]) order.push(k);
-    return order.sort(function (a, b) {
-      return (an.parts[a].core.y1 + place.ty[a]) - (an.parts[b].core.y1 + place.ty[b]) || a - b;
-    });
+    var floor = function (k) { return scaleOf(place, k) * an.parts[k].core.y1 + place.ty[k]; };
+    return order.sort(function (a, b) { return floor(a) - floor(b) || a - b; });
   }
 
-  // Composición final a tamaño completo: fondo + reflejos + piezas. Donde
-  // una pieza es sólida se copia su píxel original tal cual.
-  function composite(an, S, place, bgRGBA) {
-    var N = S * S, o0 = new Float32Array(N), o1 = new Float32Array(N), o2 = new Float32Array(N), i, j;
-    for (i = 0, j = 0; i < N; i++, j += 4) { o0[i] = bgRGBA[j]; o1[i] = bgRGBA[j + 1]; o2[i] = bgRGBA[j + 2]; }
+  // Composición final a tamaño completo: fondo + reflejos + piezas. Con escala
+  // 1 lo sólido se copia píxel a píxel; con otra escala se remuestrea.
+  function composite(an, cw, ch, place, bgRGBA) {
+    var N = cw * ch, o = [new Float32Array(N), new Float32Array(N), new Float32Array(N)], i, j;
+    for (i = 0, j = 0; i < N; i++, j += 4) { o[0][i] = bgRGBA[j]; o[1][i] = bgRGBA[j + 1]; o[2][i] = bgRGBA[j + 2]; }
     var order = paintOrder(an, place);
     ['soft', 'coreImg'].forEach(function (layer) {
       order.forEach(function (pid) {
-        var part = an.parts[pid], img = part[layer], rc = part.rect, tx = place.tx[pid], ty = place.ty[pid];
-        for (var yy = 0; yy < rc.h; yy++) {
-          var Y = rc.y + yy + ty;
-          if (Y < 0 || Y >= S) continue;
-          for (var xx = 0; xx < rc.w; xx++) {
-            var q = (yy * rc.w + xx) * 4, a8 = img[q + 3];
-            if (!a8) continue;
-            var X = rc.x + xx + tx;
-            if (X < 0 || X >= S) continue;
-            var k = Y * S + X;
-            if (a8 === 255) { o0[k] = img[q]; o1[k] = img[q + 1]; o2[k] = img[q + 2]; continue; }
-            var al = a8 / 255, ia = 1 - al;
-            o0[k] = img[q] * al + o0[k] * ia;
-            o1[k] = img[q + 1] * al + o1[k] * ia;
-            o2[k] = img[q + 2] * al + o2[k] * ia;
-          }
-        }
+        var part = an.parts[pid], s = scaleOf(place, pid);
+        if (Math.abs(s - 1) < 1e-4) drawExact(part[layer], part.rect, Math.round(place.tx[pid]), Math.round(place.ty[pid]), o, cw, ch);
+        else drawScaled(part[layer], part.rect, s, place.tx[pid], place.ty[pid], o, cw, ch);
       });
     });
     var rgba = new Uint8ClampedArray(N * 4);
     for (i = 0, j = 0; i < N; i++, j += 4) {
-      rgba[j] = Math.round(o0[i]); rgba[j + 1] = Math.round(o1[i]); rgba[j + 2] = Math.round(o2[i]); rgba[j + 3] = 255;
+      rgba[j] = Math.round(o[0][i]); rgba[j + 1] = Math.round(o[1][i]); rgba[j + 2] = Math.round(o[2][i]); rgba[j + 3] = 255;
     }
     return rgba;
   }
 
+  function drawExact(img, rc, tx, ty, o, cw, ch) {
+    var o0 = o[0], o1 = o[1], o2 = o[2];
+    for (var yy = 0; yy < rc.h; yy++) {
+      var Y = rc.y + yy + ty;
+      if (Y < 0 || Y >= ch) continue;
+      for (var xx = 0; xx < rc.w; xx++) {
+        var q = (yy * rc.w + xx) * 4, a8 = img[q + 3];
+        if (!a8) continue;
+        var X = rc.x + xx + tx;
+        if (X < 0 || X >= cw) continue;
+        var k = Y * cw + X;
+        if (a8 === 255) { o0[k] = img[q]; o1[k] = img[q + 1]; o2[k] = img[q + 2]; continue; }
+        var al = a8 / 255, ia = 1 - al;
+        o0[k] = img[q] * al + o0[k] * ia;
+        o1[k] = img[q + 1] * al + o1[k] * ia;
+        o2[k] = img[q + 2] * al + o2[k] * ia;
+      }
+    }
+  }
+
+  // Filtro de Mitchell–Netravali (B = C = 1/3): nítido y casi sin halos.
+  function mitchell(x) {
+    x = Math.abs(x);
+    if (x < 1) return (7 * x * x * x - 12 * x * x + 16 / 3) / 6;
+    if (x < 2) return (-7 / 3 * x * x * x + 12 * x * x - 20 * x + 32 / 3) / 6;
+    return 0;
+  }
+
+  // Pesos para remuestrear un eje de n píxeles a m, donde el píxel de destino
+  // j cae en la coordenada de origen origin(j). Fuera del recorte hay
+  // transparencia, así que esos pesos cuentan en la suma pero no aportan.
+  function axisWeights(n, m, s, origin) {
+    var fs = Math.min(1, s), support = 2 / fs, list = new Array(m);
+    for (var j = 0; j < m; j++) {
+      var c = origin(j), a = Math.ceil(c - support), b = Math.floor(c + support), idx = [], w = [], sum = 0;
+      for (var i = a; i <= b; i++) {
+        var v = mitchell((i - c) * fs);
+        if (!v) continue;
+        sum += v;
+        if (i >= 0 && i < n) { idx.push(i); w.push(v); }
+      }
+      for (var k = 0; k < w.length; k++) w[k] /= sum || 1;
+      list[j] = { idx: idx, w: w };
+    }
+    return list;
+  }
+
+  // Pieza escalada: remuestreo separable con alfa premultiplicado y mezcla.
+  function drawScaled(img, rc, s, tx, ty, o, cw, ch) {
+    var dx0 = Math.floor(s * rc.x + tx), dy0 = Math.floor(s * rc.y + ty);
+    var dw = Math.ceil(s * (rc.x + rc.w) + tx) - dx0, dh = Math.ceil(s * (rc.y + rc.h) + ty) - dy0;
+    if (dw <= 0 || dh <= 0) return;
+    var wx = axisWeights(rc.w, dw, s, function (jj) { return (dx0 + jj + 0.5 - tx) / s - rc.x - 0.5; });
+    var wy = axisWeights(rc.h, dh, s, function (ii) { return (dy0 + ii + 0.5 - ty) / s - rc.y - 0.5; });
+    var tmp = new Float32Array(dw * rc.h * 4), y, j, k;
+    for (y = 0; y < rc.h; y++) {
+      for (j = 0; j < dw; j++) {
+        var e = wx[j], r = 0, g = 0, b = 0, a = 0;
+        for (k = 0; k < e.idx.length; k++) {
+          var q = (y * rc.w + e.idx[k]) * 4, al = img[q + 3];
+          if (!al) continue;
+          var wv = e.w[k] * al / 255;
+          r += img[q] * wv; g += img[q + 1] * wv; b += img[q + 2] * wv; a += wv;
+        }
+        var t = (y * dw + j) * 4;
+        tmp[t] = r; tmp[t + 1] = g; tmp[t + 2] = b; tmp[t + 3] = a;
+      }
+    }
+    var o0 = o[0], o1 = o[1], o2 = o[2];
+    for (var i = 0; i < dh; i++) {
+      var Y = dy0 + i;
+      if (Y < 0 || Y >= ch) continue;
+      var ey = wy[i];
+      for (j = 0; j < dw; j++) {
+        var X = dx0 + j;
+        if (X < 0 || X >= cw) continue;
+        var R = 0, G = 0, Bv = 0, A = 0;
+        for (k = 0; k < ey.idx.length; k++) {
+          var tq = (ey.idx[k] * dw + j) * 4, w2 = ey.w[k];
+          R += tmp[tq] * w2; G += tmp[tq + 1] * w2; Bv += tmp[tq + 2] * w2; A += tmp[tq + 3] * w2;
+        }
+        if (A <= 0.001) continue;
+        if (A > 1) A = 1;
+        var lim = 255 * A, ia = 1 - A, kk = Y * cw + X;
+        o0[kk] = clamp(R, 0, lim) + o0[kk] * ia;
+        o1[kk] = clamp(G, 0, lim) + o1[kk] * ia;
+        o2[kk] = clamp(Bv, 0, lim) + o2[kk] * ia;
+      }
+    }
+  }
+
   // Colocación por grupos → colocación por partes.
   function placementFromGroups(an, groups, perGroup) {
-    var n = an.parts.length, place = { tx: new Int32Array(n), ty: new Int32Array(n), hidden: new Uint8Array(n) };
+    var n = an.parts.length;
+    var place = { tx: new Int32Array(n), ty: new Int32Array(n), s: new Float32Array(n).fill(1), hidden: new Uint8Array(n) };
     groups.forEach(function (g, i) {
-      var p = perGroup[i] || { tx: 0, ty: 0 };
-      g.parts.forEach(function (k) { place.tx[k] = p.tx; place.ty[k] = p.ty; });
+      var p = perGroup[i] || { tx: 0, ty: 0, s: 1 };
+      g.parts.forEach(function (k) { place.tx[k] = p.tx; place.ty[k] = p.ty; place.s[k] = p.s || 1; });
     });
     return place;
   }
 
-  // Todo lo que hace falta para editar un cartel: análisis sin los planos
-  // pesados + fondo cuadrado ya calculado.
+  // Todo lo que hace falta para editar un cartel: el análisis con el fondo en
+  // formato compacto (para generar después cualquier formato de lienzo).
   function prepare(rgba, W, H, options) {
     var an = analyze(rgba, W, H, options);
-    var S = squareSize(an);
-    var bgRGBA = planesToRGBA(renderBackground(an, S), S);
+    an.bg16 = an.bg.map(function (p) {
+      var q = new Uint16Array(p.length);
+      for (var i = 0; i < p.length; i++) q[i] = clamp(Math.round(p[i] * 256), 0, 65535);
+      return q;
+    });
     delete an.bg;
-    return { an: an, S: S, bg: bgRGBA };
+    return { an: an };
   }
 
-  function planesToRGBA(planes, S) {
-    var rgba = new Uint8ClampedArray(S * S * 4);
-    for (var i = 0, j = 0; i < S * S; i++, j += 4) {
+  function planesToRGBA(planes, w, h) {
+    h = h || w;
+    var N = w * h, rgba = new Uint8ClampedArray(N * 4);
+    for (var i = 0, j = 0; i < N; i++, j += 4) {
       rgba[j] = Math.round(planes[0][i]); rgba[j + 1] = Math.round(planes[1][i]); rgba[j + 2] = Math.round(planes[2][i]); rgba[j + 3] = 255;
     }
     return rgba;
@@ -1140,29 +1261,30 @@
     return list;
   }
 
-  function resampleRGBA(rgba, S, T) {
-    if (S === T) return rgba;
-    var wx = weights(S, T), tmp = new Float32Array(T * S * 3), out = new Uint8ClampedArray(T * T * 4);
-    for (var y = 0; y < S; y++) {
-      for (var x = 0; x < T; x++) {
+  function resampleRGBA(rgba, w, h, ow, oh) {
+    if (w === ow && h === oh) return rgba;
+    var wx = weights(w, ow), wy = weights(h, oh), tmp = new Float32Array(ow * h * 3), out = new Uint8ClampedArray(ow * oh * 4);
+    var x, y, k;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < ow; x++) {
         var e = wx[x], r = 0, g = 0, b = 0;
-        for (var k = 0; k < e.idx.length; k++) {
-          var q = (y * S + e.idx[k]) * 4, wv = e.w[k];
+        for (k = 0; k < e.idx.length; k++) {
+          var q = (y * w + e.idx[k]) * 4, wv = e.w[k];
           r += rgba[q] * wv; g += rgba[q + 1] * wv; b += rgba[q + 2] * wv;
         }
-        var t = (y * T + x) * 3;
+        var t = (y * ow + x) * 3;
         tmp[t] = r; tmp[t + 1] = g; tmp[t + 2] = b;
       }
     }
-    for (y = 0; y < T; y++) {
-      var ey = wx[y];
-      for (x = 0; x < T; x++) {
+    for (y = 0; y < oh; y++) {
+      var ey = wy[y];
+      for (x = 0; x < ow; x++) {
         var rr = 0, gg = 0, bb = 0;
         for (k = 0; k < ey.idx.length; k++) {
-          var tq = (ey.idx[k] * T + x) * 3, w2 = ey.w[k];
+          var tq = (ey.idx[k] * ow + x) * 3, w2 = ey.w[k];
           rr += tmp[tq] * w2; gg += tmp[tq + 1] * w2; bb += tmp[tq + 2] * w2;
         }
-        var o = (y * T + x) * 4;
+        var o = (y * ow + x) * 4;
         out[o] = rr; out[o + 1] = gg; out[o + 2] = bb; out[o + 3] = 255;
       }
     }
@@ -1177,6 +1299,7 @@
     describeGroup: describeGroup,
     placementFromGroups: placementFromGroups,
     squareSize: squareSize,
+    canvasSize: canvasSize,
     renderBackground: renderBackground,
     planesToRGBA: planesToRGBA,
     composite: composite,
@@ -1192,7 +1315,7 @@
       var m = e.data;
       try {
         var res = prepare(new Uint8ClampedArray(m.rgba), m.W, m.H);
-        var transfer = [res.bg.buffer];
+        var transfer = res.an.bg16.map(function (p) { return p.buffer; });
         res.an.parts.forEach(function (p) { transfer.push(p.soft.buffer, p.coreImg.buffer, p.hit.buffer); });
         root.postMessage({ id: m.id, ok: true, res: res }, transfer);
       } catch (err) {

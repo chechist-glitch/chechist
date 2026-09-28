@@ -1,7 +1,7 @@
 /*
  * Cuadrador de carteles · interfaz
- * Carga carteles, los analiza (en un Web Worker si se puede), deja recolocar
- * las piezas a mano y exporta el resultado cuadrado.
+ * Carga carteles, los analiza (en un Web Worker si se puede), deja elegir el
+ * formato final, recolocar y escalar las piezas, y exporta el resultado.
  */
 (function () {
   'use strict';
@@ -13,17 +13,106 @@
     view: $('view'), frame: $('frame'), busy: $('busy'), busyText: $('busy-text'), meta: $('meta'),
     modeSpread: $('mode-spread'), modeRows: $('mode-rows'), rowsField: $('rows-field'), rows: $('rows'),
     undo: $('undo'), redo: $('redo'), reset: $('reset'), outlines: $('outlines'),
-    size: $('size'), saveOne: $('save-one'), saveAll: $('save-all'), saveNote: $('save-note'),
-    selInfo: $('sel-info'), join: $('join'), split: $('split'), hide: $('hide'), unhide: $('unhide')
+    formats: $('formats'), customRatio: $('custom-ratio'), ratioW: $('ratio-w'), ratioH: $('ratio-h'),
+    canvasInfo: $('canvas-info'), scale: $('scale'), scaleOut: $('scale-out'), scaleNote: $('scale-note'),
+    size: $('size'), sizeCustomField: $('size-custom-field'), sizeCustom: $('size-custom'),
+    qualityField: $('quality-field'), quality: $('quality'), qualityOut: $('quality-out'), outInfo: $('out-info'),
+    saveOne: $('save-one'), saveAll: $('save-all'), saveMulti: $('save-multi'), multi: $('multi'), saveNote: $('save-note'),
+    selInfo: $('sel-info'), join: $('join'), split: $('split'), hide: $('hide'), unhide: $('unhide'),
+    selSmaller: $('sel-smaller'), selBigger: $('sel-bigger'), selReset: $('sel-reset')
   };
 
-  var state = { posters: [], current: null, selection: [], fmt: 'png', size: 'orig', outlines: false, hover: -1, guides: null };
-  var drag = null, nudgeTimer = null, uidN = 0;
+  // Formatos de salida (proporción ancho:alto).
+  var FORMATS = [
+    { key: '1:1', w: 1, h: 1, hint: 'Cuadrado' },
+    { key: '4:5', w: 4, h: 5, hint: 'Vertical' },
+    { key: '3:4', w: 3, h: 4 },
+    { key: '2:3', w: 2, h: 3 },
+    { key: '9:16', w: 9, h: 16, hint: 'Historia' },
+    { key: '4:3', w: 4, h: 3 },
+    { key: '3:2', w: 3, h: 2 },
+    { key: '16:9', w: 16, h: 9, hint: 'Banner' },
+    { key: 'orig', label: 'Original', hint: 'Mismo formato' },
+    { key: 'custom', label: 'Otro', hint: 'A medida' }
+  ];
+  var MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
+
+  var state = {
+    posters: [], current: null, selection: [], hover: -1, guides: null, outlines: false,
+    choice: '1:1', custom: { w: 5, h: 4 },
+    file: 'png', quality: 92, size: 'orig', sizeCustom: 2000,
+    multi: ['1:1', '4:5', '9:16', '16:9']
+  };
+  var drag = null, nudgeTimer = null, scaleSnap = null, uidN = 0;
   var MAX_PIXELS = 12e6;
 
   function uid() { return 'p' + (++uidN); }
   function cur() { return state.posters.find(function (p) { return p.id === state.current; }) || null; }
   function ready(p) { return !!(p && p.status === 'ready'); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function toInt(v, a, b, dflt) { v = parseInt(v, 10); return isNaN(v) ? dflt : clamp(v, a, b); }
+
+  /* ------------------------------------------------------------------ */
+  /* Formatos                                                            */
+  /* ------------------------------------------------------------------ */
+
+  function gcd(a, b) { while (b) { var t = b; b = a % b; a = t; } return a; }
+
+  function formatKey() {
+    if (state.choice !== 'custom') return state.choice;
+    var w = toInt(state.custom.w, 1, 100, 1), h = toInt(state.custom.h, 1, 100, 1), g = gcd(w, h);
+    return (w / g) + ':' + (h / g);
+  }
+
+  function ratioOf(key, p) {
+    if (key === 'orig') return p.W / p.H;
+    var ab = key.split(':');
+    return (+ab[0]) / (+ab[1]);
+  }
+
+  function slugOf(key) { return key === '1:1' ? 'cuadrado' : key === 'orig' ? 'original' : key.replace(':', 'x'); }
+  function labelOf(key) { return key === 'orig' ? 'original' : key; }
+
+  // Cada cartel guarda una colocación propia por formato.
+  function ensureView(p, key) {
+    if (p.views[key]) return p.views[key];
+    var an = p.data.an, c = E.canvasSize(an, ratioOf(key, p)), n = an.parts.length;
+    var v = {
+      key: key, cw: c.w, ch: c.h, mode: E.defaultMode(an, c.w, c.h), rows: 'auto', scale: 1,
+      groups: an.groups.map(function (g) { return { parts: g.parts.slice() }; }),
+      place: { tx: new Int32Array(n), ty: new Int32Array(n), s: new Float32Array(n).fill(1), hidden: new Uint8Array(n) },
+      history: [], future: [], bmp: null, preparing: false
+    };
+    applyLayout(p, v, false);
+    indexGroups(v);
+    p.views[key] = v;
+    return v;
+  }
+
+  function curView() {
+    var p = cur();
+    return ready(p) ? ensureView(p, formatKey()) : null;
+  }
+
+  // Fondo del formato. No se guarda en memoria: se calcula al mostrarlo y al
+  // exportar (tarda menos de un segundo).
+  function backgroundOf(p, v) {
+    return E.planesToRGBA(E.renderBackground(p.data.an, v.cw, v.ch), v.cw, v.ch);
+  }
+
+  function prepareView(p, v) {
+    if (v.bmp || v.preparing) return;
+    v.preparing = true;
+    setTimeout(function () {
+      var bg;
+      try { bg = backgroundOf(p, v); } catch (err) { v.preparing = false; note('No se pudo preparar el formato: ' + err.message, true); return; }
+      toBitmap(bg, v.cw, v.ch).then(function (b) {
+        v.bmp = b;
+        v.preparing = false;
+        if (p.id === state.current) refresh();
+      });
+    }, 30);
+  }
 
   /* ------------------------------------------------------------------ */
   /* Carga y análisis                                                    */
@@ -156,18 +245,9 @@
   function setupPoster(p, res) {
     var an = res.an;
     p.data = res;
-    p.S = res.S;
-    p.groups = an.groups.map(function (g) { return { parts: g.parts.slice() }; });
-    p.mode = E.defaultMode(an);
-    p.rows = 'auto';
-    var n = an.parts.length;
-    p.place = { tx: new Int32Array(n), ty: new Int32Array(n), hidden: new Uint8Array(n) };
-    applyLayout(p, false);
-    p.history = [];
-    p.future = [];
+    p.views = {};
     var r = Math.max(3, Math.round(5 * an.u));
     an.parts.forEach(function (part) { part.grab = E.dilate(part.hit, part.rect.w, part.rect.h, r); });
-    indexGroups(p);
   }
 
   function hasAlpha(rgba) {
@@ -192,8 +272,8 @@
 
   function buildBitmaps(p) {
     var an = p.data.an;
-    p.bmp = { bg: null, parts: an.parts.map(function () { return { soft: null, core: null }; }) };
-    var jobs = [toBitmap(p.data.bg, p.S, p.S).then(function (b) { p.bmp.bg = b; })];
+    p.bmp = { parts: an.parts.map(function () { return { soft: null, core: null }; }) };
+    var jobs = [];
     an.parts.forEach(function (part, k) {
       var r = part.rect;
       if (hasAlpha(part.soft)) jobs.push(toBitmap(part.soft, r.w, r.h).then(function (b) { p.bmp.parts[k].soft = b; }));
@@ -203,119 +283,122 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Grupos, colocación e historial                                      */
+  /* Grupos, colocación e historial (por formato)                         */
   /* ------------------------------------------------------------------ */
 
-  function indexGroups(p) {
-    p.partGroup = new Int32Array(p.data.an.parts.length).fill(-1);
-    p.groups.forEach(function (g, i) { g.parts.forEach(function (k) { p.partGroup[k] = i; }); });
+  function indexGroups(v) {
+    v.partGroup = new Int32Array(v.place.tx.length).fill(-1);
+    v.groups.forEach(function (g, i) { g.parts.forEach(function (k) { v.partGroup[k] = i; }); });
   }
 
-  function isGroupHidden(p, gi) {
-    return p.groups[gi].parts.every(function (k) { return p.place.hidden[k]; });
+  function isGroupHidden(v, gi) {
+    return v.groups[gi].parts.every(function (k) { return v.place.hidden[k]; });
   }
 
-  function applyLayout(p, record) {
-    if (record) pushHistory(p);
-    var visible = p.groups.filter(function (g) { return !g.parts.every(function (k) { return p.place.hidden[k]; }); });
-    var per = E.layout(p.data.an, { groups: visible, mode: p.mode, rows: p.rows });
+  function applyLayout(p, v, record) {
+    if (record) pushHistory(v);
+    var visible = v.groups.filter(function (g) { return !g.parts.every(function (k) { return v.place.hidden[k]; }); });
+    var per = E.layout(p.data.an, { groups: visible, width: v.cw, height: v.ch, mode: v.mode, rows: v.rows, scale: v.scale });
     visible.forEach(function (g, i) {
-      var t = per[i] || { tx: 0, ty: 0 };
-      g.parts.forEach(function (k) { p.place.tx[k] = t.tx; p.place.ty[k] = t.ty; });
+      var t = per[i] || { tx: 0, ty: 0, s: 1 };
+      g.parts.forEach(function (k) { v.place.tx[k] = t.tx; v.place.ty[k] = t.ty; v.place.s[k] = t.s || 1; });
     });
   }
 
-  function snapshot(p) {
+  function snapshot(v) {
     return {
-      tx: p.place.tx.slice(), ty: p.place.ty.slice(), hidden: p.place.hidden.slice(),
-      groups: p.groups.map(function (g) { return { parts: g.parts.slice() }; }),
-      mode: p.mode, rows: p.rows
+      tx: v.place.tx.slice(), ty: v.place.ty.slice(), s: v.place.s.slice(), hidden: v.place.hidden.slice(),
+      groups: v.groups.map(function (g) { return { parts: g.parts.slice() }; }),
+      mode: v.mode, rows: v.rows, scale: v.scale
     };
   }
 
-  function restore(p, s) {
-    p.place.tx = s.tx.slice(); p.place.ty = s.ty.slice(); p.place.hidden = s.hidden.slice();
-    p.groups = s.groups.map(function (g) { return { parts: g.parts.slice() }; });
-    p.mode = s.mode; p.rows = s.rows;
-    indexGroups(p);
+  function restore(v, s) {
+    v.place.tx = s.tx.slice(); v.place.ty = s.ty.slice(); v.place.s = s.s.slice(); v.place.hidden = s.hidden.slice();
+    v.groups = s.groups.map(function (g) { return { parts: g.parts.slice() }; });
+    v.mode = s.mode; v.rows = s.rows; v.scale = s.scale;
+    indexGroups(v);
   }
 
-  function pushHistory(p, snap) {
-    p.history.push(snap || snapshot(p));
-    if (p.history.length > 150) p.history.shift();
-    p.future = [];
+  function pushHistory(v, snap) {
+    v.history.push(snap || snapshot(v));
+    if (v.history.length > 150) v.history.shift();
+    v.future = [];
   }
 
   function undo() {
-    var p = cur();
-    if (!ready(p) || !p.history.length) return;
-    p.future.push(snapshot(p));
-    restore(p, p.history.pop());
+    var v = curView();
+    if (!v || !v.history.length) return;
+    v.future.push(snapshot(v));
+    restore(v, v.history.pop());
     state.selection = [];
     refresh();
   }
 
   function redo() {
-    var p = cur();
-    if (!ready(p) || !p.future.length) return;
-    p.history.push(snapshot(p));
-    restore(p, p.future.pop());
+    var v = curView();
+    if (!v || !v.future.length) return;
+    v.history.push(snapshot(v));
+    restore(v, v.future.pop());
     state.selection = [];
     refresh();
   }
 
-  function selectedParts(p) {
+  function selectedParts(v) {
     var out = [];
-    state.selection.forEach(function (gi) { if (p.groups[gi]) out.push.apply(out, p.groups[gi].parts); });
+    state.selection.forEach(function (gi) { if (v.groups[gi]) out.push.apply(out, v.groups[gi].parts); });
     return out;
   }
 
   // Caja de un conjunto de partes en su posición actual (+ desplazamiento).
-  function partsBox(p, ids, dx, dy, key) {
+  function partsBox(p, v, ids, dx, dy, key) {
     var an = p.data.an, b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
     ids.forEach(function (k) {
-      var c = an.parts[k][key || 'core'], tx = p.place.tx[k] + (dx || 0), ty = p.place.ty[k] + (dy || 0);
-      b.x0 = Math.min(b.x0, c.x0 + tx); b.y0 = Math.min(b.y0, c.y0 + ty);
-      b.x1 = Math.max(b.x1, c.x1 + tx); b.y1 = Math.max(b.y1, c.y1 + ty);
+      var c = an.parts[k][key || 'core'], s = v.place.s[k], tx = v.place.tx[k] + (dx || 0), ty = v.place.ty[k] + (dy || 0);
+      b.x0 = Math.min(b.x0, s * c.x0 + tx); b.y0 = Math.min(b.y0, s * c.y0 + ty);
+      b.x1 = Math.max(b.x1, s * c.x1 + tx); b.y1 = Math.max(b.y1, s * c.y1 + ty);
     });
     return b;
   }
 
-  function groupKind(p, gi) {
+  function groupKind(p, v, gi) {
     var an = p.data.an;
-    return p.groups[gi].parts.some(function (k) { return an.parts[k].kind === 'piece'; }) ? 'piece' : 'graphic';
+    return v.groups[gi].parts.some(function (k) { return an.parts[k].kind === 'piece'; }) ? 'piece' : 'graphic';
   }
 
   /* ------------------------------------------------------------------ */
   /* Dibujo                                                              */
   /* ------------------------------------------------------------------ */
 
-  function fitCanvas(S) {
+  function fitCanvas(cw, ch) {
+    ui.frame.style.setProperty('--ar', String(cw / ch));
     var rect = ui.frame.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    var px = Math.max(64, Math.round(Math.min(rect.width * dpr, S || 1600)));
-    if (ui.view.width !== px || ui.view.height !== px) { ui.view.width = px; ui.view.height = px; }
+    var pw = Math.max(64, Math.round(Math.min(rect.width * dpr, cw)));
+    var ph = Math.max(64, Math.round(pw * ch / cw));
+    if (ui.view.width !== pw || ui.view.height !== ph) { ui.view.width = pw; ui.view.height = ph; }
     return rect.width;
   }
 
   function draw() {
-    var p = cur(), cv = ui.view, ctx = cv.getContext('2d');
-    var cssW = fitCanvas(ready(p) ? p.S : 1600);
+    var p = cur(), v = ready(p) ? p.views[formatKey()] : null, cv = ui.view, ctx = cv.getContext('2d');
+    var cw = v ? v.cw : 1600, ch = v ? v.ch : 1600;
+    var cssW = fitCanvas(cw, ch);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#202020';
     ctx.fillRect(0, 0, cv.width, cv.height);
-    if (!ready(p)) return;
-    var an = p.data.an, S = p.S, k = cv.width / S, px = S / cssW;
+    if (!v || !v.bmp) return;
+    var an = p.data.an, k = cv.width / cw, px = cw / cssW;
     ctx.setTransform(k, 0, 0, k, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(p.bmp.bg, 0, 0);
-    var order = E.paintOrder(an, p.place);
+    ctx.drawImage(v.bmp, 0, 0);
+    var order = E.paintOrder(an, v.place);
     ['soft', 'core'].forEach(function (layer) {
       order.forEach(function (pid) {
         var b = p.bmp.parts[pid][layer];
         if (!b) return;
-        var r = an.parts[pid].rect;
-        ctx.drawImage(b, r.x + p.place.tx[pid], r.y + p.place.ty[pid]);
+        var r = an.parts[pid].rect, s = v.place.s[pid];
+        ctx.drawImage(b, s * r.x + v.place.tx[pid], s * r.y + v.place.ty[pid], s * r.w, s * r.h);
       });
     });
 
@@ -325,23 +408,23 @@
     if (state.outlines) {
       ctx.setLineDash([6 * px, 4 * px]);
       ctx.lineWidth = lw;
-      p.groups.forEach(function (g, gi) {
-        if (isGroupHidden(p, gi)) return;
-        var b = partsBox(p, g.parts, 0, 0, 'vis');
-        ctx.strokeStyle = groupKind(p, gi) === 'piece' ? 'rgba(255, 214, 102, .9)' : 'rgba(160, 200, 255, .9)';
+      v.groups.forEach(function (g, gi) {
+        if (isGroupHidden(v, gi)) return;
+        var b = partsBox(p, v, g.parts, 0, 0, 'vis');
+        ctx.strokeStyle = groupKind(p, v, gi) === 'piece' ? 'rgba(255, 214, 102, .9)' : 'rgba(160, 200, 255, .9)';
         ctx.strokeRect(b.x0 - 3 * px, b.y0 - 3 * px, b.x1 - b.x0 + 6 * px, b.y1 - b.y0 + 6 * px);
       });
       ctx.setLineDash([]);
     }
-    if (state.hover >= 0 && state.selection.indexOf(state.hover) < 0 && !drag && p.groups[state.hover]) {
-      var hb = partsBox(p, p.groups[state.hover].parts);
+    if (state.hover >= 0 && state.selection.indexOf(state.hover) < 0 && !drag && v.groups[state.hover]) {
+      var hb = partsBox(p, v, v.groups[state.hover].parts);
       ctx.strokeStyle = 'rgba(255, 255, 255, .55)';
       ctx.lineWidth = lw;
       ctx.strokeRect(hb.x0 - 5 * px, hb.y0 - 5 * px, hb.x1 - hb.x0 + 10 * px, hb.y1 - hb.y0 + 10 * px);
     }
     state.selection.forEach(function (gi) {
-      if (!p.groups[gi]) return;
-      var b = partsBox(p, p.groups[gi].parts);
+      if (!v.groups[gi]) return;
+      var b = partsBox(p, v, v.groups[gi].parts);
       ctx.strokeStyle = accent;
       ctx.lineWidth = 2 * px;
       ctx.strokeRect(b.x0 - 6 * px, b.y0 - 6 * px, b.x1 - b.x0 + 12 * px, b.y1 - b.y0 + 12 * px);
@@ -352,7 +435,7 @@
       ctx.setLineDash([5 * px, 5 * px]);
       state.guides.forEach(function (g) {
         ctx.beginPath();
-        if (g.x != null) { ctx.moveTo(g.x, 0); ctx.lineTo(g.x, S); } else { ctx.moveTo(0, g.y); ctx.lineTo(S, g.y); }
+        if (g.x != null) { ctx.moveTo(g.x, 0); ctx.lineTo(g.x, ch); } else { ctx.moveTo(0, g.y); ctx.lineTo(cw, g.y); }
         ctx.stroke();
       });
       ctx.setLineDash([]);
@@ -435,36 +518,111 @@
     refresh();
   }
 
-  function refresh() {
+  function shapeFor(w, h, max) {
+    var s = document.createElement('span');
+    s.className = 'shape';
+    s.style.width = Math.round(w >= h ? max : max * w / h) + 'px';
+    s.style.height = Math.round(h >= w ? max : max * h / w) + 'px';
+    return s;
+  }
+
+  function renderFormats() {
     var p = cur();
-    ui.busy.hidden = !(p && (p.status === 'queued' || p.status === 'working' || p.status === 'error'));
+    ui.formats.textContent = '';
+    FORMATS.forEach(function (f) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fmt' + (f.key === 'orig' || f.key === 'custom' ? ' wide' : '');
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(state.choice === f.key));
+      var shape;
+      if (f.key === 'orig') shape = shapeFor(p && p.W ? p.W : 4, p && p.H ? p.H : 5, 20);
+      else if (f.key === 'custom') { shape = shapeFor(state.custom.w || 1, state.custom.h || 1, 20); shape.style.borderStyle = 'dashed'; }
+      else shape = shapeFor(f.w, f.h, 20);
+      b.appendChild(shape);
+      b.appendChild(document.createTextNode(f.label || f.key));
+      b.title = (f.label || f.key) + (f.hint ? ' · ' + f.hint : '');
+      b.addEventListener('click', function () { setFormat(f.key); });
+      ui.formats.appendChild(b);
+    });
+    ui.customRatio.hidden = state.choice !== 'custom';
+  }
+
+  function renderMulti() {
+    ui.multi.textContent = '';
+    FORMATS.forEach(function (f) {
+      if (f.key === 'custom') return;
+      var lab = document.createElement('label'), cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = state.multi.indexOf(f.key) >= 0;
+      cb.addEventListener('change', function () {
+        state.multi = FORMATS.filter(function (g) {
+          if (g.key === 'custom') return false;
+          return g.key === f.key ? cb.checked : state.multi.indexOf(g.key) >= 0;
+        }).map(function (g) { return g.key; });
+        updateButtons();
+      });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(f.label || f.key));
+      ui.multi.appendChild(lab);
+    });
+  }
+
+  function setFormat(choice) {
+    if (state.choice === choice) return;
+    state.choice = choice;
+    state.selection = [];
+    refresh();
+  }
+
+  function refresh() {
+    var p = cur(), r = ready(p), v = r ? ensureView(p, formatKey()) : null;
+    if (v && !v.bmp) prepareView(p, v);
+    var waiting = p && (p.status === 'queued' || p.status === 'working' || p.status === 'error' || (v && !v.bmp));
+    ui.busy.hidden = !waiting;
     if (p && p.status === 'error') {
       ui.busyText.textContent = p.error;
       ui.busy.querySelector('.spinner').hidden = true;
     } else {
       ui.busy.querySelector('.spinner').hidden = false;
-      ui.busyText.textContent = p && p.status === 'queued' ? 'En cola…' : 'Analizando el cartel…';
+      ui.busyText.textContent = p && p.status === 'queued' ? 'En cola…'
+        : v && !v.bmp ? 'Preparando el formato ' + labelOf(v.key) + '…' : 'Analizando el cartel…';
     }
-    var r = ready(p);
-    ui.modeSpread.setAttribute('aria-checked', String(r && p.mode === 'spread'));
-    ui.modeRows.setAttribute('aria-checked', String(r && p.mode === 'rows'));
-    ui.rowsField.hidden = !(r && p.mode === 'rows');
-    if (r) ui.rows.value = String(p.rows);
+    ui.modeSpread.setAttribute('aria-checked', String(!!v && v.mode === 'spread'));
+    ui.modeRows.setAttribute('aria-checked', String(!!v && v.mode === 'rows'));
+    ui.rowsField.hidden = !(v && v.mode === 'rows');
+    if (v) ui.rows.value = String(v.rows);
+    renderFormats();
+    updateScaleUI(v);
     updateMeta();
     updateButtons();
     draw();
   }
 
+  function updateScaleUI(v) {
+    var pct = Math.round((v ? v.scale : 1) * 100);
+    ui.scale.value = String(pct);
+    ui.scale.disabled = !v;
+    ui.scaleOut.textContent = pct + ' %';
+    var mixed = v && Array.prototype.some.call(v.place.s, function (s) { return Math.abs(s - 1) > 1e-3; });
+    ui.scaleNote.className = 'note' + (mixed ? ' warn' : '');
+    ui.scaleNote.textContent = mixed
+      ? 'Hay piezas reescaladas: esas ya no son los píxeles exactos del render.'
+      : 'Al 100 % son los píxeles originales. Cambiarlo vuelve a colocar las piezas.';
+  }
+
   function updateMeta() {
-    var p = cur();
+    var p = cur(), v = ready(p) ? p.views[formatKey()] : null;
     ui.meta.textContent = '';
-    if (!ready(p)) return;
+    ui.canvasInfo.textContent = v ? 'Lienzo: ' + v.cw + ' × ' + v.ch + ' px (el cartel original cabe entero).' : '';
+    updateOutInfo();
+    if (!v) return;
     var an = p.data.an, pieces = 0, graphics = 0;
-    p.groups.forEach(function (g, gi) {
-      if (isGroupHidden(p, gi)) return;
-      if (groupKind(p, gi) === 'piece') pieces++; else graphics++;
+    v.groups.forEach(function (g, gi) {
+      if (isGroupHidden(v, gi)) return;
+      if (groupKind(p, v, gi) === 'piece') pieces++; else graphics++;
     });
-    [['Original', an.W + ' × ' + an.H + ' px'], ['Cuadrado', p.S + ' × ' + p.S + ' px'],
+    [['Original', an.W + ' × ' + an.H + ' px'], ['Formato', labelOf(v.key) + ' · ' + v.cw + ' × ' + v.ch + ' px'],
       ['Piezas', String(pieces)], ['Logo y textos', String(graphics)]].forEach(function (kv) {
       var s = document.createElement('span');
       s.textContent = kv[0] + ' ';
@@ -475,27 +633,58 @@
     });
   }
 
+  // Tamaño de salida: el lado largo pedido y el corto según la proporción
+  // exacta del formato (9:16 a 1920 da 1080 × 1920 justos).
+  function outSize(v) {
+    var L = state.size === 'orig' ? 0 : state.size === 'custom' ? toInt(state.sizeCustom, 200, 8000, 2000) : +state.size;
+    if (!L) return { w: v.cw, h: v.ch };
+    var a = v.cw, b = v.ch;
+    if (v.key !== 'orig') { var ab = v.key.split(':'); a = +ab[0]; b = +ab[1]; }
+    if (a >= b) return { w: L, h: Math.max(1, Math.round(L * b / a)) };
+    return { w: Math.max(1, Math.round(L * a / b)), h: L };
+  }
+
+  function updateOutInfo() {
+    var p = cur(), v = ready(p) ? p.views[formatKey()] : null;
+    ui.qualityField.hidden = state.file === 'png';
+    ui.sizeCustomField.hidden = state.size !== 'custom';
+    if (!v) { ui.outInfo.textContent = ''; return; }
+    var o = outSize(v);
+    ui.outInfo.textContent = 'Salida: ' + o.w + ' × ' + o.h + ' px · ' + state.file.toUpperCase() +
+      (state.file === 'png' ? ' sin pérdida' : ' al ' + state.quality + ' %');
+  }
+
   function updateButtons() {
-    var p = cur(), r = ready(p);
-    ui.undo.disabled = !(r && p.history.length);
-    ui.redo.disabled = !(r && p.future.length);
+    var p = cur(), v = ready(p) ? p.views[formatKey()] : null, r = !!(v && v.bmp);
+    ui.undo.disabled = !(r && v.history.length);
+    ui.redo.disabled = !(r && v.future.length);
     ui.reset.disabled = !r;
     ui.modeSpread.disabled = ui.modeRows.disabled = !r;
     ui.saveOne.disabled = !r;
-    ui.saveAll.disabled = !state.posters.some(ready) || state.posters.some(function (q) { return q.status === 'queued' || q.status === 'working'; });
-    var sel = r ? state.selection.filter(function (gi) { return p.groups[gi]; }) : [];
-    var multiPart = sel.some(function (gi) { return p.groups[gi].parts.length > 1; });
+    var busy = state.posters.some(function (q) { return q.status === 'queued' || q.status === 'working'; });
+    ui.saveAll.disabled = !state.posters.some(ready) || busy;
+    ui.saveMulti.disabled = ui.saveAll.disabled || !state.multi.length;
+    var sel = r ? state.selection.filter(function (gi) { return v.groups[gi]; }) : [];
+    var multiPart = sel.some(function (gi) { return v.groups[gi].parts.length > 1; });
     ui.join.disabled = sel.length < 2;
     ui.split.disabled = !multiPart;
-    ui.hide.disabled = !sel.length;
-    var hiddenCount = r ? p.groups.filter(function (g, gi) { return isGroupHidden(p, gi); }).length : 0;
+    ui.hide.disabled = ui.selSmaller.disabled = ui.selBigger.disabled = !sel.length;
+    ui.selReset.disabled = !sel.some(function (gi) {
+      return v.groups[gi].parts.some(function (k) { return Math.abs(v.place.s[k] - 1) > 1e-3; });
+    });
+    var hiddenCount = r ? v.groups.filter(function (g, gi) { return isGroupHidden(v, gi); }).length : 0;
     ui.unhide.hidden = !hiddenCount;
     ui.unhide.textContent = 'Mostrar ocultas (' + hiddenCount + ')';
     if (!r) ui.selInfo.textContent = 'Pulsa una pieza para seleccionarla.';
     else if (!sel.length) ui.selInfo.textContent = 'Pulsa una pieza para seleccionarla. Con Mayús, varias.';
-    else if (sel.length === 1) ui.selInfo.textContent = (groupKind(p, sel[0]) === 'piece' ? 'Pieza' : 'Logo o texto') +
-      (p.groups[sel[0]].parts.length > 1 ? ' (' + p.groups[sel[0]].parts.length + ' partes unidas)' : '') + ' seleccionada.';
-    else ui.selInfo.textContent = sel.length + ' elementos seleccionados.';
+    else {
+      var pct = Math.round(v.place.s[v.groups[sel[0]].parts[0]] * 100);
+      if (sel.length === 1) {
+        var g = v.groups[sel[0]];
+        ui.selInfo.textContent = (groupKind(p, v, sel[0]) === 'piece' ? 'Pieza' : 'Logo o texto') +
+          (g.parts.length > 1 ? ' (' + g.parts.length + ' partes unidas)' : '') + ' al ' + pct + ' %.';
+      } else ui.selInfo.textContent = sel.length + ' elementos seleccionados.';
+    }
   }
 
   function note(msg, isErr) {
@@ -507,30 +696,30 @@
   /* Ratón, táctil y teclado                                             */
   /* ------------------------------------------------------------------ */
 
-  function toPoster(e) {
-    var p = cur(), r = ui.view.getBoundingClientRect();
-    return { x: (e.clientX - r.left) / r.width * p.S, y: (e.clientY - r.top) / r.height * p.S, scale: p.S / r.width };
+  function toPoster(e, v) {
+    var r = ui.view.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * v.cw, y: (e.clientY - r.top) / r.height * v.ch, scale: v.cw / r.width };
   }
 
-  function pick(p, pt) {
-    var an = p.data.an, order = E.paintOrder(an, p.place);
+  function pick(p, v, pt) {
+    var an = p.data.an, order = E.paintOrder(an, v.place);
     for (var i = order.length - 1; i >= 0; i--) {
-      var pid = order[i], part = an.parts[pid], r = part.rect;
-      var lx = Math.floor(pt.x - r.x - p.place.tx[pid]), ly = Math.floor(pt.y - r.y - p.place.ty[pid]);
+      var pid = order[i], part = an.parts[pid], r = part.rect, s = v.place.s[pid];
+      var lx = Math.floor((pt.x - v.place.tx[pid]) / s - r.x), ly = Math.floor((pt.y - v.place.ty[pid]) / s - r.y);
       if (lx < 0 || ly < 0 || lx >= r.w || ly >= r.h) continue;
-      if (part.grab[ly * r.w + lx]) return p.partGroup[pid];
+      if (part.grab[ly * r.w + lx]) return v.partGroup[pid];
     }
     return -1;
   }
 
-  function snap(p, ids, dx, dy, scale) {
-    var tol = 7 * scale, guides = [], box = partsBox(p, ids, dx, dy);
+  function snap(p, v, ids, dx, dy, scale) {
+    var tol = 7 * scale, guides = [], box = partsBox(p, v, ids, dx, dy);
     var cx = (box.x0 + box.x1) / 2;
-    if (Math.abs(cx - p.S / 2) <= tol) { dx += Math.round(p.S / 2 - cx); guides.push({ x: p.S / 2 }); }
+    if (Math.abs(cx - v.cw / 2) <= tol) { dx += Math.round(v.cw / 2 - cx); guides.push({ x: v.cw / 2 }); }
     var best = null, bestD = tol;
-    p.groups.forEach(function (g, gi) {
-      if (state.selection.indexOf(gi) >= 0 || isGroupHidden(p, gi) || groupKind(p, gi) !== 'piece') return;
-      var gb = partsBox(p, g.parts);
+    v.groups.forEach(function (g, gi) {
+      if (state.selection.indexOf(gi) >= 0 || isGroupHidden(v, gi) || groupKind(p, v, gi) !== 'piece') return;
+      var gb = partsBox(p, v, g.parts);
       var d = Math.abs(gb.y1 - box.y1);
       if (d <= bestD) { bestD = d; best = gb.y1; }
     });
@@ -539,10 +728,10 @@
   }
 
   ui.view.addEventListener('pointerdown', function (e) {
-    var p = cur();
-    if (!ready(p) || e.button > 0) return;
+    var p = cur(), v = curView();
+    if (!v || !v.bmp || e.button > 0) return;
     ui.view.focus({ preventScroll: true });
-    var pt = toPoster(e), gi = pick(p, pt);
+    var pt = toPoster(e, v), gi = pick(p, v, pt);
     if (gi < 0) {
       if (!e.shiftKey) state.selection = [];
       updateButtons(); draw();
@@ -555,10 +744,10 @@
       return;
     }
     if (state.selection.indexOf(gi) < 0) state.selection = [gi];
-    var ids = selectedParts(p);
+    var ids = selectedParts(v);
     drag = {
-      start: pt, moved: false, snap: snapshot(p), ids: ids,
-      base: ids.map(function (k) { return [k, p.place.tx[k], p.place.ty[k]]; })
+      start: pt, moved: false, snap: snapshot(v), ids: ids,
+      base: ids.map(function (k) { return [k, v.place.tx[k], v.place.ty[k]]; })
     };
     try { ui.view.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ }
     ui.view.classList.add('grabbing');
@@ -566,27 +755,27 @@
   });
 
   ui.view.addEventListener('pointermove', function (e) {
-    var p = cur();
-    if (!ready(p)) return;
-    var pt = toPoster(e);
+    var p = cur(), v = curView();
+    if (!v || !v.bmp) return;
+    var pt = toPoster(e, v);
     if (!drag) {
-      var gi = pick(p, pt);
+      var gi = pick(p, v, pt);
       ui.view.classList.toggle('grab', gi >= 0);
       if (gi !== state.hover) { state.hover = gi; requestDraw(); }
       return;
     }
     var dx = Math.round(pt.x - drag.start.x), dy = Math.round(pt.y - drag.start.y);
-    drag.base.forEach(function (b) { p.place.tx[b[0]] = b[1]; p.place.ty[b[0]] = b[2]; });
-    var s = e.altKey ? { dx: dx, dy: dy, guides: null } : snap(p, drag.ids, dx, dy, pt.scale);
-    drag.base.forEach(function (b) { p.place.tx[b[0]] = b[1] + s.dx; p.place.ty[b[0]] = b[2] + s.dy; });
+    drag.base.forEach(function (b) { v.place.tx[b[0]] = b[1]; v.place.ty[b[0]] = b[2]; });
+    var s = e.altKey ? { dx: dx, dy: dy, guides: null } : snap(p, v, drag.ids, dx, dy, pt.scale);
+    drag.base.forEach(function (b) { v.place.tx[b[0]] = b[1] + s.dx; v.place.ty[b[0]] = b[2] + s.dy; });
     if (s.dx || s.dy) drag.moved = true;
     state.guides = s.guides && s.guides.length ? s.guides : null;
     requestDraw();
   });
 
   function endDrag() {
-    var p = cur();
-    if (drag && drag.moved && ready(p)) pushHistory(p, drag.snap);
+    var v = curView();
+    if (drag && drag.moved && v) pushHistory(v, drag.snap);
     drag = null;
     state.guides = null;
     ui.view.classList.remove('grabbing');
@@ -598,12 +787,35 @@
   ui.view.addEventListener('pointerleave', function () { if (!drag && state.hover >= 0) { state.hover = -1; requestDraw(); } });
 
   function nudge(dx, dy) {
-    var p = cur();
-    if (!ready(p) || !state.selection.length) return;
-    if (!nudgeTimer) pushHistory(p);
+    var v = curView();
+    if (!v || !state.selection.length) return;
+    if (!nudgeTimer) pushHistory(v);
     clearTimeout(nudgeTimer);
     nudgeTimer = setTimeout(function () { nudgeTimer = null; }, 700);
-    selectedParts(p).forEach(function (k) { p.place.tx[k] += dx; p.place.ty[k] += dy; });
+    selectedParts(v).forEach(function (k) { v.place.tx[k] += dx; v.place.ty[k] += dy; });
+    updateButtons();
+    requestDraw();
+  }
+
+  // Escala la selección desde su base (el punto de apoyo no se mueve).
+  function scaleSelection(f, toOriginal) {
+    var p = cur(), v = curView();
+    if (!v || !state.selection.length) return;
+    pushHistory(v);
+    state.selection.forEach(function (gi) {
+      var g = v.groups[gi];
+      if (!g) return;
+      var b = partsBox(p, v, g.parts), ax = (b.x0 + b.x1) / 2, ay = b.y1;
+      g.parts.forEach(function (k) {
+        var s = v.place.s[k], ns = clamp(toOriginal ? 1 : s * f, 0.2, 3);
+        if (Math.abs(ns - 1) < 0.004) ns = 1;
+        var nf = ns / s;
+        v.place.s[k] = ns;
+        v.place.tx[k] = Math.round(nf * v.place.tx[k] + (1 - nf) * ax);
+        v.place.ty[k] = Math.round(nf * v.place.ty[k] + (1 - nf) * ay);
+      });
+    });
+    updateScaleUI(v);
     updateButtons();
     requestDraw();
   }
@@ -611,15 +823,18 @@
   document.addEventListener('keydown', function (e) {
     var t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
-    var p = cur();
-    if (!ready(p)) return;
+    var v = curView();
+    if (!v || !v.bmp) return;
     var mod = e.ctrlKey || e.metaKey, key = e.key;
     if (mod && (key === 'z' || key === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if (mod && (key === 'y' || key === 'Y')) { e.preventDefault(); redo(); return; }
-    if (!state.selection.length) return;
+    if (mod || !state.selection.length) return;
     var step = e.shiftKey ? 10 : 1;
     var d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[key];
     if (d) { e.preventDefault(); nudge(d[0], d[1]); return; }
+    if (key === '+' || key === '=') { e.preventDefault(); scaleSelection(1.05); return; }
+    if (key === '-' || key === '_') { e.preventDefault(); scaleSelection(1 / 1.05); return; }
+    if (key === '0') { e.preventDefault(); scaleSelection(1, true); return; }
     if (key === 'Delete' || key === 'Backspace') { e.preventDefault(); hideSelection(); return; }
     if (key === 'Escape') { state.selection = []; updateButtons(); draw(); }
   });
@@ -629,20 +844,20 @@
   /* ------------------------------------------------------------------ */
 
   function setMode(mode) {
-    var p = cur();
-    if (!ready(p) || p.mode === mode) return;
-    pushHistory(p);
-    p.mode = mode;
-    applyLayout(p, false);
+    var p = cur(), v = curView();
+    if (!v || v.mode === mode) return;
+    pushHistory(v);
+    v.mode = mode;
+    applyLayout(p, v, false);
     state.selection = [];
     refresh();
   }
 
   function hideSelection() {
-    var p = cur();
-    if (!ready(p) || !state.selection.length) return;
-    pushHistory(p);
-    selectedParts(p).forEach(function (k) { p.place.hidden[k] = 1; });
+    var v = curView();
+    if (!v || !state.selection.length) return;
+    pushHistory(v);
+    selectedParts(v).forEach(function (k) { v.place.hidden[k] = 1; });
     state.selection = [];
     refresh();
   }
@@ -650,18 +865,18 @@
   ui.modeSpread.addEventListener('click', function () { setMode('spread'); });
   ui.modeRows.addEventListener('click', function () { setMode('rows'); });
   ui.rows.addEventListener('change', function () {
-    var p = cur();
-    if (!ready(p)) return;
-    pushHistory(p);
-    p.rows = ui.rows.value;
-    applyLayout(p, false);
+    var p = cur(), v = curView();
+    if (!v) return;
+    pushHistory(v);
+    v.rows = ui.rows.value;
+    applyLayout(p, v, false);
     state.selection = [];
     refresh();
   });
   ui.reset.addEventListener('click', function () {
-    var p = cur();
-    if (!ready(p)) return;
-    applyLayout(p, true);
+    var p = cur(), v = curView();
+    if (!v) return;
+    applyLayout(p, v, true);
     state.selection = [];
     refresh();
   });
@@ -669,52 +884,89 @@
   ui.redo.addEventListener('click', redo);
   ui.outlines.addEventListener('change', function () { state.outlines = ui.outlines.checked; draw(); });
 
+  ui.scale.addEventListener('input', function () {
+    var p = cur(), v = curView();
+    if (!v) return;
+    if (!scaleSnap) scaleSnap = snapshot(v);
+    v.scale = toInt(ui.scale.value, 50, 150, 100) / 100;
+    applyLayout(p, v, false);
+    state.selection = [];
+    updateScaleUI(v);
+    updateButtons();
+    requestDraw();
+  });
+  ui.scale.addEventListener('change', function () {
+    var v = curView();
+    if (v && scaleSnap) pushHistory(v, scaleSnap);
+    scaleSnap = null;
+    updateButtons();
+  });
+  ui.selBigger.addEventListener('click', function () { scaleSelection(1.05); });
+  ui.selSmaller.addEventListener('click', function () { scaleSelection(1 / 1.05); });
+  ui.selReset.addEventListener('click', function () { scaleSelection(1, true); });
+
   ui.join.addEventListener('click', function () {
-    var p = cur();
-    if (!ready(p) || state.selection.length < 2) return;
-    pushHistory(p);
+    var v = curView();
+    if (!v || state.selection.length < 2) return;
+    pushHistory(v);
     var sel = state.selection.slice(), parts = [];
-    sel.forEach(function (gi) { parts.push.apply(parts, p.groups[gi].parts); });
-    p.groups = p.groups.filter(function (g, gi) { return sel.indexOf(gi) < 0; });
-    p.groups.push({ parts: parts });
-    indexGroups(p);
-    state.selection = [p.groups.length - 1];
+    sel.forEach(function (gi) { parts.push.apply(parts, v.groups[gi].parts); });
+    v.groups = v.groups.filter(function (g, gi) { return sel.indexOf(gi) < 0; });
+    v.groups.push({ parts: parts });
+    indexGroups(v);
+    state.selection = [v.groups.length - 1];
     refresh();
   });
 
   ui.split.addEventListener('click', function () {
-    var p = cur();
-    if (!ready(p)) return;
-    pushHistory(p);
+    var v = curView();
+    if (!v) return;
+    pushHistory(v);
     var sel = state.selection.slice(), keep = [], added = [];
-    p.groups.forEach(function (g, gi) {
+    v.groups.forEach(function (g, gi) {
       if (sel.indexOf(gi) >= 0 && g.parts.length > 1) g.parts.forEach(function (k) { added.push({ parts: [k] }); });
       else keep.push(g);
     });
-    p.groups = keep.concat(added);
-    indexGroups(p);
+    v.groups = keep.concat(added);
+    indexGroups(v);
     state.selection = added.map(function (g, i) { return keep.length + i; });
     refresh();
   });
 
   ui.hide.addEventListener('click', hideSelection);
   ui.unhide.addEventListener('click', function () {
-    var p = cur();
-    if (!ready(p)) return;
-    pushHistory(p);
-    p.place.hidden.fill(0);
+    var v = curView();
+    if (!v) return;
+    pushHistory(v);
+    v.place.hidden.fill(0);
     refresh();
   });
 
+  function onRatioInput() {
+    state.custom.w = toInt(ui.ratioW.value, 1, 100, state.custom.w);
+    state.custom.h = toInt(ui.ratioH.value, 1, 100, state.custom.h);
+    state.selection = [];
+    refresh();
+  }
+  ui.ratioW.addEventListener('change', onRatioInput);
+  ui.ratioH.addEventListener('change', onRatioInput);
+
   Array.prototype.forEach.call(document.querySelectorAll('[data-fmt]'), function (b) {
     b.addEventListener('click', function () {
-      state.fmt = b.getAttribute('data-fmt');
+      state.file = b.getAttribute('data-fmt');
       Array.prototype.forEach.call(document.querySelectorAll('[data-fmt]'), function (o) {
         o.setAttribute('aria-checked', String(o === b));
       });
+      updateOutInfo();
     });
   });
-  ui.size.addEventListener('change', function () { state.size = ui.size.value; });
+  ui.size.addEventListener('change', function () { state.size = ui.size.value; updateOutInfo(); });
+  ui.sizeCustom.addEventListener('input', function () { state.sizeCustom = ui.sizeCustom.value; updateOutInfo(); });
+  ui.quality.addEventListener('input', function () {
+    state.quality = toInt(ui.quality.value, 60, 100, 92);
+    ui.qualityOut.textContent = String(state.quality);
+    updateOutInfo();
+  });
 
   // Arrastrar archivos a la zona (o a cualquier parte de la página).
   ui.file.addEventListener('change', function () { if (ui.file.files.length) addFiles(ui.file.files); ui.file.value = ''; });
@@ -744,21 +996,25 @@
   /* Exportación                                                         */
   /* ------------------------------------------------------------------ */
 
-  function outName(p) {
+  function outName(p, key, ext) {
     var base = (p.demo ? 'cartel_ejemplo' : p.name.replace(/\.[^.]+$/, '')) || 'cartel';
-    return base + '_cuadrado.' + (state.fmt === 'jpg' ? 'jpg' : 'png');
+    return base + '_' + slugOf(key) + '.' + ext;
   }
 
-  function renderPoster(p) {
-    var S = p.S, rgba = E.composite(p.data.an, S, p.place, p.data.bg);
-    var T = state.size === 'orig' ? S : parseInt(state.size, 10);
-    if (T !== S) rgba = E.resampleRGBA(rgba, S, T);
+  // Imagen final de un cartel en un formato, al tamaño y tipo elegidos.
+  function renderView(p, v) {
+    var rgba = E.composite(p.data.an, v.cw, v.ch, v.place, backgroundOf(p, v));
+    var o = outSize(v);
+    if (o.w !== v.cw || o.h !== v.ch) rgba = E.resampleRGBA(rgba, v.cw, v.ch, o.w, o.h);
     var c = document.createElement('canvas');
-    c.width = T; c.height = T;
-    c.getContext('2d').putImageData(new ImageData(rgba, T, T), 0, 0);
-    var type = state.fmt === 'jpg' ? 'image/jpeg' : 'image/png';
+    c.width = o.w; c.height = o.h;
+    c.getContext('2d').putImageData(new ImageData(rgba, o.w, o.h), 0, 0);
     return new Promise(function (resolve, reject) {
-      c.toBlob(function (b) { if (b) resolve(b); else reject(new Error('No se pudo generar la imagen.')); }, type, 0.95);
+      c.toBlob(function (b) {
+        if (!b) { reject(new Error('No se pudo generar la imagen.')); return; }
+        var ext = b.type === 'image/jpeg' ? 'jpg' : b.type === 'image/webp' ? 'webp' : 'png';
+        resolve({ blob: b, ext: ext, w: o.w, h: o.h, fellBack: ext !== state.file });
+      }, MIME[state.file], state.quality / 100);
     });
   }
 
@@ -796,11 +1052,13 @@
     return err && err.message ? err.message : 'No se pudo guardar el archivo.';
   }
 
+  var FALLBACK_NOTE = ' Este navegador no sabe guardar WEBP, así que va en PNG.';
+
   var exporting = false;
   function withExport(label, job) {
     if (exporting) return;
     exporting = true;
-    ui.saveOne.disabled = ui.saveAll.disabled = true;
+    ui.saveOne.disabled = ui.saveAll.disabled = ui.saveMulti.disabled = true;
     note(label);
     setTimeout(function () {
       job().then(function (msg) { note(msg || ''); }, function (err) { note(saveError(err), true); })
@@ -808,42 +1066,62 @@
     }, 30);
   }
 
+  function pause() { return new Promise(function (r) { setTimeout(r, 20); }); }
+
   ui.saveOne.addEventListener('click', function () {
-    var p = cur();
-    if (!ready(p)) return;
+    var p = cur(), v = curView();
+    if (!v) return;
     withExport('Preparando la imagen…', function () {
-      return renderPoster(p).then(function (blob) {
-        var name = outName(p);
-        return saveBlob(name, blob).then(function (res) {
-          return res && res.status === 'delivered' ? '' : 'Guardado: ' + name;
+      return renderView(p, v).then(function (out) {
+        var name = outName(p, v.key, out.ext);
+        return saveBlob(name, out.blob).then(function (res) {
+          if (res && res.status === 'delivered') return '';
+          return 'Guardado: ' + name + ' (' + out.w + ' × ' + out.h + ' px).' + (out.fellBack ? FALLBACK_NOTE : '');
         });
       });
     });
   });
 
-  ui.saveAll.addEventListener('click', function () {
-    var list = state.posters.filter(ready);
-    if (!list.length) return;
-    withExport('Preparando ' + list.length + ' imágenes…', function () {
-      var files = [], used = {};
-      return list.reduce(function (chain, p, i) {
+  // Varios carteles (y formatos) en un .zip.
+  function exportZip(keys, zipName, folders) {
+    var list = state.posters.filter(ready), total = list.length * keys.length;
+    if (!total) return;
+    withExport('Preparando ' + total + ' imágenes…', function () {
+      var files = [], used = {}, n = 0, fell = false;
+      var jobs = [];
+      list.forEach(function (p) { keys.forEach(function (key) { jobs.push([p, key]); }); });
+      return jobs.reduce(function (chain, job) {
         return chain.then(function () {
-          note('Preparando ' + (i + 1) + ' de ' + list.length + '…');
-          return new Promise(function (r) { setTimeout(r, 20); });
-        }).then(function () { return renderPoster(p); }).then(function (blob) {
-          return blob.arrayBuffer().then(function (buf) {
-            var name = outName(p), base = name, n = 2;
-            while (used[name]) name = base.replace(/(\.[^.]+)$/, ' (' + (n++) + ')$1');
-            used[name] = true;
-            files.push({ name: name, data: new Uint8Array(buf) });
+          note('Preparando ' + (++n) + ' de ' + total + '…');
+          return pause();
+        }).then(function () {
+          var p = job[0], key = job[1];
+          return renderView(p, ensureView(p, key)).then(function (out) {
+            fell = fell || out.fellBack;
+            return out.blob.arrayBuffer().then(function (buf) {
+              var name = (folders ? slugOf(key) + '/' : '') + outName(p, key, out.ext), base = name, i = 2;
+              while (used[name]) name = base.replace(/(\.[^.]+)$/, ' (' + (i++) + ')$1');
+              used[name] = true;
+              files.push({ name: name, data: new Uint8Array(buf) });
+            });
           });
         });
       }, Promise.resolve()).then(function () {
-        return saveBlob('carteles_cuadrados.zip', makeZip(files)).then(function (res) {
-          return res && res.status === 'delivered' ? '' : 'Guardado: carteles_cuadrados.zip (' + files.length + ' imágenes)';
+        return saveBlob(zipName, makeZip(files)).then(function (res) {
+          if (res && res.status === 'delivered') return '';
+          return 'Guardado: ' + zipName + ' (' + files.length + ' imágenes).' + (fell ? FALLBACK_NOTE : '');
         });
       });
     });
+  }
+
+  ui.saveAll.addEventListener('click', function () {
+    var key = formatKey();
+    exportZip([key], 'carteles_' + slugOf(key) + '.zip', false);
+  });
+  ui.saveMulti.addEventListener('click', function () {
+    if (!state.multi.length) return;
+    exportZip(state.multi.slice(), 'carteles_formatos.zip', true);
   });
 
   // ZIP mínimo sin compresión (las imágenes ya van comprimidas).
@@ -1127,8 +1405,9 @@
     });
   }
 
-  if (location.hash === '#debug') window.__cuadrador = { state: state, draw: draw };
+  if (location.hash === '#debug') window.__cuadrador = { state: state, draw: draw, formatKey: formatKey };
 
+  renderMulti();
   renderList();
   refresh();
   loadDemo();

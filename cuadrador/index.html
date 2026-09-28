@@ -69,6 +69,7 @@
     padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   }
   [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   button, select, input { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
@@ -161,7 +162,7 @@
     background-size: 24px 24px;
     display: grid; place-items: center;
   }
-  .frame { position: relative; width: min(100%, 76vh); aspect-ratio: 1; max-width: 100%; }
+  .frame { --ar: 1; position: relative; aspect-ratio: var(--ar); width: min(100%, calc(76vh * var(--ar))); max-width: 100%; }
   #view {
     display: block; width: 100%; height: 100%; touch-action: none; cursor: default;
     box-shadow: 0 1px 0 rgba(255, 255, 255, .06), 0 18px 40px rgba(0, 0, 0, .35);
@@ -190,6 +191,29 @@
   .note { margin: 0; color: var(--muted); font-size: 12.5px; min-height: 1.2em; }
   .note.err { color: var(--danger); }
   .sel-info { margin: 0; color: var(--muted); }
+  .formats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .fmt {
+    display: grid; justify-items: center; align-content: end; gap: 4px; min-height: 58px; padding: 6px 2px 5px;
+    border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer;
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500; color: var(--muted);
+  }
+  .fmt .shape { display: block; border: 1.5px solid currentColor; border-radius: 2px; }
+  .fmt:hover { border-color: var(--accent); color: var(--ink); }
+  .fmt[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+  .fmt.wide { grid-column: span 2; }
+  .ratio-inputs { display: flex; align-items: center; gap: 6px; font-family: var(--mono); color: var(--muted); }
+  .ratio-inputs input { width: 64px; }
+  input[type="number"] { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 8px; font-variant-numeric: tabular-nums; }
+  .slider { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+  .slider input { width: 100%; accent-color: var(--accent); }
+  .slider output { font-family: var(--mono); font-size: 12.5px; min-width: 4.5ch; text-align: right; font-variant-numeric: tabular-nums; }
+  .note.warn { color: var(--danger); }
+  .sub { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .sub-title { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .checks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 8px; }
+  .checks label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums; }
+  .checks input { accent-color: var(--accent); }
+  .row .lbl { color: var(--muted); font-weight: 600; align-self: center; margin-right: 2px; }
   .keys dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 12.5px; }
   .keys dt { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
   .keys dd { margin: 0; color: var(--muted); }
@@ -211,15 +235,15 @@
 <div class="app">
   <header class="top">
     <div class="brand">
-      <h1>Cuadrador de carteles <span class="ratio">4:5 → 1:1</span></h1>
-      <p class="lede">Pasa tus carteles verticales a formato cuadrado sin IA. Cada render se recorta con su reflejo y se recoloca tal cual, sin redibujar ni un píxel.</p>
+      <h1>Cuadrador de carteles <span class="ratio">4:5 → 1:1 · 16:9 · 9:16</span></h1>
+      <p class="lede">Pasa tus carteles a cuadrado, a banner o al formato que te pidan, sin IA. Cada render se recorta con su reflejo y se recoloca tal cual, sin redibujar ni un píxel.</p>
     </div>
     <details class="how">
       <summary>Cómo funciona</summary>
       <ol>
         <li>Calcula el fondo liso del cartel: degradado, franja del título y rayos de luz.</li>
         <li>Detecta cada render, el logo, el título y el sello, y los recorta con su reflejo y su sombra.</li>
-        <li>Estira el fondo al cuadrado sin tocar la zona del logo y el título.</li>
+        <li>Estira el fondo al formato elegido sin tocar la zona del logo y el título.</li>
         <li>Recoloca las piezas. Lo sólido se copia píxel a píxel; los reflejos se funden con el fondo nuevo.</li>
       </ol>
     </details>
@@ -235,7 +259,7 @@
       <ul class="list" id="list"></ul>
     </aside>
 
-    <section class="stage-col" aria-label="Cartel cuadrado">
+    <section class="stage-col" aria-label="Cartel final">
       <div class="toolbar" role="toolbar" aria-label="Colocación">
         <div class="seg" role="radiogroup" aria-label="Cómo recolocar">
           <button type="button" role="radio" aria-checked="true" data-mode="spread" id="mode-spread" title="Mantiene tu composición y la abre hacia los lados">Abrir composición</button>
@@ -258,7 +282,7 @@
       </div>
       <div class="mat">
         <div class="frame" id="frame">
-          <canvas id="view" tabindex="0" aria-label="Vista previa del cartel cuadrado. Arrastra las piezas para moverlas; con una seleccionada, las flechas la mueven."></canvas>
+          <canvas id="view" tabindex="0" aria-label="Vista previa del cartel final. Arrastra las piezas para moverlas; con una seleccionada, las flechas la mueven y + y − cambian su tamaño."></canvas>
           <div class="busy" id="busy" hidden><span class="spinner" aria-hidden="true"></span><span id="busy-text">Analizando…</span></div>
         </div>
       </div>
@@ -266,24 +290,65 @@
     </section>
 
     <aside class="panel">
+      <section class="block card" aria-labelledby="h-format">
+        <h2 id="h-format">Formato final</h2>
+        <div class="formats" role="radiogroup" aria-labelledby="h-format" id="formats"></div>
+        <div class="ratio-inputs" id="custom-ratio" hidden>
+          <label for="ratio-w" class="sr">Ancho</label>
+          <input type="number" id="ratio-w" min="1" max="100" step="1" value="5" aria-label="Proporción: ancho">
+          <span>:</span>
+          <input type="number" id="ratio-h" min="1" max="100" step="1" value="4" aria-label="Proporción: alto">
+        </div>
+        <p class="note" id="canvas-info"></p>
+      </section>
+
+      <section class="block card" aria-labelledby="h-scale">
+        <h2 id="h-scale">Tamaño de las piezas</h2>
+        <div class="slider">
+          <input type="range" id="scale" min="50" max="150" step="5" value="100" aria-describedby="scale-note">
+          <output id="scale-out" for="scale">100 %</output>
+        </div>
+        <p class="note" id="scale-note">Al 100 % son los píxeles originales. Cambiarlo vuelve a colocar las piezas.</p>
+      </section>
+
       <section class="block card" aria-labelledby="h-export">
         <h2 id="h-export">Exportar</h2>
-        <label class="field">Tamaño
+        <label class="field">Lado largo
           <select id="size">
             <option value="orig">Original</option>
             <option value="1080">1080 px</option>
             <option value="1200">1200 px</option>
             <option value="1500">1500 px</option>
+            <option value="1600">1600 px</option>
             <option value="2000">2000 px</option>
+            <option value="2400">2400 px</option>
             <option value="3000">3000 px</option>
+            <option value="4000">4000 px</option>
+            <option value="custom">Otro…</option>
           </select>
         </label>
-        <div class="seg" role="radiogroup" aria-label="Formato">
+        <label class="field" id="size-custom-field" hidden>
+          <input type="number" id="size-custom" min="200" max="8000" step="10" value="2000"> px
+        </label>
+        <div class="seg" role="radiogroup" aria-label="Tipo de archivo">
           <button type="button" role="radio" aria-checked="true" data-fmt="png">PNG</button>
           <button type="button" role="radio" aria-checked="false" data-fmt="jpg">JPG</button>
+          <button type="button" role="radio" aria-checked="false" data-fmt="webp">WEBP</button>
         </div>
+        <div class="slider" id="quality-field" hidden>
+          <label class="field" for="quality">Calidad</label>
+          <span></span>
+          <input type="range" id="quality" min="60" max="100" step="1" value="92">
+          <output id="quality-out" for="quality">92</output>
+        </div>
+        <p class="note" id="out-info"></p>
         <button type="button" class="btn primary full" id="save-one" disabled>Descargar este</button>
         <button type="button" class="btn full" id="save-all" disabled>Descargar todos (.zip)</button>
+        <div class="sub">
+          <p class="sub-title">Varios formatos a la vez</p>
+          <div class="checks" id="multi"></div>
+          <button type="button" class="btn full" id="save-multi" disabled>Todos en estos formatos (.zip)</button>
+        </div>
         <p class="note" id="save-note" aria-live="polite"></p>
       </section>
 
@@ -295,6 +360,12 @@
           <button type="button" class="btn" id="split" disabled title="Cada parte se mueve por separado">Separar</button>
           <button type="button" class="btn" id="hide" disabled title="Quita la selección del cartel (Supr)">Ocultar</button>
         </div>
+        <div class="row">
+          <span class="lbl">Tamaño</span>
+          <button type="button" class="btn" id="sel-smaller" disabled title="Más pequeña (−)" aria-label="Más pequeña">−</button>
+          <button type="button" class="btn" id="sel-bigger" disabled title="Más grande (+)" aria-label="Más grande">+</button>
+          <button type="button" class="btn" id="sel-reset" disabled title="Tamaño original, píxel a píxel (0)">100 %</button>
+        </div>
         <button type="button" class="btn" id="unhide" hidden>Mostrar ocultas</button>
       </section>
 
@@ -304,6 +375,8 @@
           <dt>Arrastrar</dt><dd>mover una pieza</dd>
           <dt>Mayús + clic</dt><dd>seleccionar varias</dd>
           <dt>Flechas</dt><dd>mover 1 px (con Mayús, 10 px)</dd>
+          <dt>+ / −</dt><dd>agrandar o encoger la selección</dd>
+          <dt>0</dt><dd>selección al 100 %</dd>
           <dt>Alt</dt><dd>arrastrar sin imanes</dd>
           <dt>Supr</dt><dd>ocultar la selección</dd>
           <dt>Ctrl + Z</dt><dd>deshacer</dd>
