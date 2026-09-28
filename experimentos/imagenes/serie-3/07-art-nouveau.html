@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>body { background: #e9dcc0; } svg { position: absolute; inset: 0; }</style>
+</head>
+<body>
+  <script>
+    // Cartel modernista a lo Mucha: halo con mosaico, rama de naranjo y latigazos
+    const r = rng(1900);
+    const C = { crema: "#efe3c6", ocre: "#c98b4b", oro: "#d9a84e", salvia: "#7d8f69", salviaO: "#55664a", teja: "#b5654a", rosa: "#d9a08a", tinta: "#3b2a22", naranja: "#e8812c" };
+    let s = `<svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="nar" cx=".38" cy=".35" r=".7"><stop offset="0" stop-color="#ffc56b"/><stop offset=".6" stop-color="${C.naranja}"/><stop offset="1" stop-color="#b8531a"/></radialGradient>
+        <filter id="papel"><feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="3" seed="3"/><feColorMatrix values="0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .12 0 0 0 .22 0"/><feComposite in2="SourceGraphic" operator="in"/><feBlend in="SourceGraphic" mode="multiply"/></filter>
+      </defs>
+      <g stroke="${C.tinta}" stroke-linejoin="round" stroke-linecap="round">`;
+
+    // Fondo y marco con arco superior
+    s += `<rect width="1080" height="1350" fill="${C.crema}" stroke="none" filter="url(#papel)"/>`;
+    s += `<path d="M 60 1290 L 60 380 Q 60 60 540 60 Q 1020 60 1020 380 L 1020 1290 Z" fill="${C.salvia}" stroke-width="6"/>`;
+    s += `<path d="M 90 1260 L 90 390 Q 90 92 540 92 Q 990 92 990 390 L 990 1260 Z" fill="${C.rosa}" stroke-width="3"/>`;
+
+    // Halo: anillos, cuentas y un mosaico de teselas
+    const hx = 540, hy = 520;
+    s += `<circle cx="${hx}" cy="${hy}" r="390" fill="${C.oro}" stroke-width="5"/>`;
+    for (let k = 0; k < 64; k++) {
+      const a = (k / 64) * Math.PI * 2;
+      s += `<circle cx="${hx + Math.cos(a) * 365}" cy="${hy + Math.sin(a) * 365}" r="12" fill="${k % 2 ? C.crema : C.teja}" stroke-width="2.5"/>`;
+    }
+    s += `<circle cx="${hx}" cy="${hy}" r="340" fill="${C.ocre}" stroke-width="4"/>`;
+    for (let ring = 0; ring < 7; ring++) {
+      const r0 = 150 + ring * 26, n = Math.floor((2 * Math.PI * r0) / 30);
+      for (let k = 0; k < n; k++) {
+        const a0 = (k / n) * Math.PI * 2 + ring * 0.1, a1 = ((k + 0.82) / n) * Math.PI * 2 + ring * 0.1;
+        const col = [C.oro, C.crema, C.teja, C.salvia][(k + ring) % 4 === 0 ? 2 : (k * 7 + ring) % 3];
+        const p = (a, rr) => `${hx + Math.cos(a) * rr} ${hy + Math.sin(a) * rr}`;
+        s += `<path d="M ${p(a0, r0)} L ${p(a1, r0)} L ${p(a1, r0 + 22)} L ${p(a0, r0 + 22)} Z" fill="${col}" stroke-width="1.2"/>`;
+      }
+    }
+    s += `<circle cx="${hx}" cy="${hy}" r="146" fill="${C.crema}" stroke-width="4"/>`;
+    // Sol-flor en el centro del halo
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      s += `<path d="M ${hx} ${hy} Q ${hx + Math.cos(a - 0.25) * 90} ${hy + Math.sin(a - 0.25) * 90} ${hx + Math.cos(a) * 130} ${hy + Math.sin(a) * 130} Q ${hx + Math.cos(a + 0.25) * 90} ${hy + Math.sin(a + 0.25) * 90} ${hx} ${hy}" fill="${k % 2 ? C.oro : C.rosa}" stroke-width="2"/>`;
+    }
+    s += `<circle cx="${hx}" cy="${hy}" r="34" fill="${C.teja}" stroke-width="3"/>`;
+
+    // Latigazos: curvas en S que suben por los lados
+    const latigo = (x0, y0, sx) => {
+      let d = `M ${x0} ${y0}`;
+      d += ` C ${x0 + sx * 160} ${y0 - 120}, ${x0 - sx * 120} ${y0 - 300}, ${x0 + sx * 60} ${y0 - 460}`;
+      d += ` S ${x0 + sx * 260} ${y0 - 640}, ${x0 + sx * 120} ${y0 - 760}`;
+      d += ` Q ${x0 + sx * 40} ${y0 - 820}, ${x0 + sx * 90} ${y0 - 860}`;
+      return d;
+    };
+    for (const [x0, sx] of [[140, 1], [940, -1]]) {
+      s += `<path d="${latigo(x0, 1180, sx)}" fill="none" stroke="${C.tinta}" stroke-width="22"/>`;
+      s += `<path d="${latigo(x0, 1180, sx)}" fill="none" stroke="${C.salviaO}" stroke-width="12"/>`;
+      s += `<path d="${latigo(x0, 1180, sx)}" fill="none" stroke="${C.oro}" stroke-width="3"/>`;
+    }
+
+    // Rama de naranjo: tallos, hojas, azahar y naranjas
+    const hoja = (x, y, a, L, w) => {
+      const c = Math.cos(a), sn = Math.sin(a);
+      const P = (u, v) => `${x + c * u - sn * v} ${y + sn * u + c * v}`;
+      return `<path d="M ${P(0, 0)} Q ${P(L * 0.5, -w)} ${P(L, 0)} Q ${P(L * 0.5, w)} ${P(0, 0)} Z" fill="${C.salvia}" stroke-width="3"/>
+        <path d="M ${P(0, 0)} Q ${P(L * 0.5, -w * 0.15)} ${P(L * 0.92, 0)}" fill="none" stroke-width="1.6"/>`;
+    };
+    const flor = (x, y, rad) => {
+      let f = "";
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2 - Math.PI / 2;
+        f += `<ellipse cx="${x + Math.cos(a) * rad * 0.6}" cy="${y + Math.sin(a) * rad * 0.6}" rx="${rad * 0.55}" ry="${rad * 0.32}" transform="rotate(${(a * 180) / Math.PI} ${x + Math.cos(a) * rad * 0.6} ${y + Math.sin(a) * rad * 0.6})" fill="#fbf6ea" stroke-width="2"/>`;
+      }
+      return f + `<circle cx="${x}" cy="${y}" r="${rad * 0.22}" fill="${C.oro}" stroke-width="1.5"/>`;
+    };
+    const naranja = (x, y, rad) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="url(#nar)" stroke-width="4"/>
+      <ellipse cx="${x - rad * 0.35}" cy="${y - rad * 0.38}" rx="${rad * 0.22}" ry="${rad * 0.12}" fill="#fff4d6" opacity=".8" stroke="none" transform="rotate(-35 ${x - rad * 0.35} ${y - rad * 0.38})"/>
+      <circle cx="${x + rad * 0.1}" cy="${y - rad * 0.86}" r="5" fill="${C.salviaO}" stroke-width="1.5"/>`;
+
+    const tallo = `M 540 1010 C 520 900, 600 820, 560 720 C 530 640, 470 600, 440 520`;
+    s += `<path d="${tallo}" fill="none" stroke-width="16"/><path d="${tallo}" fill="none" stroke="#7a5a3a" stroke-width="10"/>`;
+    const ramas = [`M 560 760 C 640 720, 720 700, 780 610`, `M 548 860 C 460 840, 380 800, 320 720`, `M 470 580 C 420 520, 360 470, 330 400`, `M 590 700 C 650 640, 690 560, 700 470`];
+    for (const d of ramas) s += `<path d="${d}" fill="none" stroke-width="11"/><path d="${d}" fill="none" stroke="#7a5a3a" stroke-width="6"/>`;
+    const hojas = [[780, 610, -0.9], [720, 690, -0.2], [700, 470, -1.4], [650, 620, -0.6], [320, 720, -2.4], [380, 800, 2.8], [330, 400, -2.0], [400, 510, -2.6], [440, 520, -1.3], [560, 720, 0.3], [548, 860, 2.4], [610, 900, 0.5], [470, 640, 3.0]];
+    for (const [x, y, a] of hojas) s += hoja(x, y, a + (r() - 0.5) * 0.3, 90 + r() * 30, 26 + r() * 8);
+    s += naranja(720, 760, 52) + naranja(360, 610, 46) + naranja(600, 470, 40) + naranja(420, 880, 44);
+    for (const [x, y, rad] of [[780, 560, 30], [300, 700, 26], [700, 430, 24], [340, 380, 28], [650, 880, 24], [470, 450, 20]]) s += flor(x, y, rad);
+
+    // Cartela inferior con letras
+    s += `<path d="M 140 1060 Q 540 1010 940 1060 L 940 1230 Q 540 1270 140 1230 Z" fill="${C.crema}" stroke-width="5"/>`;
+    s += `<path d="M 160 1076 Q 540 1030 920 1076 L 920 1216 Q 540 1252 160 1216 Z" fill="none" stroke="${C.ocre}" stroke-width="2"/>`;
+    s += `</g>`;
+    s += `<text x="540" y="1180" text-anchor="middle" font-family="Fraunces" font-weight="900" font-size="120" letter-spacing="10" fill="${C.teja}" stroke="${C.tinta}" stroke-width="3" paint-order="stroke">AZAHAR</text>`;
+    s += `<text x="540" y="1226" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="26" fill="${C.tinta}">agua de colonia · perfumería de la Alameda · 1900</text>`;
+    s += `</svg>`;
+    document.body.innerHTML = s;
+    listo();
+  </script>
+</body>
+</html>

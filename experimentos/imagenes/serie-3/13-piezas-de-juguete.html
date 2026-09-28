@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #222; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Mosaico de piezas de plástico con tetones: una escena pintada con código,
+    // reducida a 45×56 celdas y a una paleta de 18 colores de plástico
+    const ctx = canvas2d();
+    const r = rng(1958);
+    const n = makeNoise(1958);
+    const P = 24, CW = 45, CH = 57;
+    const PALETA = ["#f4f4f4", "#a0a5a9", "#6c6e68", "#1b2a34", "#c91a09", "#720e0f", "#fe8a18", "#f2cd37", "#f8bb3d", "#e4cd9e", "#958a73", "#0a3463", "#0055bf", "#5a93db", "#36aebf", "#9ff3e9", "#237841", "#e4adc8", "#81007b", "#c870a0", "#352100"].map(M.hex);
+
+    // Escena: el faro de Chipiona al caer la tarde
+    function escena(x, y) {
+      // x, y en 0..1
+      const hor = 0.6;
+      const sol = Math.hypot((x - 0.32) * 0.79, y - 0.5);
+      if (y < hor) {
+        // cielo en bandas onduladas, ya con colores de la paleta
+        const t = y / hor + (n(x * 5, y * 12, 2) - 0.5) * 0.09;
+        const bandas = [[0.14, [10, 52, 99]], [0.3, [129, 0, 123]], [0.46, [200, 112, 160]], [0.62, [228, 173, 200]], [0.8, [248, 187, 61]], [1.1, [254, 138, 24]]];
+        let c = bandas.find(([lim]) => t < lim)[1];
+        if (sol < 0.06) c = [244, 244, 244];
+        else if (sol < 0.1) c = [242, 205, 55];
+        const nube = n(x * 5, y * 26, 3);
+        if (nube > 0.64 && y > 0.18 && y < 0.5) c = [129, 0, 123];
+        // faro
+        const fx = 0.7;
+        const ancho = 0.05 - (0.6 - y) * 0.02;
+        if (y > 0.2 && Math.abs(x - fx) < ancho) {
+          const franja = Math.floor((y - 0.2) * 25) % 3 === 0;
+          return y < 0.25 ? [30, 30, 40] : franja ? [200, 60, 50] : [240, 235, 225];
+        }
+        if (y > 0.155 && y <= 0.2 && Math.abs(x - fx) < 0.028) return [250, 220, 90];
+        if (y > 0.135 && y <= 0.155 && Math.abs(x - fx) < 0.035 - (0.155 - y) * 1.2) return [30, 30, 40];
+        // haz de luz
+        const ang = Math.atan2(y - 0.18, x - fx);
+        if (x < fx && Math.abs(ang - Math.PI + 0.12) < 0.05 - Math.hypot(x - fx, y - 0.18) * 0.02) c = M.mezcla(c, [255, 240, 170], 0.6);
+        return c;
+      }
+      // rocas delante del faro
+      const roca = 0.6 + 0.08 * n(x * 8, 3, 2) - Math.max(0, 0.3 - Math.abs(x - 0.72)) * 0.3;
+      if (y < roca + 0.06 && x > 0.45) return n(x * 30, y * 30, 2) > 0.5 ? [60, 45, 40] : [90, 70, 60];
+      // mar con reflejo del sol
+      let c = y < 0.68 ? [0, 85, 191] : y < 0.78 ? [10, 52, 99] : [27, 42, 52];
+      if (n(x * 14, y * 50, 2) > 0.62) c = [90, 147, 219];
+      const refl = Math.abs(x - 0.32) < 0.035 + (y - hor) * 0.22;
+      if (refl && n(x * 20, y * 60, 1) > 0.4) c = y < 0.72 ? [242, 205, 55] : [254, 138, 24];
+      // arena
+      if (y > 0.9 + 0.03 * Math.sin(x * 9)) c = [228, 205, 158];
+      return c;
+    }
+
+    // Cuantiza al color de pieza más cercano
+    const celdas = [];
+    const err = Array.from({ length: CH + 1 }, () => Array.from({ length: CW + 2 }, () => [0, 0, 0]));
+    for (let j = 0; j < CH; j++) {
+      celdas.push([]);
+      for (let i = 0; i < CW; i++) {
+        const c = escena((i + 0.5) / CW, (j + 0.5) / CH);
+        let mejor = 0, dm = Infinity;
+        PALETA.forEach((p, k) => {
+          const d = (p[0] - c[0]) ** 2 * 0.3 + (p[1] - c[1]) ** 2 * 0.59 + (p[2] - c[2]) ** 2 * 0.11;
+          if (d < dm) { dm = d; mejor = k; }
+        });
+        celdas[j].push(mejor);
+        const e = c.map((v, k) => v - PALETA[mejor][k]);
+        e.forEach((v, k) => {
+          err[j][i + 2][k] += (v * 7) / 16;
+          err[j + 1][i][k] += (v * 3) / 16;
+          err[j + 1][i + 1][k] += (v * 5) / 16;
+          err[j + 1][i + 2][k] += (v * 1) / 16;
+        });
+      }
+    }
+
+    // Pieza de 1×1 con su tetón
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, 0, W, H);
+    const ox = (W - CW * P) / 2, oy = (H - CH * P) / 2;
+    for (let j = 0; j < CH; j++) for (let i = 0; i < CW; i++) {
+      const col = PALETA[celdas[j][i]];
+      const x = ox + i * P, y = oy + j * P;
+      const var_ = 1 + (r() - 0.5) * 0.04;
+      const c = col.map((v) => v * var_);
+      const g = ctx.createLinearGradient(x, y, x + P, y + P);
+      g.addColorStop(0, M.rgb(c.map((v) => Math.min(255, v * 1.12 + 10))));
+      g.addColorStop(1, M.rgb(c.map((v) => v * 0.88)));
+      ctx.fillStyle = g;
+      ctx.fillRect(x + 0.6, y + 0.6, P - 1.2, P - 1.2);
+      ctx.strokeStyle = M.rgb(c.map((v) => v * 0.55), 0.8);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, P - 1, P - 1);
+      // sombra del tetón
+      const cx = x + P / 2, cy = y + P / 2, R = P * 0.31;
+      ctx.fillStyle = "rgba(0,0,0,.35)";
+      ctx.beginPath();
+      ctx.arc(cx + 1.6, cy + 2, R, 0, Math.PI * 2);
+      ctx.fill();
+      // lateral del tetón
+      ctx.fillStyle = M.rgb(c.map((v) => v * 0.72));
+      ctx.beginPath();
+      ctx.arc(cx + 0.6, cy + 1, R, 0, Math.PI * 2);
+      ctx.fill();
+      // cara superior
+      const gs = ctx.createRadialGradient(cx - R * 0.4, cy - R * 0.45, 0.5, cx, cy, R * 1.1);
+      gs.addColorStop(0, M.rgb(c.map((v) => Math.min(255, v * 1.25 + 40))));
+      gs.addColorStop(0.5, M.rgb(c.map((v) => Math.min(255, v * 1.05 + 6))));
+      gs.addColorStop(1, M.rgb(c.map((v) => v * 0.9)));
+      ctx.fillStyle = gs;
+      ctx.beginPath();
+      ctx.arc(cx - 0.4, cy - 0.5, R - 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      // brillo del plástico
+      ctx.strokeStyle = "rgba(255,255,255,.45)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(cx - 0.4, cy - 0.5, R - 2, Math.PI * 1.05, Math.PI * 1.55);
+      ctx.stroke();
+    }
+    listo();
+  </script>
+</body>
+</html>

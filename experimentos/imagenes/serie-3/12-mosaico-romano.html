@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #bdb29c; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Mosaico romano: las teselas se colocan en filas que siguen los contornos de la figura
+    // (opus vermiculatum) y en filas rectas en el fondo (opus tessellatum).
+    const ctx = canvas2d();
+    const r = rng(79);
+    const n = makeNoise(79);
+    const S = 15;
+    const MARCO = 96;
+
+    // --- Distancias con signo de la figura: dos peces ---
+    const len = (x, y) => Math.hypot(x, y);
+    function sdElipse(x, y, rx, ry) { const k = len(x / rx, y / ry); return (k - 1) * Math.min(rx, ry) * (k > 1 ? 1 : 1); }
+    function sdTri(px, py, a, b, c) {
+      const e0 = [b[0] - a[0], b[1] - a[1]], e1 = [c[0] - b[0], c[1] - b[1]], e2 = [a[0] - c[0], a[1] - c[1]];
+      const v0 = [px - a[0], py - a[1]], v1 = [px - b[0], py - b[1]], v2 = [px - c[0], py - c[1]];
+      const pq = (v, e) => { const t = M.clamp((v[0] * e[0] + v[1] * e[1]) / (e[0] * e[0] + e[1] * e[1])); return [v[0] - e[0] * t, v[1] - e[1] * t]; };
+      const q0 = pq(v0, e0), q1 = pq(v1, e1), q2 = pq(v2, e2);
+      const s = Math.sign(e0[0] * e2[1] - e0[1] * e2[0]);
+      const d0 = [q0[0] ** 2 + q0[1] ** 2, s * (v0[0] * e0[1] - v0[1] * e0[0])];
+      const d1 = [q1[0] ** 2 + q1[1] ** 2, s * (v1[0] * e1[1] - v1[1] * e1[0])];
+      const d2 = [q2[0] ** 2 + q2[1] ** 2, s * (v2[0] * e2[1] - v2[1] * e2[0])];
+      const dd = Math.min(d0[0], d1[0], d2[0]);
+      const sg = Math.min(d0[1], d1[1], d2[1]);
+      return -Math.sqrt(dd) * Math.sign(sg);
+    }
+    const smin = (a, b, k) => { const h = M.clamp(0.5 + (0.5 * (b - a)) / k); return M.lerp(b, a, h) - k * h * (1 - h); };
+    function pez(x, y, cx, cy, esc, dir) {
+      // coordenadas locales del pez (mirando hacia -x si dir = 1)
+      const u = ((x - cx) / esc) * dir, v = (y - cy) / esc;
+      const cuerpo = sdElipse(u, v, 280, 132);
+      const cola = sdTri(u, v, [230, 0], [420, -130], [420, 130]) + 6;
+      const dorsal = sdTri(u, v, [-60, -110], [120, -120], [40, -190]);
+      const ventral = sdTri(u, v, [0, 110], [100, 118], [70, 180]);
+      let d = smin(cuerpo, cola, 40);
+      d = Math.min(d, dorsal, ventral);
+      return [d * esc, u, v, { cuerpo, cola, dorsal, ventral }];
+    }
+    const PECES = [[470, 560, 1, 1], [640, 1010, 0.55, -1]];
+    function figura(x, y) {
+      let mejor = [1e9];
+      for (const [cx, cy, e, dir] of PECES) {
+        const p = pez(x, y, cx, cy, e, dir);
+        if (p[0] < mejor[0]) mejor = p;
+      }
+      return mejor;
+    }
+    // Color de la piedra según la parte del pez
+    function colorPez(u, v, partes, d) {
+      if (d > -S * 0.9) return [28, 26, 24];
+      const ojo = len(u + 190, v + 25);
+      if (ojo < 20) return [18, 18, 18];
+      if (ojo < 34) return [236, 228, 208];
+      if (partes.dorsal < 0 || partes.ventral < 0) return [190, 92, 58];
+      if (partes.cola < 0 && partes.cuerpo > 0) return v < 0 ? [176, 80, 52] : [205, 125, 70];
+      // agalla
+      if (Math.abs(len(u + 110, v) - 95) < 7 && u < -60) return [140, 52, 42];
+      const banda = Math.sin(u * 0.05) > 0.55 && v < 40;
+      if (v < -40) return banda ? [52, 66, 78] : [82, 104, 118];
+      if (v < 30) return banda ? [96, 118, 128] : [140, 162, 168];
+      return [226, 219, 198];
+    }
+
+    // --- Campo guía: cada zona tiene su propia función cuyos niveles son las filas ---
+    const dBorde = (x, y) => Math.min(x, y, W - x, H - y);
+    function zona(x, y) {
+      if (dBorde(x, y) < MARCO) return 0;
+      const d = figura(x, y)[0];
+      if (d < 0) return 1;
+      if (d < S * 2.6) return 2;
+      return 3;
+    }
+    function guia(z, x, y) {
+      if (z === 0) return dBorde(x, y);
+      if (z === 1 || z === 2) return figura(x, y)[0];
+      return y;
+    }
+
+    // Candidatos densos → se pegan a la fila más cercana con Newton
+    const cand = M.poisson(S * 0.3, r);
+    const pts = [];
+    for (let [x, y] of cand) {
+      const z = zona(x, y);
+      let f = guia(z, x, y);
+      const objetivo = (Math.floor(f / S) + 0.5) * S;
+      for (let it = 0; it < 4; it++) {
+        const e = 0.8;
+        const gx = (guia(z, x + e, y) - guia(z, x - e, y)) / (2 * e);
+        const gy = (guia(z, x, y + e) - guia(z, x, y - e)) / (2 * e);
+        const g2 = gx * gx + gy * gy || 1;
+        f = guia(z, x, y);
+        x -= ((f - objetivo) * gx) / g2;
+        y -= ((f - objetivo) * gy) / g2;
+      }
+      if (x < 0 || y < 0 || x >= W || y >= H || zona(x, y) !== z) continue;
+      const e = 0.8;
+      const gx = guia(z, x + e, y) - guia(z, x - e, y), gy = guia(z, x, y + e) - guia(z, x, y - e);
+      // clave de orden: por fila y luego a lo largo de ella
+      const fila = Math.floor(objetivo / S);
+      const a = z === 3 ? x / W : Math.atan2(y - 675, x - 540);
+      pts.push({ x, y, z, fila, orden: z * 1e6 + fila * 1e3 + a * 100, ang: Math.atan2(gy, gx) });
+    }
+    pts.sort((p, q) => p.orden - q.orden);
+
+    // Aceptación codiciosa sin solapes (rejilla espacial)
+    const celda = S;
+    const cols = Math.ceil(W / celda), filas = Math.ceil(H / celda);
+    const cubo = Array.from({ length: cols * filas }, () => []);
+    const teselas = [];
+    for (const p of pts) {
+      const cx = Math.floor(p.x / celda), cy = Math.floor(p.y / celda);
+      let libre = true;
+      for (let j = cy - 1; j <= cy + 1 && libre; j++) for (let i = cx - 1; i <= cx + 1; i++) {
+        if (i < 0 || j < 0 || i >= cols || j >= filas) continue;
+        for (const q of cubo[j * cols + i]) if (Math.hypot(q.x - p.x, q.y - p.y) < S * 0.93) { libre = false; break; }
+        if (!libre) break;
+      }
+      if (!libre) continue;
+      cubo[cy * cols + cx].push(p);
+      teselas.push(p);
+    }
+
+    // Colores del fondo y de la cenefa de olas
+    function colorFondo(x, y) {
+      const v = n(x * 0.01, y * 0.01, 3);
+      return v > 0.62 ? [214, 204, 180] : [234, 227, 210];
+    }
+    function colorMarco(x, y) {
+      const d = dBorde(x, y);
+      if (d < 18) return [30, 28, 26];
+      if (d > MARCO - 20) return [168, 58, 44];
+      // ola corriente: se mide a lo largo del perímetro
+      const t = y < MARCO ? x : y > H - MARCO ? W - x + W : x < MARCO ? H - y + 2 * W : y + W;
+      const ola = 34 + 22 * Math.sin((t / 88) * Math.PI * 2) + 10 * Math.sin((t / 44) * Math.PI * 2 + 1);
+      return d - 18 < ola - 12 ? [30, 28, 26] : [236, 229, 212];
+    }
+
+    // --- Pintado ---
+    // Mortero
+    M.porPixel(ctx, (x, y) => {
+      const v = 0.9 + n(x * 0.3, y * 0.3, 2) * 0.2;
+      return [178 * v, 168 * v, 150 * v];
+    });
+    for (const t of teselas) {
+      let c;
+      if (t.z === 0) c = colorMarco(t.x, t.y);
+      else if (t.z === 1) { const [d, u, v, partes] = figura(t.x, t.y); c = colorPez(u, v, partes, d); }
+      else c = colorFondo(t.x, t.y);
+      const j = (r() - 0.5) * 26;
+      c = c.map((v) => M.clamp(v + j + (r() - 0.5) * 10, 0, 255));
+      const lado = S * (0.8 + r() * 0.08);
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate(t.ang + (r() - 0.5) * 0.12);
+      const esq = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => [(a * lado) / 2 + (r() - 0.5) * 2.4, (b * lado) / 2 + (r() - 0.5) * 2.4]);
+      const camino = () => {
+        ctx.beginPath();
+        esq.forEach(([a, b], i) => (i ? ctx.lineTo(a, b) : ctx.moveTo(a, b)));
+        ctx.closePath();
+      };
+      ctx.shadowColor = "rgba(60,45,30,.45)";
+      ctx.shadowBlur = 2.5;
+      ctx.shadowOffsetX = 1.2;
+      ctx.shadowOffsetY = 1.6;
+      camino();
+      ctx.fillStyle = M.rgb(c);
+      ctx.fill();
+      ctx.shadowColor = "transparent";
+      // bisel: luz arriba a la izquierda (se deshace la rotación para el degradado)
+      const a = -(t.ang);
+      const g = ctx.createLinearGradient(-lado / 2 * Math.cos(a) + lado / 2 * Math.sin(a), -lado / 2 * Math.sin(a) - lado / 2 * Math.cos(a), lado / 2 * Math.cos(a) - lado / 2 * Math.sin(a), lado / 2 * Math.sin(a) + lado / 2 * Math.cos(a));
+      g.addColorStop(0, "rgba(255,255,255,.28)");
+      g.addColorStop(0.5, "rgba(255,255,255,0)");
+      g.addColorStop(1, "rgba(0,0,0,.2)");
+      ctx.fillStyle = g;
+      ctx.fill();
+      // poros de la piedra
+      for (let k = 0; k < 3; k++) {
+        ctx.fillStyle = `rgba(0,0,0,${0.08 + r() * 0.1})`;
+        ctx.fillRect((r() - 0.5) * lado * 0.7, (r() - 0.5) * lado * 0.7, 1.4, 1.4);
+      }
+      ctx.restore();
+    }
+    // Desgaste general
+    M.papel(ctx, 1.4, 7);
+    listo();
+  </script>
+</body>
+</html>

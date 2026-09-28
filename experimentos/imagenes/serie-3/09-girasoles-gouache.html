@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #8fb8d8; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Paisaje "fotográfico" generado con código y pasado por un filtro Kuwahara:
+    // cada píxel toma el color medio del cuadrante más uniforme → manchas planas de gouache
+    const ctx = canvas2d();
+    const r = rng(2026);
+    const n = makeNoise(2026);
+    const HOR = 690;
+
+    // Cielo con cúmulos
+    M.porPixel(ctx, (x, y) => {
+      if (y > HOR) return [0, 0, 0];
+      const t = y / HOR;
+      let c = M.mezcla([62, 128, 200], [205, 226, 238], Math.pow(t, 1.4));
+      const d = n(x * 0.0035, y * 0.009, 6) - 0.25 - t * 0.28;
+      if (d > 0.18) {
+        const sombra = n(x * 0.0035, (y - 20) * 0.009, 6) - 0.25 - t * 0.28;
+        const k = M.clamp((d - 0.18) * 6);
+        const lado = M.clamp((sombra - d) * 10 + 0.5);
+        c = M.mezcla(c, M.mezcla([252, 250, 244], [170, 178, 196], lado), k);
+      }
+      return c;
+    });
+    // Sierras lejanas y pueblo blanco en la loma
+    const loma = (x, base, amp, esc, s) => base - amp * n(x * esc + s, s, 4);
+    for (const [base, amp, esc, col, s] of [[640, 140, 0.004, [120, 150, 175], 3], [690, 90, 0.006, [96, 128, 110], 9]]) {
+      ctx.fillStyle = M.rgb(col);
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 4) ctx.lineTo(x, loma(x, base, amp, esc, s));
+      ctx.lineTo(W, H);
+      ctx.fill();
+    }
+    for (let i = 0; i < 90; i++) {
+      const x = 620 + (r() - 0.5) * 300 * (1 - r() * 0.4);
+      const y = loma(x, 690, 90, 0.006, 9) + 4 + r() * 16;
+      const w = 8 + r() * 14, h = 7 + r() * 9;
+      ctx.fillStyle = r() < 0.85 ? "#f4f1ea" : "#e8d9b5";
+      ctx.fillRect(x, y - h, w, h);
+      ctx.fillStyle = "#b8562f";
+      ctx.fillRect(x - 1, y - h - 3, w + 2, 3);
+    }
+    ctx.fillStyle = "#efe9dc";
+    ctx.fillRect(612, loma(612, 690, 90, 0.006, 9) - 46, 12, 48);
+    // Campo
+    const campo = ctx.createLinearGradient(0, HOR, 0, H);
+    campo.addColorStop(0, "#7c8a3a");
+    campo.addColorStop(1, "#3f5a22");
+    ctx.fillStyle = campo;
+    ctx.fillRect(0, HOR, W, H - HOR);
+
+    // Girasoles de fondo a primer plano (el tamaño crece con la distancia al horizonte)
+    const flores = [];
+    for (let i = 0; i < 1100; i++) {
+      const t = Math.pow(r(), 1.9);
+      const y = HOR + 6 + t * (H - HOR + 200);
+      const esc = 0.05 + ((y - HOR) / (H - HOR)) * 1.1;
+      flores.push([r() * (W + 200) - 100, y, esc]);
+    }
+    flores.sort((a, b) => a[1] - b[1]);
+    for (const [x, y, e] of flores) {
+      const R = 34 * e;
+      if (R < 2.2) {
+        ctx.fillStyle = r() < 0.5 ? "#e8b923" : "#d99a1a";
+        ctx.fillRect(x, y, R * 2.4, R * 1.6);
+        continue;
+      }
+      // tallo y hojas
+      ctx.strokeStyle = "#3c5a1c";
+      ctx.lineWidth = Math.max(1, R * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + R * 0.1, y + R * 4);
+      ctx.stroke();
+      ctx.fillStyle = r() < 0.5 ? "#4d7a26" : "#3d6620";
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(x + s * R * 0.8, y + R * 1.9, R * 0.9, R * 0.42, s * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // pétalos
+      const giro = r() * 6;
+      for (let k = 0; k < 22; k++) {
+        const a = giro + (k / 22) * Math.PI * 2;
+        ctx.fillStyle = k % 3 ? "#f2c418" : "#e3a414";
+        ctx.beginPath();
+        ctx.ellipse(x + Math.cos(a) * R * 0.95, y + Math.sin(a) * R * 0.78, R * 0.5, R * 0.16, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const g = ctx.createRadialGradient(x - R * 0.15, y - R * 0.15, 1, x, y, R * 0.62);
+      g.addColorStop(0, "#6b3b12");
+      g.addColorStop(1, "#2e1a0a");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(x, y, R * 0.6, R * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- Filtro Kuwahara generalizado (8 sectores circulares con peso gaussiano) ---
+    // Cada píxel mira sus 8 "porciones de tarta" alrededor y se queda sobre todo con las más uniformes
+    function kuwahara(radio, q = 8) {
+      const src = ctx.getImageData(0, 0, W, H).data;
+      const out = ctx.createImageData(W, H);
+      const o = out.data;
+      const offs = [];
+      for (let dy = -radio; dy <= radio; dy++) for (let dx = -radio; dx <= radio; dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > radio) continue;
+        const sec = d === 0 ? -1 : Math.floor(((Math.atan2(dy, dx) + Math.PI) / (Math.PI * 2)) * 8) % 8;
+        offs.push([dx, dy, sec, Math.exp(-(d * d) / (radio * radio))]);
+      }
+      const m = new Float64Array(8 * 3), s2 = new Float64Array(8), sw = new Float64Array(8);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        m.fill(0); s2.fill(0); sw.fill(0);
+        for (const [dx, dy, sec, w] of offs) {
+          const xx = Math.min(W - 1, Math.max(0, x + dx)), yy = Math.min(H - 1, Math.max(0, y + dy));
+          const k = (yy * W + xx) * 4;
+          const R = src[k], G = src[k + 1], B = src[k + 2];
+          const L = R * 0.3 + G * 0.59 + B * 0.11;
+          const secs = sec < 0 ? [0, 1, 2, 3, 4, 5, 6, 7] : [sec];
+          for (const sc of secs) {
+            m[sc * 3] += R * w; m[sc * 3 + 1] += G * w; m[sc * 3 + 2] += B * w;
+            s2[sc] += L * L * w;
+            sw[sc] += w;
+          }
+        }
+        let R = 0, G = 0, B = 0, tot = 0;
+        for (let sc = 0; sc < 8; sc++) {
+          const ww = sw[sc];
+          const mr = m[sc * 3] / ww, mg = m[sc * 3 + 1] / ww, mb = m[sc * 3 + 2] / ww;
+          const ml = mr * 0.3 + mg * 0.59 + mb * 0.11;
+          const varianza = Math.max(0, s2[sc] / ww - ml * ml);
+          const peso = 1 / (1 + Math.pow(varianza / 60, q / 2));
+          R += mr * peso; G += mg * peso; B += mb * peso; tot += peso;
+        }
+        const k = (y * W + x) * 4;
+        o[k] = R / tot; o[k + 1] = G / tot; o[k + 2] = B / tot; o[k + 3] = 255;
+      }
+      ctx.putImageData(out, 0, 0);
+    }
+    kuwahara(8);
+    kuwahara(4);
+
+    // Acabado de gouache: papel grueso y un poco de trazo de pincel
+    const img = ctx.getImageData(0, 0, W, H);
+    const d = img.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = (y * W + x) * 4;
+      const pincel = (n(x * 0.02, y * 0.3, 2) - 0.5) * 0.08 + (n(x * 0.3, y * 0.02, 2) - 0.5) * 0.05;
+      const papel = (n(x * 0.9, y * 0.9, 1) - 0.5) * 0.07;
+      const v = 1 + pincel + papel;
+      for (let c = 0; c < 3; c++) d[k + c] = Math.min(255, d[k + c] * v * 1.02 + 4);
+    }
+    ctx.putImageData(img, 0, 0);
+    // Margen blanco de la hoja
+    ctx.strokeStyle = "#f5f0e4";
+    ctx.lineWidth = 60;
+    ctx.strokeRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(60,50,40,.7)";
+    ctx.font = '22px "Fraunces"';
+    ctx.font = 'italic 22px "Fraunces"';
+    ctx.fillText("Girasoles, Carmona — gouache", 48, H - 7);
+    listo();
+  </script>
+</body>
+</html>

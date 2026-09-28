@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  /* Todo con CSS: degradados, perspectiva 3D, máscaras y bordes biselados de Windows 95 */
+  body {
+    background: linear-gradient(#1b0b3a 0%, #4a1570 30%, #c2378f 52%, #ff9a8b 58%, #ff9a8b 58.2%, #120524 58.3%);
+    font-family: "Inter", sans-serif;
+    overflow: hidden;
+  }
+  .sol {
+    position: absolute; left: 290px; top: 330px; width: 500px; height: 500px; border-radius: 50%;
+    background: linear-gradient(#fff36b, #ff9f43 45%, #ff3f8e 80%);
+    -webkit-mask: linear-gradient(#000 52%, transparent 52% 55%, #000 55% 62%, transparent 62% 66%, #000 66% 72%, transparent 72% 77%, #000 77% 82%, transparent 82% 88%, #000 88% 92%, transparent 92%);
+    box-shadow: 0 0 120px #ff3f8e;
+    filter: drop-shadow(0 0 40px #ff5fa2);
+  }
+  .suelo { position: absolute; left: 0; top: 787px; filter: drop-shadow(0 0 6px #ff4fd8); }
+  .monte { position: absolute; top: 700px; width: 0; height: 0; border-style: solid; border-color: transparent transparent #2b0f4f transparent; }
+  .palmera { position: absolute; }
+  .titulo {
+    position: absolute; left: 0; right: 0; top: 70px; text-align: center;
+    font-family: "DM Serif"; font-style: italic; font-size: 150px; letter-spacing: 18px;
+    background: linear-gradient(#fff 20%, #9ff3ff 45%, #3b1a80 50%, #ff7ad9 55%, #fff 85%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(4px 4px 0 #2a0b52) drop-shadow(0 0 22px #ff4fd8);
+  }
+  .sub { position: absolute; left: 0; right: 0; top: 250px; text-align: center; font-family: "Plex Mono"; font-size: 22px; letter-spacing: 12px; color: #9ff3ff; text-shadow: 0 0 10px #37f5ff; }
+
+  /* Ventanas de Windows 95 */
+  .ventana {
+    position: absolute; z-index: 5; background: #c0c0c0; color: #000; font-size: 15px;
+    border: 2px solid; border-color: #fff #0a0a0a #0a0a0a #fff;
+    box-shadow: inset -2px -2px #808080, inset 2px 2px #dfdfdf, 8px 10px 0 rgba(20, 0, 40, .45);
+    padding: 3px;
+  }
+  .barra {
+    height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 4px 0 6px;
+    background: linear-gradient(90deg, #000080, #1084d0); color: #fff; font-weight: 800; font-size: 14px;
+  }
+  .barra.inactiva { background: linear-gradient(90deg, #808080, #b5b5b5); }
+  .botones { display: flex; gap: 2px; }
+  .b {
+    width: 20px; height: 18px; background: #c0c0c0; color: #000; font-size: 12px; font-weight: 800;
+    display: grid; place-items: center; line-height: 1;
+    border: 1px solid; border-color: #fff #0a0a0a #0a0a0a #fff; box-shadow: inset -1px -1px #808080;
+  }
+  .boton {
+    display: inline-block; min-width: 96px; padding: 6px 12px; text-align: center; background: #c0c0c0;
+    border: 2px solid; border-color: #fff #0a0a0a #0a0a0a #fff; box-shadow: inset -1px -1px #808080, inset 1px 1px #dfdfdf;
+  }
+  .boton.foco { outline: 1px dotted #000; outline-offset: -6px; }
+  .cuerpo { padding: 18px 16px 14px; }
+  .error { width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff6b6b, #c00000); color: #fff; font-weight: 800; font-size: 28px; display: grid; place-items: center; box-shadow: 2px 2px 0 #000; flex: none; }
+  .progreso { height: 26px; margin-top: 10px; border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; padding: 2px; display: flex; gap: 3px; }
+  .progreso i { width: 16px; background: #000080; display: block; }
+  .hundido { border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; }
+
+  /* Escritorio y barra de tareas */
+  .icono { position: absolute; width: 110px; text-align: center; color: #fff; font-size: 14px; text-shadow: 1px 1px 0 #000; }
+  .icono .dib { width: 56px; height: 48px; margin: 0 auto 6px; position: relative; }
+  .tareas {
+    position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; height: 46px; background: #c0c0c0;
+    border-top: 2px solid #fff; display: flex; align-items: center; gap: 8px; padding: 0 6px; font-size: 15px;
+  }
+  .inicio { font-weight: 800; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 10px; }
+  .logo { width: 22px; height: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; transform: skewY(-6deg); }
+  .logo i:nth-child(1) { background: #f35325; } .logo i:nth-child(2) { background: #81bc06; }
+  .logo i:nth-child(3) { background: #05a6f0; } .logo i:nth-child(4) { background: #ffba08; }
+  .tarea { min-width: 200px; text-align: left; font-size: 14px; padding: 6px 10px; }
+  .tarea.activa { border-color: #0a0a0a #fff #fff #0a0a0a; box-shadow: inset 1px 1px #808080; background: repeating-conic-gradient(#c0c0c0 0 25%, #fff 0 50%) 0 0 / 2px 2px; font-weight: 800; }
+  .reloj { margin-left: auto; padding: 6px 14px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-size: 14px; }
+</style>
+</head>
+<body>
+  <div class="monte" style="left:-60px;border-width:0 260px 90px 260px"></div>
+  <div class="monte" style="left:640px;border-width:0 300px 110px 300px;top:680px"></div>
+  <div class="sol"></div>
+  <svg class="suelo" id="suelo" width="1080" height="563"></svg>
+  <div class="titulo">SIESTA</div>
+  <div class="sub">S E V I L L A · 1 9 9 5</div>
+
+  <!-- Palmeras en SVG -->
+  <svg class="palmera" style="left:40px;top:440px" width="260" height="420" viewBox="0 0 260 420">
+    <path d="M128 420 C 122 300, 116 200, 138 110" stroke="#16052c" stroke-width="16" fill="none" />
+    <g fill="#16052c">
+      <path d="M138 110 C 90 70, 40 80, 0 130 C 50 100, 90 100, 138 118Z" />
+      <path d="M138 110 C 110 40, 60 20, 20 30 C 70 40, 110 70, 136 116Z" />
+      <path d="M138 110 C 150 40, 200 10, 250 30 C 200 40, 165 70, 142 116Z" />
+      <path d="M138 110 C 190 80, 240 100, 260 150 C 220 115, 180 110, 140 118Z" />
+      <path d="M138 110 C 140 60, 130 20, 110 0 C 150 20, 150 70, 142 112Z" />
+    </g>
+  </svg>
+  <svg class="palmera" style="left:830px;top:510px;transform:scaleX(-1)" width="220" height="340" viewBox="0 0 260 420">
+    <path d="M128 420 C 122 300, 116 200, 138 110" stroke="#16052c" stroke-width="16" fill="none" />
+    <g fill="#16052c">
+      <path d="M138 110 C 90 70, 40 80, 0 130 C 50 100, 90 100, 138 118Z" />
+      <path d="M138 110 C 110 40, 60 20, 20 30 C 70 40, 110 70, 136 116Z" />
+      <path d="M138 110 C 150 40, 200 10, 250 30 C 200 40, 165 70, 142 116Z" />
+      <path d="M138 110 C 190 80, 240 100, 260 150 C 220 115, 180 110, 140 118Z" />
+    </g>
+  </svg>
+
+  <!-- Iconos del escritorio -->
+  <div class="icono" style="left:24px;top:330px">
+    <div class="dib"><div style="position:absolute;left:6px;top:0;width:44px;height:32px;background:#c0c0c0;border:2px solid #000"><div style="margin:3px;height:20px;background:#008080"></div></div><div style="position:absolute;left:14px;top:34px;width:28px;height:10px;background:#c0c0c0;border:2px solid #000"></div></div>
+    Mi PC
+  </div>
+  <div class="icono" style="left:24px;top:440px">
+    <div class="dib"><div style="position:absolute;left:12px;top:6px;width:32px;height:40px;background:repeating-linear-gradient(90deg,#d0d0d0 0 4px,#9a9a9a 4px 7px);border:2px solid #000;border-radius:0 0 4px 4px"></div><div style="position:absolute;left:8px;top:0;width:40px;height:8px;background:#b0b0b0;border:2px solid #000"></div></div>
+    Papelera
+  </div>
+
+  <div class="ventana" style="left:120px;top:880px;width:520px">
+    <div class="barra"><span>SEVILLA.EXE</span><span class="botones"><span class="b">_</span><span class="b">□</span><span class="b">×</span></span></div>
+    <div class="cuerpo" style="display:flex;gap:18px;align-items:flex-start">
+      <div class="error">×</div>
+      <div>La temperatura exterior ha superado los <b>46 °C</b>.<br />El sistema ha dejado de responder.<br /><br />¿Desea echarse la siesta ahora?</div>
+    </div>
+    <div style="text-align:center;padding:0 0 14px;display:flex;gap:10px;justify-content:center">
+      <span class="boton foco">Sí</span><span class="boton">Siesta</span><span class="boton">Cancelar</span>
+    </div>
+  </div>
+
+  <div class="ventana" style="left:560px;top:1040px;width:440px">
+    <div class="barra inactiva"><span>Copiando ventilador...</span><span class="botones"><span class="b">×</span></span></div>
+    <div class="cuerpo">
+      De: <b>C:\VERANO\CALOR</b><br />A: <b>A:\</b> (disquete de 1,44 MB)
+      <div class="progreso"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div style="margin-top:8px">Faltan 4.380 minutos</div>
+    </div>
+  </div>
+
+  <div class="ventana" style="left:640px;top:330px;width:380px">
+    <div class="barra inactiva"><span>Reproductor · cancion.mid</span><span class="botones"><span class="b">_</span><span class="b">×</span></span></div>
+    <div class="cuerpo" style="padding:10px">
+      <div class="hundido" style="background:#000;color:#3cff3c;font-family:'Plex Mono';font-size:15px;padding:8px 10px">▶ 00:47 &nbsp; brisa_del_guadalquivir.mid</div>
+      <div style="display:flex;gap:4px;margin-top:8px"><span class="boton" style="min-width:48px">◀◀</span><span class="boton" style="min-width:48px">▶</span><span class="boton" style="min-width:48px">■</span><span class="boton" style="min-width:48px">▶▶</span></div>
+    </div>
+  </div>
+
+  <div class="tareas">
+    <span class="boton inicio"><span class="logo"><i></i><i></i><i></i><i></i></span>Inicio</span>
+    <span class="boton tarea activa">SEVILLA.EXE</span>
+    <span class="boton tarea">Copiando ventilador...</span>
+    <span class="reloj">16:47</span>
+  </div>
+  <script>
+    // Suelo en perspectiva: horizontales cada vez más juntas y verticales hacia el punto de fuga
+    let g = '<rect width="1080" height="563" fill="url(#fs)"/><defs><linearGradient id="fs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a0733"/><stop offset="1" stop-color="#3a0f5e"/></linearGradient></defs>';
+    for (let k = 0; k < 40; k++) {
+      const y = 563 / (1 + k * 0.32) - 8;
+      if (y < 2) break;
+      g += `<line x1="0" y1="${y}" x2="1080" y2="${y}" stroke="#ff4fd8" stroke-width="${1 + y / 160}"/>`;
+    }
+    for (let i = -20; i <= 20; i++) g += `<line x1="540" y1="0" x2="${540 + i * 190}" y2="563" stroke="#ff4fd8" stroke-width="2.5"/>`;
+    document.getElementById("suelo").innerHTML = g;
+    listo();
+  </script>
+</body>
+</html>

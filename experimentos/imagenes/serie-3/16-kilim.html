@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #5b3b2a; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Kilim tejido pasada a pasada: cada celda es un tramo de trama sobre la urdimbre,
+    // con los escalones típicos, las ranuras entre colores y las franjas de tinte ("abrash")
+    const ctx = canvas2d();
+    const r = rng(1453);
+    const n = makeNoise(1453);
+    const CX = 8, CY = 6;
+    const X0 = 60, Y0 = 120, COLS = 120, FILAS = 185;
+    const T = { R: "#9e2a24", I: "#22335c", A: "#d99a2b", M: "#e9dcc0", B: "#4a2c20", V: "#4f6b3a", N: "#c4622d" };
+
+    // --- Diseño ---
+    function diseno(i, j) {
+      const u = i - COLS / 2 + 0.5, v = j;
+      // cabeceras lisas
+      if (j < 5 || j >= FILAS - 5) return (j % 4 < 2) ? "M" : "B";
+      if (j < 7 || j >= FILAS - 7) return "R";
+      // cenefa exterior de dientes
+      const bx = Math.min(i, COLS - 1 - i), by = Math.min(j - 7, FILAS - 8 - j);
+      const b = Math.min(bx * 0.75, by);
+      if (b < 2) return "B";
+      if (b < 11) {
+        const t = bx * 0.75 < by ? j : i;
+        const diente = (t % 12 < 6 ? t % 12 : 12 - (t % 12)) * 1.5;
+        return b - 2 < diente ? "A" : "I";
+      }
+      if (b < 13) return "B";
+      if (b < 15) return "M";
+      // campo rojo con tres medallones en rombo escalonado y ganchos
+      const centros = [45, 92, 139];
+      for (const cy of centros) {
+        const du = Math.abs(u), dv = Math.abs(v - cy);
+        const d = du / 36 + dv / 22;
+        if (d < 1) {
+          const capa = Math.floor(d * 6);
+          // ganchos en el borde exterior
+          if (capa === 5) {
+            const k = Math.floor((du + dv * 1.6) / 4) % 2;
+            return k ? "B" : "M";
+          }
+          if (capa === 0) return (du < 3 && dv < 2) ? "M" : "N";
+          return ["N", "I", "A", "V", "R", "B"][capa];
+        }
+        // cuernos de carnero a los lados del medallón
+        const hx = du - 40, hy = v - cy;
+        if (hx > 0 && hx < 8 && Math.abs(hy) < 10) {
+          if (Math.abs(hy) < 2 || (hx > 5 && Math.abs(hy) < 8 && Math.abs(hy) > 4)) return "B";
+          if (hx < 2 && Math.abs(hy) < 8) return "B";
+        }
+      }
+      // ojos (göz) entre medallones
+      for (const cy of [68, 116]) for (const cx of [-26, 26]) {
+        const d = Math.abs(u - cx) / 5 + Math.abs(v - cy) / 3.5;
+        if (d < 1) return d < 0.45 ? "A" : "I";
+      }
+      // crucecitas sueltas
+      if (((i * 7 + j * 3) % 97 === 0) && Math.abs(u) > 38) return "M";
+      return "R";
+    }
+    const rej = [];
+    for (let j = 0; j < FILAS; j++) { rej.push([]); for (let i = 0; i < COLS; i++) rej[j].push(diseno(i, j)); }
+
+    // Suelo de barro
+    M.porPixel(ctx, (x, y) => {
+      const bx = Math.floor(x / 180), by = Math.floor(y / 180);
+      const lx = x % 180, ly = y % 180;
+      const junta = lx < 3 || ly < 3;
+      const v = 0.85 + n(x * 0.01 + bx * 7, y * 0.01 + by * 3, 3) * 0.3;
+      return junta ? [70, 50, 40] : [150 * v, 88 * v, 60 * v];
+    });
+    // Sombra de la alfombra
+    ctx.fillStyle = "rgba(20,10,5,.5)";
+    ctx.filter = "blur(14px)";
+    ctx.fillRect(X0 + 10, Y0 + 14, COLS * CX, FILAS * CY);
+    ctx.filter = "none";
+
+    // Flecos de urdimbre
+    ctx.lineCap = "round";
+    for (let i = 0; i < COLS; i += 1) {
+      const x = X0 + i * CX + CX / 2;
+      for (const [y0, dir] of [[Y0, -1], [Y0 + FILAS * CY, 1]]) {
+        const largo = 58 + r() * 16;
+        ctx.strokeStyle = `rgb(${226 - r() * 20},${214 - r() * 20},${190 - r() * 20})`;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.moveTo(x, y0);
+        ctx.quadraticCurveTo(x + (r() - 0.5) * 10, y0 + dir * largo * 0.5, x + (r() - 0.5) * 16, y0 + dir * largo);
+        ctx.stroke();
+      }
+    }
+    // nudos cada 4 hilos
+    for (let i = 0; i < COLS; i += 4) for (const y of [Y0 - 12, Y0 + FILAS * CY + 12]) {
+      ctx.fillStyle = "#d8cbb0";
+      ctx.beginPath();
+      ctx.ellipse(X0 + i * CX + CX * 2, y, 9, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Tejido: cada pasada de trama asoma entre los hilos de urdimbre
+    const abrash = Array.from({ length: FILAS }, (_, j) => 0.92 + 0.12 * n(j * 0.05, 0.5, 2));
+    for (let j = 0; j < FILAS; j++) for (let i = 0; i < COLS; i++) {
+      const base = M.hex(T[rej[j][i]]).map((v) => v * abrash[j] * (0.96 + r() * 0.08));
+      const x = X0 + i * CX, y = Y0 + j * CY;
+      const off = j % 2 ? CX / 2 : 0;
+      for (const dx of [off - CX / 2, off + CX / 2]) {
+        const cx = x + dx + CX / 2;
+        if (cx < X0 + 2 || cx > X0 + COLS * CX - 2) continue;
+        const g = ctx.createRadialGradient(cx - 1, y + 2, 0.5, cx, y + 3, 5.2);
+        g.addColorStop(0, M.rgb(base.map((v) => Math.min(255, v * 1.15 + 10))));
+        g.addColorStop(1, M.rgb(base.map((v) => v * 0.62)));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(cx, y + CY / 2, CX * 0.52, CY * 0.62, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // ranura: donde dos colores se encuentran en vertical durante varias pasadas
+      if (i > 0 && rej[j][i] !== rej[j][i - 1] && j > 0 && rej[j - 1][i] !== rej[j - 1][i - 1]) {
+        ctx.fillStyle = "rgba(20,8,4,.8)";
+        ctx.fillRect(x - 0.6, y - 1, 1.3, CY + 1);
+      }
+    }
+    // Hebras sueltas y polvo
+    for (let k = 0; k < 400; k++) {
+      const x = X0 + r() * COLS * CX, y = Y0 + r() * FILAS * CY;
+      ctx.strokeStyle = `rgba(250,235,210,${0.08 + r() * 0.1})`;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (r() - 0.5) * 16, y + (r() - 0.5) * 6);
+      ctx.stroke();
+    }
+    listo();
+  </script>
+</body>
+</html>

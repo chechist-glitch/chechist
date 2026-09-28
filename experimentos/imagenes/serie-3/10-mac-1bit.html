@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #000; } canvas { image-rendering: pixelated; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Escena 3D trazada con rayos en JS, reducida a 1 bit con tramado Atkinson
+    // y metida en una ventana de un Macintosh de 1984. Se dibuja a 540×675 y se amplía ×2.
+    (async () => {
+      await M.fuentes('8px "Pixel"');
+      const w = 540, h = 675;
+      const L = M.lienzo(w, h);
+      const g = L.x;
+      g.imageSmoothingEnabled = false;
+      const negro = "#000", blanco = "#fff";
+
+      // Escritorio gris a cuadritos
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        g.fillStyle = (x + y) % 2 ? negro : blanco;
+        g.fillRect(x, y, 1, 1);
+      }
+      // Barra de menús
+      g.fillStyle = blanco;
+      g.fillRect(0, 0, w, 20);
+      g.fillStyle = negro;
+      g.fillRect(0, 20, w, 1);
+      g.font = '8px "Pixel"';
+      g.textBaseline = "middle";
+      // manzana pixelada (de mentira: una naranja con hoja)
+      const naranja = ["...##..", "..##...", ".#####.", "#######", "#######", "#######", ".#####.", "..###.."];
+      naranja.forEach((fila, j) => [...fila].forEach((c, i) => c === "#" && g.fillRect(14 + i, 5 + j, 1, 1)));
+      ["Archivo", "Edición", "Ver", "Especial", "Fuente"].reduce((x, t) => (g.fillText(t, x, 11), x + g.measureText(t).width + 18), 36);
+
+      // Ventana
+      const vx = 28, vy = 38, vw = 486, vh = 600;
+      g.fillStyle = negro;
+      g.fillRect(vx + 2, vy + 2, vw, vh);
+      g.fillStyle = blanco;
+      g.fillRect(vx, vy, vw, vh);
+      g.strokeStyle = negro;
+      g.lineWidth = 1;
+      g.strokeRect(vx + 0.5, vy + 0.5, vw - 1, vh - 1);
+      for (let k = 0; k < 6; k++) g.fillRect(vx + 2, vy + 4 + k * 2, vw - 4, 1);
+      g.fillStyle = blanco;
+      const titulo = "chechist - Pintura";
+      const tw = g.measureText(titulo).width + 16;
+      g.fillRect(vx + vw / 2 - tw / 2, vy + 2, tw, 14);
+      g.fillRect(vx + 10, vy + 3, 13, 12);
+      g.fillStyle = negro;
+      g.strokeRect(vx + 11.5, vy + 4.5, 10, 9);
+      g.fillText(titulo, vx + vw / 2 - tw / 2 + 8, vy + 10);
+      g.fillRect(vx, vy + 18, vw, 1);
+
+      // Paleta de herramientas
+      const tx = vx + 8, ty = vy + 28;
+      const iconos = [
+        (x, y) => { g.fillRect(x + 4, y + 12, 3, 3); for (let i = 0; i < 9; i++) g.fillRect(x + 6 + i, y + 11 - i, 2, 2); },
+        (x, y) => { g.strokeRect(x + 4.5, y + 4.5, 12, 10); },
+        (x, y) => { g.beginPath(); g.ellipse(x + 10.5, y + 10, 7, 5, 0, 0, Math.PI * 2); g.stroke(); },
+        (x, y) => { g.font = '8px "Pixel"'; g.fillText("A", x + 6, y + 11); },
+        (x, y) => { for (let i = 0; i < 14; i++) g.fillRect(x + 4 + i, y + 16 - i, 1, 1); },
+        (x, y) => { g.fillRect(x + 5, y + 6, 11, 8); g.fillStyle = blanco; g.fillRect(x + 6, y + 7, 9, 6); g.fillStyle = negro; },
+        (x, y) => { for (let i = 0; i < 18; i++) if ((i * 7) % 5 < 3) g.fillRect(x + 4 + ((i * 5) % 12), y + 4 + ((i * 3) % 12), 1, 1); },
+        (x, y) => { for (let i = 0; i < 12; i += 2) { g.fillRect(x + 4 + i, y + 4, 1, 1); g.fillRect(x + 4 + i, y + 15, 1, 1); g.fillRect(x + 4, y + 4 + i, 1, 1); g.fillRect(x + 16, y + 4 + i, 1, 1); } },
+        (x, y) => { g.fillRect(x + 9, y + 3, 3, 8); g.fillRect(x + 6, y + 10, 9, 7); },
+        (x, y) => { g.beginPath(); g.arc(x + 10, y + 10, 6, 0, Math.PI * 2); g.stroke(); g.fillRect(x + 14, y + 14, 4, 4); },
+      ];
+      iconos.forEach((f, i) => {
+        const x = tx + (i % 2) * 22, y = ty + Math.floor(i / 2) * 22;
+        g.strokeRect(x + 0.5, y + 0.5, 21, 21);
+        if (i === 6) { g.fillRect(x + 1, y + 1, 20, 20); g.fillStyle = blanco; f(x, y); g.fillStyle = negro; }
+        else f(x, y);
+      });
+      // Tramas disponibles abajo
+      const px = vx + 60, py = vy + vh - 44;
+      for (let i = 0; i < 16; i++) {
+        const x = px + i * 26;
+        g.strokeRect(x + 0.5, py + 0.5, 22, 22);
+        for (let yy = 1; yy < 22; yy++) for (let xx = 1; xx < 22; xx++) {
+          const on = [xx % 2 && yy % 2, (xx + yy) % 2, (xx + yy) % 4 === 0, xx % 3 === 0, yy % 3 === 0, (xx * yy) % 5 === 0, (xx ^ yy) % 3 === 0, xx % 4 < 2 === yy % 4 < 2][i % 8];
+          if (i >= 8 ? !on : on) g.fillRect(x + xx, py + yy, 1, 1);
+        }
+      }
+      g.fillRect(vx, py - 8, vw, 1);
+
+      // --- Escena trazada con rayos (en gris) ---
+      const cx0 = vx + 60, cy0 = vy + 26, cw = vw - 70, ch = py - 14 - cy0;
+      const esferas = [
+        { c: [-1.3, 0.9, 5.2], r: 0.9, esp: 0.0 },
+        { c: [0.55, 0.62, 4.1], r: 0.62, esp: 0.0 },
+        { c: [1.9, 1.25, 7.4], r: 1.25, esp: 0.75 },
+        { c: [-0.2, 0.35, 3.0], r: 0.35, esp: 0.0 },
+      ];
+      const luz = (() => { const v = [-0.5, 0.8, -0.35]; const m = Math.hypot(...v); return v.map((a) => a / m); })();
+      const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      function choca(o, d) {
+        let t = Infinity, obj = null;
+        for (const e of esferas) {
+          const oc = [o[0] - e.c[0], o[1] - e.c[1], o[2] - e.c[2]];
+          const b = dot(oc, d), c = dot(oc, oc) - e.r * e.r, D = b * b - c;
+          if (D > 0) { const tt = -b - Math.sqrt(D); if (tt > 1e-3 && tt < t) { t = tt; obj = e; } }
+        }
+        if (d[1] < 0) { const tt = -o[1] / d[1]; if (tt < t) { t = tt; obj = "suelo"; } }
+        return [t, obj];
+      }
+      function traza(o, d, prof) {
+        const [t, obj] = choca(o, d);
+        if (!obj) return 0.75 + 0.25 * Math.min(1, Math.max(0, d[1]) * 3);
+        const p = [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
+        let n, base;
+        if (obj === "suelo") {
+          n = [0, 1, 0];
+          base = (Math.floor(p[0] * 1.2) + Math.floor(p[2] * 1.2)) & 1 ? 0.85 : 0.35;
+          base = M.lerp(base, 0.6, M.clamp((p[2] - 6) / 14));
+        } else {
+          n = [(p[0] - obj.c[0]) / obj.r, (p[1] - obj.c[1]) / obj.r, (p[2] - obj.c[2]) / obj.r];
+          base = 0.9;
+        }
+        const sombra = choca(p, luz)[1] ? 0.25 : 1;
+        let c = base * (0.18 + 0.82 * Math.max(0, dot(n, luz)) * sombra);
+        if (obj !== "suelo") {
+          const rr = d.map((v, i) => v - 2 * dot(d, n) * n[i]);
+          c += Math.pow(Math.max(0, dot(rr, luz)), 40) * sombra;
+          if (obj.esp && prof < 2) c = c * (1 - obj.esp) + traza(p, rr, prof + 1) * obj.esp;
+        }
+        return c;
+      }
+      const gris = new Float32Array(cw * ch);
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+        let s = 0;
+        for (const [sx, sy] of [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+          const u = (x + sx - cw / 2) / ch, v = -(y + sy - ch * 0.42) / ch;
+          const d = [u, v - 0.2, 1.25];
+          const m = Math.hypot(...d);
+          s += traza([0.1, 2.3, -3.2], d.map((a) => a / m), 0);
+        }
+        gris[y * cw + x] = Math.min(1, s / 4);
+      }
+      // Tramado Atkinson: reparte 6/8 del error a los vecinos (por eso los Mac tenían ese contraste)
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+        const i = y * cw + x;
+        const viejo = gris[i];
+        const nuevo = viejo > 0.5 ? 1 : 0;
+        const err = (viejo - nuevo) / 8;
+        for (const [dx, dy] of [[1, 0], [2, 0], [-1, 1], [0, 1], [1, 1], [0, 2]]) {
+          const xx = x + dx, yy = y + dy;
+          if (xx >= 0 && xx < cw && yy < ch) gris[yy * cw + xx] += err;
+        }
+        g.fillStyle = nuevo ? blanco : negro;
+        g.fillRect(cx0 + x, cy0 + y, 1, 1);
+      }
+      g.strokeRect(cx0 - 0.5, cy0 - 0.5, cw + 1, ch + 1);
+      // Texto escrito con la herramienta A sobre el dibujo
+      g.fillStyle = blanco;
+      g.fillRect(cx0 + 14, cy0 + 14, 170, 30);
+      g.fillStyle = negro;
+      g.strokeRect(cx0 + 14.5, cy0 + 14.5, 169, 29);
+      g.fillText("Hola, Quillo.", cx0 + 24, cy0 + 24);
+      g.fillText("1 bit, 128K", cx0 + 24, cy0 + 36);
+
+      // Umbral duro para que todo el lienzo sea estrictamente blanco o negro
+      const img = g.getImageData(0, 0, w, h);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = img.data[i] > 127 ? 255 : 0;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      }
+      g.putImageData(img, 0, 0);
+      const ctx = canvas2d();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(L.c, 0, 0, W, H);
+      listo();
+    })();
+  </script>
+</body>
+</html>

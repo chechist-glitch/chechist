@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>body { background: #efe3c8; } svg { position: absolute; inset: 0; }</style>
+</head>
+<body>
+  <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Grano de papel y tinta con filtros SVG (feTurbulence) -->
+      <filter id="papel" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="3" seed="4" result="ruido"/>
+        <feColorMatrix type="matrix" values="0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .15  0 0 0 .45 0"/>
+        <feComposite in2="SourceGraphic" operator="in"/>
+        <feBlend in="SourceGraphic" mode="multiply"/>
+      </filter>
+      <filter id="tinta" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="2" seed="9" result="t"/>
+        <feDisplacementMap in="SourceGraphic" in2="t" scale="5"/>
+        <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="1" seed="2" result="g"/>
+        <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.6 1.75" result="mascara"/>
+        <feComposite in="SourceGraphic" in2="mascara" operator="in" result="gastada"/>
+        <feDisplacementMap in="gastada" in2="t" scale="4"/>
+      </filter>
+      <pattern id="trama" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+        <circle cx="6" cy="6" r="3.4" fill="#141414"/>
+      </pattern>
+      <pattern id="rayado" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
+        <rect width="4" height="10" fill="#c8211d"/>
+      </pattern>
+    </defs>
+    <rect width="1080" height="1350" fill="#efe3c8" filter="url(#papel)"/>
+    <g filter="url(#tinta)">
+      <!-- Círculo negro y cuña roja, lo de siempre en el constructivismo -->
+      <circle cx="330" cy="420" r="250" fill="#141414"/>
+      <path d="M -40 1180 L 1120 180 L 1120 420 Z" fill="#c8211d"/>
+      <circle cx="330" cy="420" r="160" fill="url(#trama)"/>
+      <!-- Mano con abanico en trama de semitono: una palmera de rayos -->
+      <g transform="translate(780 820) rotate(-28)">
+        <path d="M 0 0 L -170 -250 A 300 300 0 0 1 170 -250 Z" fill="#141414"/>
+        <path d="M 0 0 L -140 -205 A 250 250 0 0 1 140 -205 Z" fill="url(#rayado)"/>
+        <g stroke="#efe3c8" stroke-width="4">
+          <line x1="0" y1="0" x2="-170" y2="-250"/><line x1="0" y1="0" x2="-100" y2="-285"/><line x1="0" y1="0" x2="-30" y2="-300"/>
+          <line x1="0" y1="0" x2="40" y2="-298"/><line x1="0" y1="0" x2="105" y2="-282"/><line x1="0" y1="0" x2="170" y2="-250"/>
+        </g>
+        <circle r="16" fill="#efe3c8" stroke="#141414" stroke-width="6"/>
+      </g>
+      <!-- Barras y líneas de composición -->
+      <rect x="60" y="760" width="620" height="22" fill="#141414" transform="rotate(-40 370 771)"/>
+      <rect x="600" y="80" width="14" height="560" fill="#141414"/>
+      <rect x="640" y="80" width="5" height="460" fill="#141414"/>
+      <rect x="500" y="1010" width="540" height="60" fill="#141414"/>
+      <!-- Texto rotado en diagonal -->
+      <g transform="translate(90 1180) rotate(-40.8)">
+        <text font-family="Anton" font-size="190" fill="#141414" letter-spacing="2">TODOS</text>
+      </g>
+      <g transform="translate(470 905) rotate(-40.8)">
+        <text font-family="Anton" font-size="120" fill="#141414" letter-spacing="2">AL</text>
+      </g>
+      <text x="518" y="1058" font-family="Anton" font-size="44" fill="#efe3c8" letter-spacing="4">COMPÁS · 12 TIEMPOS</text>
+      <g transform="translate(700 160)">
+        <text font-family="Anton" font-size="150" fill="#141414">COM</text>
+        <text y="150" font-family="Anton" font-size="150" fill="#c8211d" stroke="#141414" stroke-width="0">PÁS</text>
+      </g>
+      <!-- Palmas marcando el compás: 12 círculos con acentos en 3, 6, 8, 10 y 12 -->
+      <g transform="translate(90 1250)">
+        <g font-family="Space Mono" font-size="20" font-weight="700">
+          <circle cx="0" cy="0" r="12" fill="#141414"/><circle cx="40" cy="0" r="12" fill="#141414"/><circle cx="80" cy="0" r="22" fill="#c8211d"/>
+          <circle cx="130" cy="0" r="12" fill="#141414"/><circle cx="170" cy="0" r="12" fill="#141414"/><circle cx="220" cy="0" r="22" fill="#c8211d"/>
+          <circle cx="270" cy="0" r="12" fill="#141414"/><circle cx="320" cy="0" r="22" fill="#c8211d"/><circle cx="370" cy="0" r="12" fill="#141414"/>
+          <circle cx="420" cy="0" r="22" fill="#c8211d"/><circle cx="470" cy="0" r="12" fill="#141414"/><circle cx="520" cy="0" r="22" fill="#c8211d"/>
+        </g>
+      </g>
+      <text x="90" y="1310" font-family="Space Mono" font-size="20" font-weight="700" fill="#141414">SOLEÁ · BULERÍA · ALEGRÍAS — TALLER DE PALMAS Nº 1926</text>
+      <!-- Flecha -->
+      <path d="M 870 1230 L 1010 1230 L 1010 1200 L 1060 1250 L 1010 1300 L 1010 1270 L 870 1270 Z" fill="#c8211d"/>
+      <text x="80" y="120" font-family="Space Mono" font-size="26" font-weight="700" fill="#141414">AÑO 1926 · SEVILLA</text>
+    </g>
+  </svg>
+  <script>listo();</script>
+</body>
+</html>
