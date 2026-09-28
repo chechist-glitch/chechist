@@ -69,6 +69,18 @@ las piezas por separado.
   pueden recolocar a mano.
 - Hasta unos 12 megapíxeles por cartel (de sobra para 2400 × 3000).
 
+## Ejecutable para Windows
+
+`lanzador/` genera `CuadradorDeCarteles.exe` (1,5 MB) con `./build.sh`
+(necesita Go; con `go-winres` instalado le pone icono y datos de versión).
+Al abrirlo guarda `cuadrador.html` en `%LOCALAPPDATA%\CuadradorDeCarteles`
+y lo abre en Chrome, o en el navegador por defecto si no hay Chrome. No
+instala nada ni se queda abierto.
+
+Como no está firmado, la primera vez Windows avisa con "Windows protegió su
+PC": hay que pulsar **Más información → Ejecutar de todas formas**. En Mac o
+Linux, usa directamente `cuadrador.html`.
+
 ## Archivos
 
 - `cuadrador.html`: la herramienta en un solo archivo, lista para abrir.
@@ -79,3 +91,4 @@ las piezas por separado.
   el cartel de ejemplo, que se dibuja por código).
 - `engine.js`: motor de imagen (fondo, recortes, colocación automática y
   composición). Se usa también como Web Worker para no bloquear la página.
+- `lanzador/`: el ejecutable de Windows (código en Go, icono y script).
