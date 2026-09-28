@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cuadrador de carteles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #eef0ed;
+    --surface: #ffffff;
+    --ink: #1a1f1d;
+    --muted: #5b6561;
+    --line: #d6dbd8;
+    --accent: #0b7a69;
+    --accent-ink: #ffffff;
+    --accent-soft: #d5ece7;
+    --mat: #25302c;
+    --mat-line: rgba(255, 255, 255, 0.06);
+    --danger: #a8431f;
+    --focus: #0b7a69;
+    --sans: "Archivo", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111413;
+      --surface: #181c1b;
+      --ink: #e6ebe8;
+      --muted: #97a29d;
+      --line: #29302d;
+      --accent: #3cc2a8;
+      --accent-ink: #04221c;
+      --accent-soft: #16352f;
+      --mat: #0b0f0e;
+      --mat-line: rgba(255, 255, 255, 0.05);
+      --danger: #e0845f;
+      --focus: #3cc2a8;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111413;
+    --surface: #181c1b;
+    --ink: #e6ebe8;
+    --muted: #97a29d;
+    --line: #29302d;
+    --accent: #3cc2a8;
+    --accent-ink: #04221c;
+    --accent-soft: #16352f;
+    --mat: #0b0f0e;
+    --mat-line: rgba(255, 255, 255, 0.05);
+    --danger: #e0845f;
+    --focus: #3cc2a8;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 14px/1.45 var(--sans);
+    padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+  [hidden] { display: none !important; }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .app { max-width: 1480px; margin: 0 auto; display: grid; gap: 16px; }
+
+  /* Cabecera */
+  .top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+  .brand h1 {
+    margin: 0;
+    font-size: clamp(24px, 3.2vw, 34px);
+    line-height: 1.05;
+    font-weight: 800;
+    font-stretch: 118%;
+    font-variation-settings: "wdth" 118;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .brand h1 .ratio { font-family: var(--mono); font-weight: 500; font-size: 0.5em; letter-spacing: 0; color: var(--accent); vertical-align: 0.35em; margin-left: 0.4em; white-space: nowrap; }
+  .lede { margin: 6px 0 0; max-width: 62ch; color: var(--muted); }
+  .how { max-width: 62ch; }
+  .how summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+  .how ol { margin: 8px 0 0; padding-left: 20px; color: var(--muted); display: grid; gap: 4px; }
+
+  /* Rejilla principal */
+  .work { display: grid; grid-template-columns: 250px minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+
+  /* Lista de carteles */
+  .posters { display: grid; gap: 12px; padding: 12px; }
+  .drop {
+    display: grid; gap: 2px; text-align: center; cursor: pointer;
+    border: 1.5px dashed var(--line); border-radius: var(--radius); padding: 16px 12px;
+    background: var(--bg); transition: border-color .15s, background-color .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop strong { font-weight: 700; }
+  .drop span { color: var(--muted); font-size: 12.5px; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .list li { position: relative; }
+  .item {
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+    padding: 6px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; background: transparent; width: 100%; text-align: left;
+  }
+  .item:hover { background: var(--bg); }
+  .item[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .item img { width: 44px; height: 55px; object-fit: cover; border-radius: 4px; background: var(--mat); display: block; }
+  .item .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .dims { font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .state { font-family: var(--mono); font-size: 11px; padding: 2px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .state.ok { color: var(--accent); border-color: var(--accent); }
+  .state.err { color: var(--danger); border-color: var(--danger); }
+  .rm {
+    position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer;
+    font-size: 14px; line-height: 1; display: grid; place-items: center; padding: 0; opacity: 0;
+  }
+  .list li:hover .rm, .rm:focus-visible { opacity: 1; }
+  @media (hover: none) { .rm { opacity: 1; } }
+  .rm:hover { color: var(--danger); border-color: var(--danger); }
+
+  /* Escenario */
+  .stage-col { display: grid; gap: 10px; min-width: 0; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .toolbar .spacer { flex: 1 1 auto; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--surface); }
+  .seg button { border: 0; background: none; padding: 7px 12px; cursor: pointer; font-weight: 600; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 7px 12px;
+    cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 600; }
+  select { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 8px; }
+  .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 600; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  .mat {
+    position: relative; border-radius: var(--radius); padding: clamp(10px, 2.5vw, 28px);
+    background-color: var(--mat);
+    background-image:
+      linear-gradient(var(--mat-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--mat-line) 1px, transparent 1px);
+    background-size: 24px 24px;
+    display: grid; place-items: center;
+  }
+  .frame { position: relative; width: min(100%, 76vh); aspect-ratio: 1; max-width: 100%; }
+  #view {
+    display: block; width: 100%; height: 100%; touch-action: none; cursor: default;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .06), 0 18px 40px rgba(0, 0, 0, .35);
+    background: #202020;
+  }
+  #view.grab { cursor: grab; }
+  #view.grabbing { cursor: grabbing; }
+  .busy {
+    position: absolute; inset: 0; display: grid; place-items: center; gap: 10px; align-content: center;
+    color: #e8ece9; background: rgba(12, 14, 13, .55); font-weight: 600; text-align: center; padding: 16px;
+  }
+  .spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .25); border-top-color: #3cc2a8; animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+  .meta { margin: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .meta b { color: var(--ink); font-weight: 500; }
+
+  /* Panel derecho */
+  .panel { display: grid; gap: 12px; }
+  .block { padding: 14px; display: grid; gap: 10px; }
+  .block h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .block .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .block .seg { display: flex; }
+  .block .seg button { flex: 1 1 0; }
+  .block .full { width: 100%; justify-content: center; }
+  .note { margin: 0; color: var(--muted); font-size: 12.5px; min-height: 1.2em; }
+  .note.err { color: var(--danger); }
+  .sel-info { margin: 0; color: var(--muted); }
+  .keys dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 12.5px; }
+  .keys dt { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  .keys dd { margin: 0; color: var(--muted); }
+
+  @media (max-width: 1100px) {
+    .work { grid-template-columns: 220px minmax(0, 1fr); }
+    .panel { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .work { grid-template-columns: minmax(0, 1fr); }
+    .posters { order: 0; }
+    .list { grid-auto-flow: column; grid-auto-columns: minmax(200px, 72%); overflow-x: auto; padding-bottom: 4px; }
+    .frame { width: 100%; }
+    .toolbar .spacer { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Cuadrador de carteles <span class="ratio">4:5 → 1:1</span></h1>
+      <p class="lede">Pasa tus carteles verticales a formato cuadrado sin IA. Cada render se recorta con su reflejo y se recoloca tal cual, sin redibujar ni un píxel.</p>
+    </div>
+    <details class="how">
+      <summary>Cómo funciona</summary>
+      <ol>
+        <li>Calcula el fondo liso del cartel: degradado, franja del título y rayos de luz.</li>
+        <li>Detecta cada render, el logo, el título y el sello, y los recorta con su reflejo y su sombra.</li>
+        <li>Estira el fondo al cuadrado sin tocar la zona del logo y el título.</li>
+        <li>Recoloca las piezas. Lo sólido se copia píxel a píxel; los reflejos se funden con el fondo nuevo.</li>
+      </ol>
+    </details>
+  </header>
+
+  <main class="work">
+    <aside class="posters card" aria-label="Carteles">
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept="image/png,image/jpeg,image/webp" multiple>
+        <strong>Añadir carteles</strong>
+        <span>Suéltalos aquí o pulsa para elegirlos. JPG, PNG o WEBP.</span>
+      </label>
+      <ul class="list" id="list"></ul>
+    </aside>
+
+    <section class="stage-col" aria-label="Cartel cuadrado">
+      <div class="toolbar" role="toolbar" aria-label="Colocación">
+        <div class="seg" role="radiogroup" aria-label="Cómo recolocar">
+          <button type="button" role="radio" aria-checked="true" data-mode="spread" id="mode-spread" title="Mantiene tu composición y la abre hacia los lados">Abrir composición</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="rows" id="mode-rows" title="Ordena las piezas en filas por tamaño">En filas</button>
+        </div>
+        <label class="field" id="rows-field" hidden>Filas
+          <select id="rows">
+            <option value="auto">Auto</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+        <div class="spacer"></div>
+        <button type="button" class="btn" id="undo" title="Deshacer (Ctrl+Z)" disabled>Deshacer</button>
+        <button type="button" class="btn" id="redo" title="Rehacer (Ctrl+Mayús+Z)" disabled>Rehacer</button>
+        <button type="button" class="btn" id="reset" title="Vuelve a colocar todo automáticamente">Recolocar</button>
+        <label class="check"><input type="checkbox" id="outlines"> Ver recortes</label>
+      </div>
+      <div class="mat">
+        <div class="frame" id="frame">
+          <canvas id="view" tabindex="0" aria-label="Vista previa del cartel cuadrado. Arrastra las piezas para moverlas; con una seleccionada, las flechas la mueven."></canvas>
+          <div class="busy" id="busy" hidden><span class="spinner" aria-hidden="true"></span><span id="busy-text">Analizando…</span></div>
+        </div>
+      </div>
+      <p class="meta" id="meta" aria-live="polite"></p>
+    </section>
+
+    <aside class="panel">
+      <section class="block card" aria-labelledby="h-export">
+        <h2 id="h-export">Exportar</h2>
+        <label class="field">Tamaño
+          <select id="size">
+            <option value="orig">Original</option>
+            <option value="1080">1080 px</option>
+            <option value="1200">1200 px</option>
+            <option value="1500">1500 px</option>
+            <option value="2000">2000 px</option>
+            <option value="3000">3000 px</option>
+          </select>
+        </label>
+        <div class="seg" role="radiogroup" aria-label="Formato">
+          <button type="button" role="radio" aria-checked="true" data-fmt="png">PNG</button>
+          <button type="button" role="radio" aria-checked="false" data-fmt="jpg">JPG</button>
+        </div>
+        <button type="button" class="btn primary full" id="save-one" disabled>Descargar este</button>
+        <button type="button" class="btn full" id="save-all" disabled>Descargar todos (.zip)</button>
+        <p class="note" id="save-note" aria-live="polite"></p>
+      </section>
+
+      <section class="block card" aria-labelledby="h-sel">
+        <h2 id="h-sel">Selección</h2>
+        <p class="sel-info" id="sel-info">Pulsa una pieza para seleccionarla.</p>
+        <div class="row">
+          <button type="button" class="btn" id="join" disabled title="Las piezas seleccionadas se moverán juntas">Unir</button>
+          <button type="button" class="btn" id="split" disabled title="Cada parte se mueve por separado">Separar</button>
+          <button type="button" class="btn" id="hide" disabled title="Quita la selección del cartel (Supr)">Ocultar</button>
+        </div>
+        <button type="button" class="btn" id="unhide" hidden>Mostrar ocultas</button>
+      </section>
+
+      <section class="block card keys" aria-labelledby="h-keys">
+        <h2 id="h-keys">Atajos</h2>
+        <dl>
+          <dt>Arrastrar</dt><dd>mover una pieza</dd>
+          <dt>Mayús + clic</dt><dd>seleccionar varias</dd>
+          <dt>Flechas</dt><dd>mover 1 px (con Mayús, 10 px)</dd>
+          <dt>Alt</dt><dd>arrastrar sin imanes</dd>
+          <dt>Supr</dt><dd>ocultar la selección</dd>
+          <dt>Ctrl + Z</dt><dd>deshacer</dd>
+        </dl>
+      </section>
+    </aside>
+  </main>
+</div>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
