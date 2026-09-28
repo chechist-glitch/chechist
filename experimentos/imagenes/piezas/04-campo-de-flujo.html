@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #120a1c; }
+  .t { position: absolute; left: 70px; bottom: 70px; color: #ffe2c0; font-family: "Playfair"; font-weight: 900; font-style: italic; font-size: 92px; line-height: .95; text-shadow: 0 4px 30px #120a1c; }
+  .t small { display: block; font-family: "Space Mono"; font-style: normal; font-weight: 400; font-size: 24px; margin-top: 18px; color: #ff9f7a; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">Viento de<br />Levante<small>8.000 partículas siguiendo un campo de ruido · Canvas 2D</small></div>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(42), n = makeNoise(42);
+    ctx.fillStyle = "#120a1c";
+    ctx.fillRect(0, 0, W, H);
+    const pal = ["#ffd166", "#ff9f7a", "#ef476f", "#b5179e", "#7209b7", "#3a0ca3"];
+    ctx.lineWidth = 1.2;
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 8000; i++) {
+      let x = r() * W, y = r() * H;
+      const col = pal[Math.min(pal.length - 1, Math.floor((y / H) * pal.length + (r() - 0.5)))] || pal[0];
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.09;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let s = 0; s < 90; s++) {
+        const a = n(x * 0.0022, y * 0.0022, 3) * Math.PI * 4.5;
+        x += Math.cos(a) * 3;
+        y += Math.sin(a) * 3;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    listo();
+  </script>
+</body>
+</html>

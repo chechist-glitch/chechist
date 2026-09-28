@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #050505; color: #fff; }
+  .capa { position: absolute; left: 60px; top: 330px; font-family: "Anton"; font-size: 300px; line-height: .86; text-transform: uppercase; }
+  .r { color: #ff0040; mix-blend-mode: screen; transform: translate(-12px, 0); }
+  .c { color: #00f0ff; mix-blend-mode: screen; transform: translate(12px, 4px); }
+  .b { color: #fff; }
+  .corte { position: absolute; left: 0; right: 0; overflow: hidden; }
+  .corte .capa { top: calc(330px - var(--y)); }
+  .scan { position: absolute; inset: 0; background: repeating-linear-gradient(transparent 0 3px, rgba(0,0,0,.45) 3px 4px); }
+  .cod { position: absolute; left: 60px; top: 90px; font-family: "Plex Mono"; font-size: 30px; color: #00f0ff; }
+  .pie { position: absolute; left: 60px; bottom: 90px; font-family: "Plex Mono"; font-size: 26px; color: #aaa; line-height: 1.5; }
+  .pie b { color: #ff0040; font-weight: 700; }
+  .bloque { position: absolute; }
+</style>
+</head>
+<body>
+  <div class="cod">&gt; kernel_panic: siesta.exe no responde_</div>
+  <div class="capa r">Error<br />404</div>
+  <div class="capa c">Error<br />404</div>
+  <div class="capa b">Error<br />404</div>
+  <div id="cortes"></div>
+  <div class="pie"><b>SIESTA NO ENCONTRADA.</b><br />Reinicie el sistema con un café.<br />Código: 0xCAFE_CON_LECHE</div>
+  <div class="scan"></div>
+  <script>
+    const r = rng(404);
+    let h = "";
+    // Franjas desplazadas: se recortan trozos del título y se mueven a los lados
+    for (let i = 0; i < 5; i++) {
+      const y = 340 + r() * 480, alto = 6 + r() * 22, dx = (r() - 0.5) * 90;
+      h += `<div class="corte" style="top:${y}px;height:${alto}px;--y:${y}px;background:#050505"><div class="capa b" style="transform:translateX(${dx}px)">Error<br>404</div></div>`;
+    }
+    for (let i = 0; i < 14; i++) {
+      const cols = ["#ff0040", "#00f0ff", "#fff", "#ffe600"];
+      h += `<div class="bloque" style="left:${r() * 1000}px;top:${r() * 1350}px;width:${10 + r() * 180}px;height:${3 + r() * 14}px;background:${cols[Math.floor(r() * 4)]};opacity:${0.4 + r() * 0.6}"></div>`;
+    }
+    document.getElementById("cortes").innerHTML = h;
+    listo();
+  </script>
+</body>
+</html>

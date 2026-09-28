@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #000; }
+  canvas.full { image-rendering: pixelated; }
+  .t { position: absolute; top: 70px; width: 100%; text-align: center; font-family: "Pixel"; font-size: 56px; color: #fff; text-shadow: 6px 6px 0 #b83b5e; line-height: 1.4; }
+  .t small { display: block; font-size: 22px; color: #ffe8a3; text-shadow: 3px 3px 0 #6a2c70; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">PUEBLO BLANCO<small>PULSA START PARA LA SIESTA</small></div>
+  <script>
+    // Se pinta en una rejilla de 72x90 píxeles gordos y se escala
+    const P = 15, GW = 72, GH = 90;
+    const ctx = canvas2d();
+    const r = rng(1492);
+    const px = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x * P, y * P, P, P); };
+    const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x * P, y * P, w * P, h * P); };
+    // Cielo por bandas con tramado (dithering)
+    const cielo = ["#2b1b54", "#6a2c70", "#b83b5e", "#f08a5d", "#f9c56b", "#ffe8a3"];
+    for (let y = 0; y < 52; y++) {
+      const f = y / 52 * (cielo.length - 1);
+      const i = Math.floor(f), frac = f - i;
+      for (let x = 0; x < GW; x++) px(x, y, (x + y) % 2 === 0 && frac > 0.5 ? cielo[Math.min(i + 1, cielo.length - 1)] : cielo[i]);
+    }
+    // Sol
+    for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) if (x * x + y * y <= 81) px(52 + x, 40 + y, y > 3 && y % 2 === 0 ? "#f08a5d" : "#fff3b0");
+    // Montes
+    for (let x = 0; x < GW; x++) { const h = 44 + Math.round(Math.sin(x * 0.15) * 3 + Math.sin(x * 0.05 + 1) * 4); rect(x, h, 1, 60 - h, "#3d2352"); }
+    rect(0, 60, GW, 30, "#d9b77a");
+    // Casas blancas escalonadas
+    const casas = [];
+    for (let fila = 0; fila < 4; fila++) {
+      let x = -2 + fila * 3;
+      while (x < GW) {
+        const w = 7 + Math.floor(r() * 6), h = 6 + Math.floor(r() * 5);
+        casas.push({ x, y: 50 + fila * 9 - h, w, h });
+        x += w + Math.floor(r() * 2);
+      }
+    }
+    for (const c of casas) {
+      rect(c.x, c.y, c.w, c.h, "#f4f1ea");
+      rect(c.x + c.w - 1, c.y, 1, c.h, "#cfc8ba");
+      rect(c.x - 1, c.y - 1, c.w + 2, 1, "#b5532e");
+      const puerta = c.x + 1 + Math.floor(r() * (c.w - 3));
+      rect(puerta, c.y + c.h - 3, 2, 3, r() < 0.5 ? "#2456a6" : "#2f7d5b");
+      if (c.w > 8) { rect(c.x + c.w - 4, c.y + 2, 2, 2, "#2456a6"); px(c.x + c.w - 4, c.y + 4, "#d63447"); px(c.x + c.w - 3, c.y + 4, "#3f8f3a"); }
+    }
+    // Campanario
+    rect(30, 22, 7, 30, "#f4f1ea"); rect(36, 22, 1, 30, "#cfc8ba"); rect(31, 25, 5, 4, "#3d2352"); px(33, 26, "#f9c56b");
+    rect(29, 21, 9, 1, "#b5532e"); rect(31, 18, 5, 3, "#f4f1ea"); rect(33, 14, 1, 4, "#3d2352");
+    // Suelo y naranjos
+    rect(0, 83, GW, 7, "#c99a4a");
+    for (let i = 0; i < 6; i++) {
+      const x = 4 + i * 12;
+      rect(x + 2, 78, 1, 5, "#5b3a1e");
+      for (let yy = -3; yy <= 3; yy++) for (let xx = -3; xx <= 3; xx++) if (xx * xx + yy * yy <= 10) px(x + 2 + xx, 75 + yy, "#2f6b2a");
+      px(x + 1, 74, "#f39c12"); px(x + 4, 76, "#f39c12"); px(x + 2, 77, "#f39c12");
+    }
+    listo();
+  </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body {
+    background:
+      radial-gradient(ellipse at 50% 40%, rgba(255, 60, 150, .18), transparent 60%),
+      linear-gradient(90deg, rgba(0,0,0,.35) 3px, transparent 3px) 0 0 / 120px 60px,
+      linear-gradient(90deg, rgba(0,0,0,.35) 3px, transparent 3px) 60px 30px / 120px 60px,
+      linear-gradient(rgba(0,0,0,.4) 3px, transparent 3px) 0 0 / 60px 30px,
+      #3a1d1a;
+  }
+  .sombra { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 30%, rgba(5,0,10,.85) 90%); }
+  .neon { position: absolute; width: 100%; text-align: center; }
+  .bar { top: 360px; white-space: nowrap; font-family: "Pacifico"; font-size: 170px; color: #fff0f8; text-shadow: 0 0 6px #fff, 0 0 18px #ff2d95, 0 0 42px #ff2d95, 0 0 90px #ff2d95, 0 0 160px #ff2d95; transform: rotate(-6deg); }
+  .sub { top: 720px; font-family: "Monoton"; font-size: 64px; color: #e6fffd; text-shadow: 0 0 6px #fff, 0 0 20px #19f0ff, 0 0 50px #19f0ff, 0 0 100px #19f0ff; letter-spacing: 4px; line-height: 1.3; }
+  .flecha { top: 1000px; font-family: "Monoton"; font-size: 120px; color: #fffbe0; text-shadow: 0 0 8px #fff, 0 0 26px #ffd400, 0 0 60px #ffd400; }
+  .tubo { position: absolute; left: 150px; right: 150px; height: 8px; border-radius: 8px; background: #fff; box-shadow: 0 0 10px #fff, 0 0 30px #19f0ff, 0 0 60px #19f0ff; }
+</style>
+</head>
+<body>
+  <div class="tubo" style="top:250px"></div>
+  <div class="neon bar">Bar Manolo</div>
+  <div class="neon sub">ABIERTO HASTA<br />QUE EL CUERPO<br />AGUANTE</div>
+  <div class="neon flecha">→ ←</div>
+  <div class="tubo" style="top:1180px;box-shadow:0 0 10px #fff,0 0 30px #ff2d95,0 0 60px #ff2d95"></div>
+  <div class="sombra"></div>
+  <script>listo();</script>
+</body>
+</html>

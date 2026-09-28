@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: repeating-linear-gradient(92deg, #7a4b2a 0 38px, #6d4124 38px 44px, #825231 44px 90px, #744627 90px 96px); display: flex; align-items: center; justify-content: center; }
+  .ticket { width: 620px; background: #fbfaf5; padding: 50px 46px 60px; font-family: "Plex Mono"; font-size: 25px; color: #222; transform: rotate(-3deg); box-shadow: 0 30px 60px rgba(0,0,0,.45); position: relative;
+    -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 30px 100%; }
+  .c { text-align: center; }
+  .grande { font-size: 40px; font-weight: 700; letter-spacing: .06em; }
+  hr { border: 0; border-top: 3px dashed #999; margin: 20px 0; }
+  .l { display: flex; justify-content: space-between; line-height: 1.7; }
+  .total { font-size: 34px; font-weight: 700; }
+  .cod { height: 70px; margin-top: 26px; background: repeating-linear-gradient(90deg, #222 0 3px, transparent 3px 6px, #222 6px 10px, transparent 10px 12px, #222 12px 13px, transparent 13px 17px); }
+  .mancha { position: absolute; left: 330px; top: 380px; width: 190px; height: 190px; border-radius: 50%; border: 14px solid rgba(140, 80, 30, .22); filter: blur(1px); }
+</style>
+</head>
+<body>
+  <div class="ticket">
+    <div class="mancha"></div>
+    <div class="c grande">BAR EL QUILLO</div>
+    <div class="c">C/ La Feria, 12 · Sevilla<br />desde 1974 · sin wifi</div>
+    <hr />
+    <div class="l"><span>Mesa 4 · 21:47</span><span>Camarero: Paco</span></div>
+    <hr />
+    <div class="l"><span>2 x Cañas</span><span>3,00</span></div>
+    <div class="l"><span>1 x Tapa salmorejo</span><span>2,50</span></div>
+    <div class="l"><span>1 x Espinacas garbanzos</span><span>3,00</span></div>
+    <div class="l"><span>1 x Montadito pringá</span><span>2,20</span></div>
+    <div class="l"><span>1 x Charla con Paco</span><span>0,00</span></div>
+    <div class="l"><span>1 x "La última"</span><span>1,50</span></div>
+    <div class="l"><span>1 x "Ahora sí la última"</span><span>1,50</span></div>
+    <hr />
+    <div class="l total"><span>TOTAL</span><span>13,70 €</span></div>
+    <div class="l"><span>Propina</span><span>lo que salga</span></div>
+    <hr />
+    <div class="c">¡GRACIAS Y HASTA MAÑANA!<br />(que te conocemos)</div>
+    <div class="cod"></div>
+  </div>
+  <script>listo();</script>
+</body>
+</html>

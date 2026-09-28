@@ -1,0 +1,27 @@
+@font-face { font-family: "Abril"; src: url("fonts/abril-fatface-latin-400-normal.woff2"); }
+@font-face { font-family: "Anton"; src: url("fonts/anton-latin-400-normal.woff2"); }
+@font-face { font-family: "Archivo Black"; src: url("fonts/archivo-black-latin-400-normal.woff2"); }
+@font-face { font-family: "Bebas"; src: url("fonts/bebas-neue-latin-400-normal.woff2"); }
+@font-face { font-family: "DM Serif"; src: url("fonts/dm-serif-display-latin-400-normal.woff2"); }
+@font-face { font-family: "DM Serif"; font-style: italic; src: url("fonts/dm-serif-display-latin-400-italic.woff2"); }
+@font-face { font-family: "Plex Mono"; src: url("fonts/ibm-plex-mono-latin-400-normal.woff2"); }
+@font-face { font-family: "Plex Mono"; font-weight: 700; src: url("fonts/ibm-plex-mono-latin-700-normal.woff2"); }
+@font-face { font-family: "Monoton"; src: url("fonts/monoton-latin-400-normal.woff2"); }
+@font-face { font-family: "Pacifico"; src: url("fonts/pacifico-latin-400-normal.woff2"); }
+@font-face { font-family: "Playfair"; font-style: italic; src: url("fonts/playfair-display-latin-400-italic.woff2"); }
+@font-face { font-family: "Playfair"; font-weight: 900; src: url("fonts/playfair-display-latin-900-normal.woff2"); }
+@font-face { font-family: "Playfair"; font-weight: 900; font-style: italic; src: url("fonts/playfair-display-latin-900-italic.woff2"); }
+@font-face { font-family: "Pixel"; src: url("fonts/press-start-2p-latin-400-normal.woff2"); }
+@font-face { font-family: "Rubik Mono"; src: url("fonts/rubik-mono-one-latin-400-normal.woff2"); }
+@font-face { font-family: "Space Mono"; src: url("fonts/space-mono-latin-400-normal.woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 700; src: url("fonts/space-mono-latin-700-normal.woff2"); }
+@font-face { font-family: "Fraktur"; font-weight: 700; src: url("fonts/unifrakturcook-latin-700-normal.woff2"); }
+@font-face { font-family: "Fraunces"; font-weight: 900; src: url("fonts/fraunces-latin-900-normal.woff2"); }
+@font-face { font-family: "Fraunces"; font-style: italic; src: url("fonts/fraunces-latin-400-italic.woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("fonts/inter-latin-500-normal.woff2"); }
+@font-face { font-family: "Inter"; font-weight: 800; src: url("fonts/inter-latin-800-normal.woff2"); }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1350px; overflow: hidden; }
+body { position: relative; font-family: "Inter", sans-serif; }
+canvas.full { position: absolute; inset: 0; width: 1080px; height: 1350px; display: block; }

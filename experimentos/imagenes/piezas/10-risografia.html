@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #f4efe3; }
+  .tinta { position: absolute; inset: 0; mix-blend-mode: multiply; }
+  .rosa { color: #ff48b0; }
+  .azul { color: #0078bf; transform: translate(7px, -5px); }
+  .forma { position: absolute; background: currentColor; }
+  .trama { position: absolute; background-image: radial-gradient(currentColor 38%, transparent 40%); background-size: 14px 14px; }
+  .trama.fina { background-size: 9px 9px; }
+  h1 { position: absolute; font-family: "Rubik Mono"; font-size: 118px; line-height: .95; letter-spacing: -2px; }
+  p { position: absolute; font-family: "Space Mono"; font-weight: 700; font-size: 30px; }
+  .grano { position: absolute; inset: 0; mix-blend-mode: multiply; opacity: .5; }
+</style>
+</head>
+<body>
+  <div class="tinta rosa">
+    <div class="forma" style="left:120px;top:200px;width:560px;height:560px;border-radius:50%"></div>
+    <div class="trama" style="left:420px;top:620px;width:560px;height:420px"></div>
+    <h1 style="left:70px;top:1010px">FERIA DEL</h1>
+    <p style="left:74px;top:1250px">SÁB 12 · DOM 13 · PLAZA DEL POZO</p>
+  </div>
+  <div class="tinta azul">
+    <div class="trama fina" style="left:380px;top:120px;width:600px;height:600px;border-radius:50%"></div>
+    <div class="forma" style="left:80px;top:640px;width:420px;height:330px"></div>
+    <h1 style="left:70px;top:1120px">LIBRO RARO</h1>
+    <p style="left:74px;top:70px">IMPRESIÓN A DOS TINTAS · ED. LIMITADA</p>
+  </div>
+  <svg class="grano" width="1080" height="1350">
+    <filter id="f"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4" /><feColorMatrix values="0 0 0 0 .5  0 0 0 0 .45  0 0 0 0 .4  0 0 0 -1.4 1.1" /></filter>
+    <rect width="1080" height="1350" filter="url(#f)" />
+  </svg>
+  <script>listo();</script>
+</body>
+</html>

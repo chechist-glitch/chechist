@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #0a0a12; }
+  .t { position: absolute; left: 0; right: 0; bottom: 70px; text-align: center; font-family: "Monoton"; font-size: 70px; color: #fff; }
+  .t small { display: block; font-family: "Space Mono"; font-size: 20px; color: #9aa; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">CALEIDOSCOPIO<small>una cuña de formas al azar · reflejada 16 veces</small></div>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(616);
+    const cuña = document.createElement("canvas");
+    const RAD = 480, SEG = 16, ANG = (Math.PI * 2) / SEG;
+    cuña.width = RAD; cuña.height = RAD;
+    const g = cuña.getContext("2d");
+    const pal = ["#f72585", "#b5179e", "#7209b7", "#4361ee", "#4cc9f0", "#ffd60a", "#fb5607", "#ffffff"];
+    g.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 120; i++) {
+      const d = r() * RAD, a = r() * ANG, x = Math.cos(a) * d, y = Math.sin(a) * d;
+      g.fillStyle = pal[Math.floor(r() * pal.length)];
+      g.globalAlpha = 0.25 + r() * 0.55;
+      const s = 6 + r() * 50;
+      const tipo = r();
+      g.beginPath();
+      if (tipo < 0.4) g.arc(x, y, s / 2, 0, Math.PI * 2);
+      else if (tipo < 0.7) { g.moveTo(x, y - s); g.lineTo(x + s * .6, y); g.lineTo(x, y + s); g.lineTo(x - s * .6, y); }
+      else g.ellipse(x, y, s, s / 5, r() * Math.PI, 0, Math.PI * 2);
+      g.fill();
+    }
+    ctx.fillStyle = "#0a0a12"; ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(540, 600);
+    for (let k = 0; k < SEG; k++) {
+      ctx.save();
+      ctx.rotate(k * ANG);
+      if (k % 2) { ctx.scale(1, -1); ctx.rotate(-ANG); }
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, RAD, 0, ANG + 0.004); ctx.closePath(); ctx.clip();
+      ctx.drawImage(cuña, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+    const brillo = ctx.createRadialGradient(540, 600, 0, 540, 600, 500);
+    brillo.addColorStop(0, "rgba(255,255,255,.25)"); brillo.addColorStop(.25, "rgba(255,255,255,0)");
+    ctx.fillStyle = brillo; ctx.fillRect(0, 0, W, H);
+    listo();
+  </script>
+</body>
+</html>

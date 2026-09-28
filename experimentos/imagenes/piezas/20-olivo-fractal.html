@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #f7b267; }
+  .t { position: absolute; left: 70px; top: 80px; font-family: "Playfair"; font-weight: 900; font-style: italic; font-size: 100px; color: #2b1a1e; line-height: .95; }
+  .t small { display: block; font-family: "Space Mono"; font-style: normal; font-weight: 400; font-size: 20px; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">El olivo<br />de mil años<small>una rama que se divide en dos, 11 veces · recursión</small></div>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(1000);
+    const cielo = ctx.createLinearGradient(0, 0, 0, H);
+    cielo.addColorStop(0, "#f79d65"); cielo.addColorStop(0.55, "#f4845f"); cielo.addColorStop(0.75, "#f25c54"); cielo.addColorStop(1, "#6d2e46");
+    ctx.fillStyle = cielo; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(255, 230, 170, .9)";
+    ctx.beginPath(); ctx.arc(760, 760, 150, 0, Math.PI * 2); ctx.fill();
+    // Colinas
+    ctx.fillStyle = "#8c3b4a";
+    ctx.beginPath(); ctx.moveTo(0, 1020);
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, 1000 + Math.sin(x * 0.006) * 40 + Math.sin(x * 0.017) * 14);
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.fill();
+    ctx.fillStyle = "#2b1a1e";
+    ctx.fillRect(0, 1120, W, H);
+    const hojas = [];
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#2b1a1e";
+    function rama(x, y, ang, largo, grosor, nivel) {
+      const segs = 4;
+      let px = x, py = y, a = ang;
+      for (let s = 0; s < segs; s++) {
+        a += (r() - 0.5) * 0.35;
+        const nx = px + Math.cos(a) * largo / segs, ny = py + Math.sin(a) * largo / segs;
+        ctx.lineWidth = grosor * (1 - s / segs * 0.3);
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(nx, ny); ctx.stroke();
+        px = nx; py = ny;
+      }
+      if (nivel === 0) { hojas.push([px, py]); return; }
+      const abre = 0.35 + r() * 0.35;
+      rama(px, py, a - abre, largo * (0.68 + r() * 0.15), grosor * 0.68, nivel - 1);
+      rama(px, py, a + abre * (0.8 + r() * 0.4), largo * (0.66 + r() * 0.15), grosor * 0.68, nivel - 1);
+    }
+    // Tronco retorcido: dos troncos que salen del mismo punto
+    rama(540, 1140, -Math.PI / 2 - 0.25, 185, 46, 10);
+    rama(540, 1140, -Math.PI / 2 + 0.3, 170, 40, 10);
+    for (const [x, y] of hojas) {
+      for (let k = 0; k < 5; k++) {
+        ctx.fillStyle = r() < 0.5 ? "rgba(43,26,30,.85)" : "rgba(70,50,40,.7)";
+        ctx.beginPath();
+        ctx.ellipse(x + (r() - 0.5) * 26, y + (r() - 0.5) * 26, 9, 3, r() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    listo();
+  </script>
+</body>
+</html>

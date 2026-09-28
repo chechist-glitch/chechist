@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #0b132b; }
+  canvas.full { image-rendering: auto; }
+  .t { position: absolute; left: 60px; bottom: 60px; background: rgba(11, 19, 43, .85); padding: 22px 30px; color: #ffe8d6; font-family: "Fraunces"; font-weight: 900; font-size: 70px; line-height: 1; border-radius: 6px; }
+  .t small { display: block; font-family: "Space Mono"; font-weight: 400; font-size: 19px; color: #ffb4a2; margin-top: 12px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">Coral<small>reacción-difusión de Gray-Scott · dos "químicos"<br />que se comen y se esparcen, 5.000 pasos</small></div>
+  <script>
+    // Simulación en una rejilla pequeña y luego se amplía con suavizado
+    const GW = 216, GH = 270, N = GW * GH;
+    let A = new Float32Array(N).fill(1), B = new Float32Array(N);
+    let A2 = new Float32Array(N), B2 = new Float32Array(N);
+    const r = rng(8);
+    for (let k = 0; k < 30; k++) {
+      const cx = Math.floor(r() * GW), cy = Math.floor(r() * GH);
+      for (let y = -3; y <= 3; y++) for (let x = -3; x <= 3; x++) {
+        const i = ((cy + y + GH) % GH) * GW + ((cx + x + GW) % GW);
+        B[i] = 1;
+      }
+    }
+    const Da = 1.0, Db = 0.5, dt = 1.0;
+    for (let paso = 0; paso < 5000; paso++) {
+      for (let y = 0; y < GH; y++) {
+        const yu = ((y - 1 + GH) % GH) * GW, yd = ((y + 1) % GH) * GW, yc = y * GW;
+        // Parámetros que cambian de arriba abajo: manchas arriba, laberinto abajo
+        const t = y / GH;
+        const f = 0.030 + t * 0.018, kk = 0.062 - t * 0.004;
+        for (let x = 0; x < GW; x++) {
+          const xl = (x - 1 + GW) % GW, xr = (x + 1) % GW, i = yc + x;
+          const a = A[i], b = B[i];
+          const lapA = A[yc + xl] * .2 + A[yc + xr] * .2 + A[yu + x] * .2 + A[yd + x] * .2 + A[yu + xl] * .05 + A[yu + xr] * .05 + A[yd + xl] * .05 + A[yd + xr] * .05 - a;
+          const lapB = B[yc + xl] * .2 + B[yc + xr] * .2 + B[yu + x] * .2 + B[yd + x] * .2 + B[yu + xl] * .05 + B[yu + xr] * .05 + B[yd + xl] * .05 + B[yd + xr] * .05 - b;
+          const abb = a * b * b;
+          A2[i] = a + (Da * lapA - abb + f * (1 - a)) * dt;
+          B2[i] = b + (Db * lapB + abb - (kk + f) * b) * dt;
+        }
+      }
+      [A, A2] = [A2, A]; [B, B2] = [B2, B];
+    }
+    const small = document.createElement("canvas"); small.width = GW; small.height = GH;
+    const sc = small.getContext("2d");
+    const img = sc.createImageData(GW, GH);
+    const c0 = [255, 232, 214], c1 = [229, 107, 111], c2 = [11, 19, 43];
+    for (let i = 0; i < N; i++) {
+      const v = Math.max(0, Math.min(1, (A[i] - B[i] + 0.1) / 1.0));
+      const col = v > 0.5 ? c0.map((c, j) => c1[j] + (c - c1[j]) * (v - 0.5) * 2) : c1.map((c, j) => c2[j] + (c - c2[j]) * v * 2);
+      img.data.set([col[0], col[1], col[2], 255], i * 4);
+    }
+    sc.putImageData(img, 0, 0);
+    const ctx = canvas2d();
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(small, 0, 0, W, H);
+    listo();
+  </script>
+</body>
+</html>

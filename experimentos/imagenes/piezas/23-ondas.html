@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #000; }
+  .t { position: absolute; left: 0; right: 0; bottom: 80px; text-align: center; color: #fff; font-family: "Inter"; font-weight: 800; font-size: 50px; letter-spacing: .28em; }
+  .t small { display: block; font-weight: 500; font-size: 20px; letter-spacing: .3em; color: #888; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">GUADALQUIVIR<small>ONDAS DE UN PÚLSAR QUE NO EXISTE · 80 LÍNEAS</small></div>
+  <script>
+    const ctx = canvas2d();
+    const n = makeNoise(1919);
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    const lineas = 80, x0 = 220, x1 = 860, y0 = 170, paso = 12;
+    ctx.lineWidth = 2.2; ctx.strokeStyle = "#fff"; ctx.lineJoin = "round";
+    for (let l = 0; l < lineas; l++) {
+      const yb = y0 + l * paso;
+      ctx.beginPath();
+      const pts = [];
+      for (let x = x0; x <= x1; x += 3) {
+        const c = (x - 540) / 170;
+        const env = Math.exp(-c * c);
+        const v = n(x * 0.012, l * 0.35, 4) ** 3 * 520 * env + n(x * 0.05, l * 1.3, 2) * 6;
+        pts.push([x, yb - v]);
+      }
+      ctx.moveTo(...pts[0]);
+      for (const p of pts) ctx.lineTo(...p);
+      ctx.lineTo(x1, yb + 40); ctx.lineTo(x0, yb + 40); ctx.closePath();
+      ctx.fillStyle = "#000"; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(...pts[0]); for (const p of pts) ctx.lineTo(...p); ctx.stroke();
+    }
+    listo();
+  </script>
+</body>
+</html>

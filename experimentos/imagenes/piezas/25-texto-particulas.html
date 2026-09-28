@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #06070d; }
+  .t { position: absolute; left: 70px; bottom: 70px; font-family: "Space Mono"; font-size: 22px; color: #6b7aa1; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">muestreo de píxeles del texto → 12.000 partículas<br />y el viento se lleva casi la mitad</div>
+  <script>
+    document.fonts.load("900 400px Fraunces").then(() => {
+      const ctx = canvas2d();
+      const r = rng(77);
+      const n = makeNoise(77);
+      ctx.fillStyle = "#06070d"; ctx.fillRect(0, 0, W, H);
+      // Se escribe el texto en un lienzo oculto y se leen sus píxeles
+      const off = document.createElement("canvas"); off.width = W; off.height = H;
+      const o = off.getContext("2d", { willReadFrequently: true });
+      o.fillStyle = "#fff"; o.textAlign = "center"; o.textBaseline = "middle";
+      o.font = "900 250px Fraunces"; o.fillText("che", 540, 470);
+      o.font = "900 250px Fraunces"; o.fillText("chist", 540, 720);
+      const d = o.getImageData(0, 0, W, H).data;
+      const pts = [];
+      for (let k = 0; k < 800000 && pts.length < 12000; k++) {
+        const x = Math.floor(r() * W), y = Math.floor(r() * H);
+        if (d[(y * W + x) * 4] > 128) pts.push([x, y]);
+      }
+      ctx.globalCompositeOperation = "lighter";
+      for (const [x, y] of pts) {
+        const viento = Math.max(0, (x - 380) / 700) * (r() < 0.4 ? 1 : 0);
+        let px = x, py = y;
+        const pasos = Math.floor(viento * 60 * r());
+        for (let s = 0; s < pasos; s++) {
+          const a = n(px * 0.004, py * 0.004, 2) * Math.PI - Math.PI / 2 + 0.35;
+          px += Math.cos(a) * 7; py += Math.sin(a) * 7;
+        }
+        const t = Math.min(1, (px - 200) / 900);
+        const col = `hsl(${190 + t * 140}, 100%, ${60 + r() * 20}%)`;
+        const rad = 1.6 + r() * 2.4 - viento;
+        ctx.fillStyle = col;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.arc(px, py, Math.max(0.8, rad), 0, Math.PI * 2); ctx.fill();
+      }
+      listo();
+    });
+  </script>
+</body>
+</html>

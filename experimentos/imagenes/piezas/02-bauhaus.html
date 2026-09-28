@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #f1e9d8; }
+  #g { position: absolute; left: 60px; top: 60px; width: 960px; height: 1080px; display: grid; grid-template-columns: repeat(4, 240px); grid-template-rows: repeat(4, 270px); }
+  .t { position: relative; overflow: hidden; }
+  .t div { position: absolute; }
+  h1 { position: absolute; left: 60px; bottom: 70px; font-family: "Archivo Black"; font-size: 96px; line-height: .9; color: #1a1a1a; letter-spacing: -2px; }
+  h1 span { color: #d93a26; }
+</style>
+</head>
+<body>
+  <div id="g"></div>
+  <h1>BAUHAUS<br />DE <span>BARRIO</span></h1>
+  <script>
+    const r = rng(1919);
+    const cols = ["#d93a26", "#f2b41f", "#1d4fa0", "#1a1a1a", "#f1e9d8"];
+    const pick = () => cols[Math.floor(r() * cols.length)];
+    const formas = [
+      (fg) => `<div style="inset:0;background:${fg};border-radius:0 0 100% 0"></div>`,
+      (fg) => `<div style="inset:15px;background:${fg};border-radius:50%"></div>`,
+      (fg) => `<div style="left:0;right:0;top:0;height:50%;background:${fg};border-radius:0 0 120px 120px"></div>`,
+      (fg) => `<div style="inset:0;background:${fg};clip-path:polygon(0 100%,50% 0,100% 100%)"></div>`,
+      (fg) => `<div style="inset:0;background:repeating-linear-gradient(90deg,${fg} 0 30px,transparent 30px 60px)"></div>`,
+      (fg) => `<div style="left:50%;top:0;bottom:0;right:0;background:${fg}"></div><div style="left:25%;top:25%;width:50%;height:50%;border-radius:50%;background:#f1e9d8"></div>`,
+      (fg) => `<div style="inset:0;background:${fg};border-radius:100% 0 0 0"></div>`,
+      (fg) => `<div style="inset:40px;border:28px solid ${fg};border-radius:50%"></div>`,
+    ];
+    let html = "";
+    for (let i = 0; i < 12; i++) {
+      let bg = pick(), fg = pick();
+      while (fg === bg) fg = pick();
+      const f = formas[Math.floor(r() * formas.length)];
+      const rot = Math.floor(r() * 4) * 90;
+      html += `<div class="t" style="background:${bg}"><div style="inset:0;transform:rotate(${rot}deg)">${f(fg)}</div></div>`;
+    }
+    document.getElementById("g").innerHTML = html;
+    listo();
+  </script>
+</body>
+</html>

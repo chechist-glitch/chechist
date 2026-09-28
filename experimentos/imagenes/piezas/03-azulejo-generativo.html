@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #fbf8f1; }
+  svg { position: absolute; inset: 0; }
+  .etq { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); background: #fbf8f1; padding: 18px 40px; font-family: "DM Serif"; font-style: italic; font-size: 44px; color: #1b3f8b; border: 4px solid #1b3f8b; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <svg id="s" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+  <div class="etq">Azulejo nº 7.304 — generado, no pintado</div>
+  <script>
+    const r = rng(7304);
+    const AZ = "#1b3f8b", OC = "#e2a627", VE = "#2f7d5b";
+    // Un motivo en un octante que se refleja 8 veces: simetría de azulejo
+    let motivo = "";
+    for (let i = 0; i < 9; i++) {
+      const x = 20 + r() * 100, y = r() * x * 0.9;
+      const s = 8 + r() * 26;
+      const col = r() < 0.65 ? AZ : r() < 0.6 ? OC : VE;
+      const tipo = Math.floor(r() * 3);
+      if (tipo === 0) motivo += `<circle cx="${x}" cy="${y}" r="${s}" fill="${col}"/>`;
+      else if (tipo === 1) motivo += `<path d="M${x - s} ${y} Q${x} ${y - s * 1.6} ${x + s} ${y} Q${x} ${y + s * 1.6} ${x - s} ${y}Z" fill="${col}"/>`;
+      else motivo += `<circle cx="${x}" cy="${y}" r="${s}" fill="none" stroke="${col}" stroke-width="5"/>`;
+    }
+    let octantes = "";
+    for (let k = 0; k < 4; k++) {
+      octantes += `<g transform="rotate(${k * 90})">${motivo}</g><g transform="rotate(${k * 90}) scale(1,-1) rotate(-90)">${motivo}</g>`;
+    }
+    const T = 270;
+    const tile = `<g transform="translate(${T / 2} ${T / 2})">
+      <clipPath id="cp"><rect x="${-T / 2}" y="${-T / 2}" width="${T}" height="${T}"/></clipPath>
+      <g clip-path="url(#cp)">${octantes}
+      <circle r="18" fill="${OC}"/><circle r="8" fill="${AZ}"/>
+      ${[[-1,-1],[1,-1],[-1,1],[1,1]].map(([a,b])=>`<circle cx="${a*T/2}" cy="${b*T/2}" r="40" fill="${AZ}"/><circle cx="${a*T/2}" cy="${b*T/2}" r="22" fill="${OC}"/>`).join("")}
+      </g><rect x="${-T / 2}" y="${-T / 2}" width="${T}" height="${T}" fill="none" stroke="#d9d2c3" stroke-width="3"/></g>`;
+    let s = `<defs><g id="t">${tile}</g></defs>`;
+    for (let y = 0; y < 5; y++) for (let x = 0; x < 4; x++) s += `<use href="#t" x="${x * T}" y="${y * T}"/>`;
+    document.getElementById("s").innerHTML = s;
+    listo();
+  </script>
+</body>
+</html>

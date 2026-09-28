@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #efe6d2; }
+  .t { position: absolute; left: 60px; top: 60px; background: #efe6d2; padding: 22px 30px; border: 3px solid #5a3e2b; font-family: "Playfair"; font-weight: 900; font-size: 64px; color: #5a3e2b; line-height: 1; }
+  .t small { display: block; font-family: "Space Mono"; font-weight: 400; font-size: 20px; margin-top: 12px; }
+  .escala { position: absolute; right: 60px; bottom: 60px; font-family: "Space Mono"; font-size: 18px; color: #5a3e2b; background: #efe6d2; padding: 10px 14px; border: 2px solid #5a3e2b; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">Sierra Nevada<small>(inventada) · curvas de nivel con marching squares</small></div>
+  <div class="escala">1 : 25.000 · equidistancia 40 m</div>
+  <script>
+    const ctx = canvas2d();
+    const n = makeNoise(1719);
+    const S = 6;
+    const GX = Math.ceil(W / S) + 1, GY = Math.ceil(H / S) + 1;
+    const alt = new Float32Array(GX * GY);
+    for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) {
+      const x = i * S, y = j * S;
+      const pico = Math.exp(-(((x - 640) / 380) ** 2 + ((y - 720) / 460) ** 2)) * 0.55;
+      alt[j * GX + i] = n(x * 0.0028, y * 0.0028, 5) * 0.8 + pico;
+    }
+    const niveles = 38;
+    let mn = Infinity, mx = -Infinity;
+    for (const v of alt) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+    // Tintas hipsométricas suaves de fondo
+    for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) {
+      const t = (alt[j * GX + i] - mn) / (mx - mn);
+      const c = t < 0.5 ? [236 - t * 30, 226 - t * 20, 200 - t * 60] : [221 - (t - .5) * 60, 206 - (t - .5) * 90, 170 - (t - .5) * 80];
+      ctx.fillStyle = `rgb(${c.map(Math.round).join(",")})`;
+      ctx.fillRect(i * S, j * S, S, S);
+    }
+    ctx.lineCap = "round";
+    for (let k = 1; k < niveles; k++) {
+      const iso = mn + (mx - mn) * k / niveles;
+      const maestra = k % 5 === 0;
+      ctx.strokeStyle = maestra ? "#5a3e2b" : "rgba(122,84,56,.75)";
+      ctx.lineWidth = maestra ? 2.4 : 1.1;
+      ctx.beginPath();
+      for (let j = 0; j < GY - 1; j++) for (let i = 0; i < GX - 1; i++) {
+        const a = alt[j * GX + i], b = alt[j * GX + i + 1], c = alt[(j + 1) * GX + i + 1], d = alt[(j + 1) * GX + i];
+        const idx = (a > iso) * 8 + (b > iso) * 4 + (c > iso) * 2 + (d > iso);
+        if (idx === 0 || idx === 15) continue;
+        const x = i * S, y = j * S;
+        const lerp = (p, q) => (iso - p) / (q - p);
+        const top = [x + S * lerp(a, b), y], der = [x + S, y + S * lerp(b, c)], abj = [x + S * lerp(d, c), y + S], izq = [x, y + S * lerp(a, d)];
+        const segs = {1:[izq,abj],2:[abj,der],3:[izq,der],4:[top,der],5:[top,izq,abj,der],6:[top,abj],7:[top,izq],8:[top,izq],9:[top,abj],10:[top,der,izq,abj],11:[top,der],12:[izq,der],13:[abj,der],14:[izq,abj]}[idx];
+        for (let s = 0; s < segs.length; s += 2) { ctx.moveTo(...segs[s]); ctx.lineTo(...segs[s + 1]); }
+      }
+      ctx.stroke();
+    }
+    // Cumbre
+    let best = 0;
+    for (let q = 0; q < alt.length; q++) if (alt[q] > alt[best]) best = q;
+    const bx = (best % GX) * S, by = Math.floor(best / GX) * S;
+    ctx.fillStyle = "#5a3e2b";
+    ctx.beginPath(); ctx.moveTo(bx, by - 14); ctx.lineTo(bx + 12, by + 8); ctx.lineTo(bx - 12, by + 8); ctx.fill();
+    document.fonts.load("italic 30px Playfair").then(() => {
+      ctx.font = "italic 30px Playfair";
+      ctx.fillText("Pico del Quillo · 3.482 m", bx + 20, by + 8);
+      listo();
+    });
+  </script>
+</body>
+</html>

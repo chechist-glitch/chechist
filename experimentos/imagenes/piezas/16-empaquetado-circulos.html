@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>
+  body { background: #1f2a1c; }
+  .t { position: absolute; left: 0; right: 0; bottom: 70px; text-align: center; font-family: "DM Serif"; font-size: 96px; color: #e8dfb0; }
+  .t small { display: block; font-family: "Space Mono"; font-size: 20px; color: #9fae7a; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">Aceitunas<small>2.000 intentos de meter círculos sin que se toquen · circle packing</small></div>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(2024);
+    const cx = 540, cy = 560, R = 440;
+    const pal = ["#6b8e23", "#556b2f", "#808b3a", "#3b4a1f", "#a4a653", "#2e2a1f", "#5e3b4d"];
+    const cs = [];
+    for (let k = 0; k < 20000 && cs.length < 2000; k++) {
+      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R;
+      const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+      let rad = Math.min(70, R - d);
+      for (const c of cs) {
+        rad = Math.min(rad, Math.hypot(c.x - x, c.y - y) - c.r - 3);
+        if (rad < 4) break;
+      }
+      if (rad >= 4) cs.push({ x, y, r: rad });
+    }
+    for (const c of cs) {
+      const col = pal[Math.floor(r() * pal.length)];
+      const g = ctx.createRadialGradient(c.x - c.r * .35, c.y - c.r * .4, c.r * .1, c.x, c.y, c.r);
+      g.addColorStop(0, "rgba(255,255,230,.55)");
+      g.addColorStop(0.35, col);
+      g.addColorStop(1, "#141a10");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y, c.r, c.r * 0.92, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      if (c.r > 22 && r() < 0.25) { ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.arc(c.x, c.y, c.r * 0.28, 0, Math.PI * 2); ctx.fill(); }
+    }
+    listo();
+  </script>
+</body>
+</html>
