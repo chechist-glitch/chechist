@@ -87,6 +87,11 @@ h1 { font: 800 clamp(2.4rem, 6vw, 3.6rem)/.92 var(--font-display); letter-spacin
 .status[data-kind="done"] i, .status[data-kind="svc"] i { background: var(--ok); }
 .tool-pill { top: 44px; }
 .zone-pill { top: 78px; }
+.mach-pill { top: 112px; }
+.img-wrap { display: grid; gap: 8px; }
+.img-wrap canvas { width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); image-rendering: auto; }
+.img-plan { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.img-plan b { color: var(--fg); font-weight: 600; }
 .tool-pill small { color: var(--muted); font-size: 11px; }
 .ink-mini { width: 46px; height: 7px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
 .ink-mini b, .bar.ink b { display: block; height: 100%; width: 0; background: var(--fg); }
@@ -246,6 +251,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       <div class="stage" id="stage">
         <div class="pill status" id="status" data-kind="idle"><i></i><span id="status-text">Preparando</span></div>
         <div class="pill tool-pill" id="tool-pill"><i class="dot" id="tool-dot"></i><span id="tool-cart">Sin cartucho</span><i class="dot" id="tool-inkdot"></i><span class="ink-mini"><b id="tool-ink"></b></span><span id="tool-ink-txt">–</span><small id="tool-sensor" hidden>el robot no lo ve</small></div>
+        <div class="pill mach-pill" id="mach-pill" hidden><span id="mach-txt">–</span></div>
         <div class="pill zone-pill" id="zone-pill"><span id="zone-pill-txt">–</span></div>
         <div class="toast" id="toast" hidden></div>
         <div class="lens-frame" id="lens-frame"><span class="lens-label"><b id="lens-bar"></b>1 mm · lupa</span></div>
@@ -345,6 +351,25 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
           <button class="chip design" data-design="letras" aria-pressed="false">Letras góticas</button>
           <button class="chip design" data-design="caligrafia" aria-pressed="false">Caligrafía</button>
           <button class="chip design" data-design="propio" aria-pressed="false">Dibujar el mío</button>
+          <button class="chip design" data-design="imagen" aria-pressed="false">Subir una imagen</button>
+        </div>
+        <input type="file" id="file-img" accept="image/*" hidden>
+        <div class="img-wrap" id="img-wrap" hidden>
+          <canvas id="img-prev" aria-label="Cómo va a tatuar la imagen: negro, grises y colores"></canvas>
+          <div class="pad-row">
+            <button class="btn small" id="img-pick">Elegir otra imagen</button>
+            <button class="btn small" id="img-sample">Usar una de ejemplo</button>
+          </div>
+          <div class="chips" role="group" aria-label="Colores de la imagen">
+            <button class="chip imgc" data-imgcolor="auto" aria-pressed="true">Colores si los tiene</button>
+            <button class="chip imgc" data-imgcolor="bn" aria-pressed="false">Solo negro y grises</button>
+          </div>
+          <div class="chips" role="group" aria-label="Detalle">
+            <button class="chip imgd" data-imgdet="0" aria-pressed="false">Detalle fino</button>
+            <button class="chip imgd" data-imgdet="1" aria-pressed="true">Medio</button>
+            <button class="chip imgd" data-imgdet="2" aria-pressed="false">Grueso</button>
+          </div>
+          <ul class="img-plan" id="img-plan"></ul>
         </div>
         <small class="note" id="design-note"></small>
         <div class="field" id="f-text" hidden><div class="field-head"><label for="txt-design">Texto</label></div><input type="text" id="txt-design" maxlength="18" autocomplete="off"></div>
@@ -369,7 +394,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
           </div>
           <small class="note">El dibujo ocupa el ancho del tatuaje. Con relleno o puntillismo, cada trazo se cierra solo y se rellena por dentro.</small>
         </div>
-        <div class="field">
+        <div class="field" id="f-speed">
           <div class="field-head"><label for="rng-speed">Velocidad del trazo</label><output id="out-speed"></output></div>
           <input type="range" id="rng-speed" min="5" max="45" step="1" value="18">
         </div>
@@ -442,7 +467,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
           <canvas id="tip" width="224" height="224" aria-label="Punta del cartucho vista desde abajo"></canvas>
           <p id="tip-note"></p>
         </div>
-        <div class="field">
+        <label class="toggle"><span><b>Ajustes automáticos de la máquina</b><small>Para cada trazo elige frecuencia, carrera y velocidad del brazo según la aguja y la técnica, y los adapta a la piel que pisa. Apágalo para usar los deslizadores.</small></span><input type="checkbox" class="sw" id="sw-automaq" checked></label>
+        <div class="field" id="f-freq">
           <div class="field-head"><label for="rng-freq">Velocidad de la máquina</label><output id="out-freq"></output></div>
           <input type="range" id="rng-freq" min="50" max="150" step="5" value="110">
           <small>Pinchazos por segundo. Si es baja y el trazo va rápido, la línea sale punteada.</small>
@@ -459,6 +485,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <label class="toggle"><span><b>Recarga automática</b><small>Va solo al vaso cuando baja del límite. Si no, se para y espera a «Recargar tinta».</small></span><input type="checkbox" class="sw" id="sw-autorefill" checked></label>
         <label class="toggle"><span><b>Enjuagar al cambiar de color</b><small>Agua y papel antes de cargar otro color. Si no, el color nuevo sale sucio.</small></span><input type="checkbox" class="sw" id="sw-rinse" checked></label>
         <div class="inks" id="ink-list" aria-label="Tintas de la estación"></div>
+        <small class="note" id="dil-note"></small>
       </div>
 
       <div class="group">
@@ -488,6 +515,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     <section class="card" aria-label="Cosas para probar">
       <h2>Cosas para probar</h2>
       <ul class="tips">
+        <li><b>Tu propio tatuaje.</b> «Subir una imagen» (o «Usar una de ejemplo»): el robot separa líneas, negro, grises y colores, elige las agujas, la técnica y las diluciones, y ajusta la máquina en cada trazo. El plan sale debajo de la imagen.</li>
         <li><b>Sombras.</b> Elige la rosa o la luna y compara «Por presión» (medio péndulo, solo negro) con «Por dilución» (gris claro, medio y oscuro por capas).</li>
         <li><b>Letras.</b> Con «Letras góticas» o «Caligrafía» escribe tu texto: el robot hace el contorno y rellena cada trazo.</li>
         <li><b>Mira dónde queda la tinta.</b> Al terminar, «Ver resultado sin plantilla» quita el stencil, y el «Corte de la piel» enseña cada pinchazo en su capa. Con «Piel fina, profundidad fija» verás tinta en la dermis honda.</li>
@@ -1294,21 +1322,16 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // Letras: se escribe el texto en un lienzo y se sacan los contornos de cada letra (cuadrados que avanzan)
   const FONTS = { letras: '"UnifrakturMaguntia", "Old English Text MT", "Times New Roman", serif', caligrafia: '"Pinyon Script", "Brush Script MT", "Segoe Script", cursive' };
   const designText = { letras: 'Familia', caligrafia: 'Libertad' };
-  function textRings(text, fontKey) {
-    const fs = 170, cv = document.createElement('canvas'), c = cv.getContext('2d'), font = `${fs}px ${FONTS[fontKey]}`;
-    c.font = font;
-    const W = ceil(c.measureText(text || ' ').width) + 90, H = round(fs * 1.7);
-    cv.width = W; cv.height = H;
-    c.font = font; c.textBaseline = 'middle'; c.fillStyle = '#000'; c.fillText(text || ' ', 45, H / 2);
-    const img = c.getImageData(0, 0, W, H).data;
-    const on = (x, y) => (x >= 0 && y >= 0 && x < W && y < H && img[4 * (y * W + x) + 3] > 127 ? 1 : 0);
+  // Contornos de una máscara (cuadrados que avanzan): anillos cerrados en píxeles, simplificados
+  function contourRings(W, H, on, eps, minArea) {
     const KX = 2 * W + 8, key = (x2, y2) => (y2 + 2) * KX + x2 + 2;   // puntos a medio píxel, en doble resolución
     const segA = [], segB = [], ends = new Map();
     const addEnd = (k, i) => { const l = ends.get(k); if (l) l.push(i); else ends.set(k, [i]); };
     const T = (x, y) => key(2 * x + 1, 2 * y), R = (x, y) => key(2 * x + 2, 2 * y + 1), B = (x, y) => key(2 * x + 1, 2 * y + 2), L = (x, y) => key(2 * x, 2 * y + 1);
     const TABLE = { 1: [[L, B]], 2: [[B, R]], 3: [[L, R]], 4: [[T, R]], 5: [[L, T], [B, R]], 6: [[T, B]], 7: [[L, T]], 8: [[L, T]], 9: [[T, B]], 10: [[T, R], [L, B]], 11: [[T, R]], 12: [[L, R]], 13: [[B, R]], 14: [[L, B]] };
+    const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H && on(x, y) ? 1 : 0);
     for (let y = -1; y < H; y++) for (let x = -1; x < W; x++) {
-      const idx = on(x, y) * 8 + on(x + 1, y) * 4 + on(x + 1, y + 1) * 2 + on(x, y + 1);
+      const idx = at(x, y) * 8 + at(x + 1, y) * 4 + at(x + 1, y + 1) * 2 + at(x, y + 1);
       const segs = TABLE[idx]; if (!segs) continue;
       for (const [f, g] of segs) { const i = segA.length, a = f(x, y), b = g(x, y); segA.push(a); segB.push(b); addEnd(a, i); addEnd(b, i); }
     }
@@ -1319,19 +1342,168 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       used[i0] = 1;
       const loop = [segA[i0]];
       let cur = segB[i0];
-      for (let guard = 0; guard < 200000 && cur !== segA[i0]; guard++) {
+      for (let guard = 0; guard < 400000 && cur !== segA[i0]; guard++) {
         loop.push(cur);
         const nx = (ends.get(cur) || []).find((j) => !used[j]);
         if (nx === undefined) break;
         used[nx] = 1; cur = segA[nx] === cur ? segB[nx] : segA[nx];
       }
-      if (loop.length < 14) continue;
-      const P = rdp(loop.map(pt), .7);
+      if (loop.length < 6) continue;
+      const P = rdp(loop.map(pt), eps);
       let area = 0; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; area += a[0] * b[1] - b[0] * a[1]; }
-      if (abs(area) / 2 < 40) continue;
-      rings.push(P.map(([x, y]) => [x / 100, y / 100]));
+      if (abs(area) / 2 < minArea) continue;
+      rings.push(P);
     }
     return rings;
+  }
+  function textRings(text, fontKey) {
+    const fs = 170, cv = document.createElement('canvas'), c = cv.getContext('2d'), font = `${fs}px ${FONTS[fontKey]}`;
+    c.font = font;
+    const W = ceil(c.measureText(text || ' ').width) + 90, H = round(fs * 1.7);
+    cv.width = W; cv.height = H;
+    c.font = font; c.textBaseline = 'middle'; c.fillStyle = '#000'; c.fillText(text || ' ', 45, H / 2);
+    const img = c.getImageData(0, 0, W, H).data;
+    return contourRings(W, H, (x, y) => img[4 * (y * W + x) + 3] > 127, .7, 40).map((P) => P.map(([x, y]) => [x / 100, y / 100]));
+  }
+
+  // =====================================================================
+  // CUALQUIER IMAGEN: se analiza y se planifica sola (agujas, técnica, diluciones y ajustes de la máquina)
+  // =====================================================================
+  const cupMats = {}, WASH_DEF = WASH_KEYS.map((k) => INKS[k].wash);
+  // color de los vasos de gris y nota con el porcentaje de tinta por cap
+  function updateWashCups() {
+    for (const k of WASH_KEYS) { const w = INKS[k].wash; if (cupMats[k]) cupMats[k].color.set(rgbStr([0, 1, 2].map((i) => round(215 + (INKS[k].rgb[i] - 215) * w)))); }
+    const el = $('#dil-note');
+    if (el) el.textContent = 'Diluciones (tinta por cap, el resto agua): ' + WASH_KEYS.map((k) => `${INKS[k].label.toLowerCase()} ${round(OP_INK(INKS[k].wash) * 100)} %`).join(' · ') + '.';
+    patchDirty = true;
+  }
+  const INK_OP = (pct) => pct ** .6, OP_INK = (op) => clamp(op, 0, 1) ** (1 / .6);   // opacidad en la piel <-> fracción de tinta en el vaso
+  const COLOR_HUES = { rojo: 0, amarillo: 50, verde: 130 };
+  let imgSrc = null, imgAn = null, imgPlan = null;
+  const imgOpts = { color: 'auto', detail: 1 };
+  function analyzeImage(img) {
+    const maxPx = 480, sc = maxPx / max(img.width, img.height), W = max(8, round(img.width * sc)), H = max(8, round(img.height * sc));
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); c.drawImage(img, 0, 0, W, H);
+    const d = c.getImageData(0, 0, W, H).data, N = W * H;
+    let L = new Float32Array(N);
+    const sat = new Float32Array(N), hue = new Float32Array(N), val = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const r = d[4 * i] / 255, g = d[4 * i + 1] / 255, b = d[4 * i + 2] / 255, mx = max(r, g, b), mn = min(r, g, b);
+      L[i] = 1 - (.2126 * r + .7152 * g + .0722 * b);
+      val[i] = mx; sat[i] = mx > 0 ? (mx - mn) / mx : 0;
+      let h = 0; if (mx > mn) { h = mx === r ? (g - b) / (mx - mn) : mx === g ? 2 + (b - r) / (mx - mn) : 4 + (r - g) / (mx - mn); h = (h * 60 + 360) % 360; }
+      hue[i] = h;
+    }
+    // suavizado según el detalle: quita ruido y cositas que no se pueden tatuar
+    const rb = [0, 1, 2][imgOpts.detail];
+    for (let pass = 0; pass < rb; pass++) {
+      const T2 = new Float32Array(N);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let s2 = 0, n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H) { s2 += L[yy * W + xx]; n++; } } T2[y * W + x] = s2 / n; }
+      L = T2;
+    }
+    // niveles: el blanco del papel a 0 y lo más negro a 1
+    const sorted = Float32Array.from(L).sort(), lo = sorted[floor(N * .02)], hi = sorted[min(N - 1, floor(N * .995))];
+    const Lp = new Float32Array(N), span = hi - lo > .25 ? hi - lo : 1, base = hi - lo > .25 ? lo : 0;
+    for (let i = 0; i < N; i++) Lp[i] = clamp((L[i] - base) / span, 0, 1);
+    // color: solo si hay bastante y el usuario no ha pedido blanco y negro
+    const col = new Int8Array(N).fill(-1), CK = Object.keys(COLOR_HUES);
+    let nCol = 0;
+    for (let i = 0; i < N; i++) {
+      if (sat[i] < .35 || val[i] < .25 || Lp[i] > .9) continue;
+      let bi = -1, bd = 40;
+      CK.forEach((k, j) => { const dh = abs(((hue[i] - COLOR_HUES[k] + 540) % 360) - 180); if (dh < bd) { bd = dh; bi = j; } });
+      if (bi >= 0) { col[i] = bi; nCol++; }
+    }
+    const colorOn = imgOpts.color === 'auto' && nCol > N * .01;
+    if (!colorOn) col.fill(-1);
+    // máscaras: negro sólido, tonos (sombra) y colores
+    const blk = new Uint8Array(N);
+    for (let i = 0; i < N; i++) blk[i] = col[i] < 0 && Lp[i] > .72 ? 1 : 0;
+    // grosor: distancia al borde dentro del negro (chaflán 3-4)
+    const DTa = new Float32Array(N);
+    for (let i = 0; i < N; i++) DTa[i] = blk[i] ? 1e6 : 0;
+    const relax = (i, j, w) => { if (DTa[j] + w < DTa[i]) DTa[i] = DTa[j] + w; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (!blk[i]) continue; if (x > 0) relax(i, i - 1, 3); else DTa[i] = min(DTa[i], 3); if (y > 0) { relax(i, i - W, 3); if (x > 0) relax(i, i - W - 1, 4); if (x < W - 1) relax(i, i - W + 1, 4); } else DTa[i] = min(DTa[i], 3); }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (!blk[i]) continue; if (x < W - 1) relax(i, i + 1, 3); else DTa[i] = min(DTa[i], 3); if (y < H - 1) { relax(i, i + W, 3); if (x < W - 1) relax(i, i + W + 1, 4); if (x > 0) relax(i, i + W - 1, 4); } else DTa[i] = min(DTa[i], 3); }
+    const blackRings = contourRings(W, H, (x, y) => blk[y * W + x], .6, 4).map((P) => {
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (const [x, y] of P) { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y); }
+      let t = 0;
+      for (let y = max(0, floor(y0)); y <= min(H - 1, ceil(y1)); y++) for (let x = max(0, floor(x0)); x <= min(W - 1, ceil(x1)); x++) t = max(t, DTa[y * W + x] / 3);
+      return { P, t };   // t: medio grosor en píxeles
+    });
+    // tonos por capas: claro (todo lo sombreado), medio y oscuro; fuera del negro (un pelín ensanchado)
+    // el borde suavizado del negro no es sombra: se aparta un margen de 2 px
+    const nb = new Uint8Array(N);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (blk[y * W + x]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H) nb[yy * W + xx] = 1; }
+    const nearBlk = (i) => nb[i];
+    const TH = [.1, .38, .6];
+    const toneRings = TH.map((th) => contourRings(W, H, (x, y) => { const i = y * W + x; return col[i] < 0 && Lp[i] > th && !nearBlk(i); }, .8, 12));
+    // diluciones automáticas: que cada capa, sumada a las de debajo, dé el tono medio de su franja
+    const bands = [[.1, .38], [.38, .6], [.6, .72]].map(([a, b]) => { const v = []; for (let i = 0; i < N; i += 3) if (col[i] < 0 && Lp[i] > a && Lp[i] <= b) v.push(Lp[i]); v.sort(); return v.length ? v[floor(v.length / 2)] : (a + b) / 2; });
+    const ops = []; let acc = 0;
+    for (const m of bands) { const op = clamp(1 - (1 - m * .92) / (1 - acc), .06, .85); ops.push(op); acc = 1 - (1 - acc) * (1 - op); }
+    const colorRings = {};
+    if (colorOn) CK.forEach((k, j) => { const r = contourRings(W, H, (x, y) => col[y * W + x] === j, .8, 10); if (r.length) colorRings[k] = r; });
+    return { W, H, Lp, col, blackRings, toneRings, colorRings, ops, colorOn, toned: toneRings[0].length > 0 };
+  }
+  // Ajustes de la máquina por tipo de trazo: frecuencia (Hz), carrera (mm) y velocidad del brazo (mm/s)
+  function machineFor(kind, cart) {
+    const c = CARTS[cart];
+    if (kind === 'wash') return { hz: 90, stroke: 3.2, spd: 16 };
+    if (kind === 'pressure') return { hz: 80, stroke: 3.0, spd: 18 };
+    if (kind === 'fill') return c.mag ? { hz: 100, stroke: 3.8, spd: 16 } : { hz: 105, stroke: 3.5, spd: 13 };
+    if (kind === 'dots') return { hz: 100, stroke: 3.2, spd: 15 };
+    const hz = c.n <= 3 ? 120 : c.n <= 5 ? 115 : 105;
+    return { hz, stroke: c.n <= 5 ? 3.5 : 3.8, spd: round(hz * .12) };   // unos 0,12 mm entre pinchazo y pinchazo: línea sólida
+  }
+  // Plan del tatuaje a partir del análisis, ya en milímetros según el tamaño elegido
+  function planImage() {
+    const A = imgAn, mmpp = params.size / max(A.W, A.H), toMM = (P) => P.map(([x, y]) => ({ u: (x - A.W / 2) * mmpp, v: (y - A.H / 2) * mmpp }));
+    const els = [], used = {}, note = (k, t) => { (used[k] = used[k] || []).push(t); };
+    // 1) contornos del negro, con el liner que pide el grosor de cada trazo; agrupados por aguja y del más cercano al siguiente
+    const lines = { '1209RL': [], '1205RL': [], '1003RL': [] };
+    for (const r of A.blackRings) {
+      const thick = 2 * r.t * mmpp, cart = thick < .9 ? '1003RL' : thick < 2.6 ? '1205RL' : '1209RL', pts = toMM(r.P);
+      let per = 0; for (let i = 1; i < pts.length; i++) per += hypot(pts[i].u - pts[i - 1].u, pts[i].v - pts[i - 1].v);
+      if (per >= 1.2) lines[cart].push(pts);
+    }
+    let pu = 0, pv = 0;
+    const pushLines = (cart) => {
+      const L = lines[cart].slice();
+      while (L.length) {
+        let bi = 0, bd = Infinity;
+        L.forEach((pts, i) => { const d = hypot(pts[0].u - pu, pts[0].v - pv); if (d < bd) { bd = d; bi = i; } });
+        const pts = L.splice(bi, 1)[0];
+        els.push({ kind: 'line', pts: pts.concat([pts[0]]), cart, ink: 'negro', set: machineFor('line', cart), mm: true });
+        note(cart, 'line'); pu = pts[0].u; pv = pts[0].v;
+      }
+    };
+    // 2) relleno del negro: magnum en las zonas anchas, liner en los trazos estrechos
+    const wide = A.blackRings.filter((r) => 2 * r.t * mmpp >= 3.5), narrow = A.blackRings.filter((r) => 2 * r.t * mmpp < 3.5);
+    const pushFill = (grp, cart) => { if (!grp.length) return; els.push({ kind: 'fill', rings: grp.map((r) => toMM(r.P)), cart, ink: 'negro', angle: .9, set: machineFor('fill', cart), mm: true }); note(cart, 'fill'); };
+    pushLines('1209RL'); pushLines('1205RL'); pushFill(narrow, '1205RL'); pushLines('1003RL'); pushFill(wide, '1207M1');
+    // 3) sombras: por presión (una tinta, la mano sube y baja) o por diluciones calculadas de la imagen
+    let washTxt = '';
+    if (A.toned) {
+      if (params.shadeMode === 'dilucion') {
+        WASH_KEYS.forEach((k, i) => { INKS[k].wash = A.ops[i]; });
+        updateWashCups();
+        A.toneRings.forEach((R, i) => { if (R.length) { els.push({ kind: 'fill', rings: R.map(toMM), cart: '1207M1', ink: WASH_KEYS[i], angle: .6 + i * .5, set: machineFor('wash', '1207M1'), shade: true, mm: true }); } });
+        note('1207M1', 'wash');
+        washTxt = WASH_KEYS.map((k, i) => `${INKS[k].label.toLowerCase()} ${round(OP_INK(A.ops[i]) * 100)} % de tinta`).join(', ');
+      } else {
+        const wmap = (u, v) => { const x = round(u / mmpp + A.W / 2), y = round(v / mmpp + A.H / 2); if (x < 0 || y < 0 || x >= A.W || y >= A.H) return .05; return clamp((A.Lp[y * A.W + x] - .08) / .64, .05, 1); };
+        els.push({ kind: 'wfill', rings: A.toneRings[0].map(toMM), cart: '1211RM', ang: .6, wmap, set: machineFor('pressure', '1211RM'), mm: true });
+        if (A.toneRings[1].length) els.push({ kind: 'wfill', rings: A.toneRings[1].map(toMM), cart: '1211RM', ang: .6 + PI / 2, wmap: (u, v) => wmap(u, v) * .8, set: machineFor('pressure', '1211RM'), mm: true });
+        note('1211RM', 'pressure');
+      }
+    }
+    // 4) colores, cada uno con su relleno
+    for (const k in A.colorRings) { els.push({ kind: 'fill', rings: A.colorRings[k].map(toMM), cart: '1207M1', ink: k, angle: .3, set: machineFor('fill', '1207M1'), mm: true, outline: true }); note('1207M1', k); }
+    imgPlan = { used, washTxt, colors: Object.keys(A.colorRings) };
+    return els;
   }
   function rdp(P, eps) {
     if (P.length < 4) return P;
@@ -1439,6 +1611,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       ];
     } },
     letras: { label: 'Letras góticas', text: 'letras', note: 'Letra gótica: contorno con 1205RL y cada trazo relleno con el mismo liner. Cambia el texto abajo.', make() { return textEls('letras', '1205RL'); } },
+    imagen: { label: 'Imagen subida', image: true, shade: true, note: 'El robot analiza la imagen y lo decide todo: agujas, técnica, diluciones y ajustes de la máquina.', make() { return []; } },
     caligrafia: { label: 'Caligrafía', text: 'caligrafia', note: 'Letra caligráfica: contorno fino con 1003RL y relleno con 1205RL, que cabe en los trazos finos. Cambia el texto abajo.', make() { return textEls('caligrafia', '1003RL'); } }
   };
   const box = () => ({ u0: -params.size / 2, u1: params.size / 2, v0: -params.size / 2, v1: params.size / 2 });
@@ -1665,24 +1838,38 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   function buildJobs(els) {
     const jobs = [], sten = [];
     for (const el of els) {
+      const n0 = jobs.length;
       if (el.kind === 'line') { sten.push({ pts: el.pts, closed: false }); const j = makeLine(el.pts, el.cart, el.ink, null); if (j) jobs.push(j); }
       else if (el.kind === 'fill') {
         const rings = el.rings || [el.poly];
         if (!el.rings) sten.push({ pts: el.poly, closed: true });
+        if (el.outline) for (const r of rings) sten.push({ pts: r, closed: true });
         const c = CARTS[el.cart], sp = c.mag ? c.w * .55 : c.w * .7, ang = el.angle || 0;
-        for (const path of hatch(rings, sp, ang, el.cart)) { const j = makeLine(path, el.cart, el.ink, c.mag ? ang + PI / 2 : null); if (j) { j.fill = true; j.region = rings; jobs.push(j); } }
+        for (const path of hatch(rings, sp, ang, el.cart)) { const j = makeLine(path, el.cart, el.ink, c.mag ? ang + PI / 2 : null); if (j) { j.fill = true; j.region = rings; if (el.shade) j.shade = true; jobs.push(j); } }
+      } else if (el.kind === 'wfill') {
+        // sombra por presión sobre un mapa de tonos: filas con la presión que pide cada punto de la imagen
+        const c = CARTS[el.cart];
+        for (const path of hatch(el.rings, c.w * .5, el.ang, el.cart)) {
+          const pts = [];
+          for (let i = 1; i < path.length; i++) {
+            const a = path[i - 1], b = path[i], L = hypot(b.u - a.u, b.v - a.v), n = max(1, ceil(L / .5));
+            for (let k = i === 1 ? 0 : 1; k <= n; k++) { const u = a.u + (b.u - a.u) * k / n, v = a.v + (b.v - a.v) * k / n; pts.push({ u, v, w: el.wmap(u, v) }); }
+          }
+          const j = makeLine(pts, el.cart, 'negro', null); if (j) { j.shade = true; j.region = el.rings; jobs.push(j); }
+        }
       } else if (el.kind === 'shade') { const n0 = jobs.length; shadeJobs(el, jobs); for (let i = n0; i < jobs.length; i++) { jobs[i].shade = true; jobs[i].region = [el.poly]; } } else if (el.kind === 'dots') {
         let dots;
         if (el.pts) { sten.push({ pts: el.pts, closed: false }); dots = dotPath(el.pts, el.spacing || 1.2); }
         else { const region = el.poly ? polyRegion(el.poly) : ringRegion(el.ring); sten.push(...region.outline); dots = stipple(region, el.dens || (() => .6), el.rMin || .9, el.rMax || 2.4, 11); }
         if (dots.length) jobs.push({ type: 'dots', dots, len: dots.length, cart: el.cart, ink: el.ink });
       }
+      if (el.set) for (let i = n0; i < jobs.length; i++) jobs[i].set = el.set;
     }
     return { jobs, sten };
   }
   let designSrc = null, strokes = [], stencil = [], totalLen = 0;
   function buildDesign() {
-    const els = designSrc.pad ? mapPadElements(designSrc.els) : fitElements(designSrc.make());
+    const els = designSrc.image ? (imgAn ? planImage() : []) : designSrc.pad ? mapPadElements(designSrc.els) : fitElements(designSrc.make());
     const { jobs, sten } = buildJobs(els);
     strokes = jobs; stencil = sten;
     totalLen = strokes.reduce((a, s) => a + (s.type === 'dots' ? s.len * 1.5 : s.len), 0);
@@ -1800,7 +1987,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   const params = {
     move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, speed: 18,
     cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true,
-    shave: true, hydrate: true, numb: false, size: 70, rot: 0, poseMode: 'auto', shadeMode: 'presion', showStencil: true,
+    shave: true, hydrate: true, numb: false, size: 70, rot: 0, poseMode: 'auto', shadeMode: 'presion', showStencil: true, autoMachine: true,
     showGhost: true, showErrors: true, showLens: true, map: 'none', tone: 1
   };
   const BASE = { move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true, shave: true, hydrate: true, numb: false };
@@ -1947,6 +2134,15 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     tool.contam = max(0, tool.contam - amount / (params.capacity * .3));
   }
   const SKH = { ...SK };
+  // Ajustes de la máquina en cada momento: automáticos por trazo o los de los deslizadores
+  const mach = { hz: 110, stroke: 3.5, base: 18, spd: 18, depth: 0 };
+  function jobSettings(st) {
+    if (!params.autoMachine) return { hz: params.freq, stroke: 3.5, spd: params.speed };
+    if (st.set) return st.set;
+    if (st.type === 'dots') return machineFor('dots', st.cart);
+    if (st.shade) return INKS[st.ink].wash ? machineFor('wash', st.cart) : machineFor('pressure', st.cart);
+    return machineFor(st.fill ? 'fill' : 'line', st.cart);
+  }
   // Un pinchazo: todas las agujas del cartucho entran a la vez y dejan su punto de tinta
   function doHit(ref, isDots) {
     const sk = skinAt(INV.u, INV.v, SKH), sink = sk.soft * .6, de = INV.depth - sink;
@@ -1955,12 +2151,13 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     let u = INV.u, v = INV.v;
     if (!isDots && lastHit && hypot(u - lastHit.u, v - lastHit.v) > .02) {
       // la piel se arrastra con la aguja: más cuanto más se estira y más blanda es
-      const dx = u - lastHit.u, dy = v - lastHit.v, L = hypot(dx, dy), m = (.08 + .35 * sk.elast) * (1 - sk.hard * .5) * clamp(params.speed / 18, 0, 2);
+      const dx = u - lastHit.u, dy = v - lastHit.v, L = hypot(dx, dy), m = (.08 + .35 * sk.elast) * (1 - sk.hard * .5) * clamp(mach.spd / 18, 0, 2);
       u -= dx / L * m; v -= dy / L * m;
     }
     let f = clamp(tool.level / .06, 0, 1);
     const hairy = !params.shave && sk.hair > .2 ? sk.hair : 0;
-    const take = (1 - .45 * sk.dry * (params.hydrate ? .3 : 1)) * (1 - .5 * hairy);
+    // la carrera larga empuja más tinta en cada pinchazo
+    const take = (1 - .45 * sk.dry * (params.hydrate ? .3 : 1)) * (1 - .5 * hairy) * clamp(mach.stroke / 3.5, .8, 1.12);
     let e = hypot(u - ref.u, v - ref.v);
     // en rellenos y sombras lo que importa es si la tinta se sale de la forma, no si se desvía por dentro
     const stc = strokes[cur.k];
@@ -1993,6 +2190,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const Kest = bones(Sest);
 
     const st = running && cur.k < strokes.length ? strokes[cur.k] : null;
+    if (st) { const js = jobSettings(st); mach.hz = js.hz; mach.stroke = js.stroke; mach.base = js.spd; }
     let ref = null, h = STANDOFF;
     if (mode === 'svc') {
       const w = svc.steps[svc.i];
@@ -2101,6 +2299,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       // sombreado por presión: con la mano ligera la aguja entra menos (parte alta de la franja buena)
       const dGood = params.zoneDepth ? sk.dC : 1.2, w = ref.w == null ? 1 : ref.w, dT = w < 1 ? sk.lo + .06 + (dGood - sk.lo - .06) * w : dGood;
       eT = clamp(t + dT + (params.force ? sk.soft * .6 : 0), 0, 12);
+      // velocidad del brazo adaptada a la piel: más despacio si se estira (se arrastra) o si es dura
+      mach.spd = mach.base * (params.autoMachine ? (1 - .3 * sk.elast) * (1 - .15 * sk.hard) : 1); mach.depth = dT;
     }
     rob.e += (eT - rob.e) * min(1, DT / .008);
     tip.x = rob.x + rob.dx * rob.e; tip.y = rob.y + rob.dy * rob.e; tip.z = rob.z + rob.dz * rob.e;
@@ -2119,14 +2319,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
 
     const isDots = !!(st && st.type === 'dots');
     if (running && ref && tool.cart && rob.e > .3 && (!isDots || dotPh === 'hit')) {
-      hitClock += DT * params.freq;
+      hitClock += DT * mach.hz;
       while (hitClock >= 1) { hitClock -= 1; if (inSkin && doHit(ref, isDots) && isDots) dotHits++; }
     } else { hitClock = 0; if (!inSkin) lastHit = null; }
 
     if (running) {
       stats.time += DT;
       if (mode === 'ink' && st.type === 'line' && inSkin && (!params.safety || tipErr < .8)) {
-        let ds = params.speed * DT * (st.hasW ? 1 + 1.3 * (1 - (Dp.w == null ? 1 : Dp.w)) : 1);
+        let ds = mach.spd * DT * (st.hasW ? 1 + 1.3 * (1 - (Dp.w == null ? 1 : Dp.w)) : 1);
         ds *= cornerSlow(st, cur.s);
         cur.s += ds;
         useInk(CARTS[tool.cart].use * ds);
@@ -2476,7 +2676,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const cupMat = new THREE.MeshStandardMaterial({ color: 0x2a2833, roughness: .45, side: THREE.DoubleSide });
     const cupGeo = new THREE.CylinderGeometry(11, 9, 16, 28, 1, true), surfGeo = new THREE.CircleGeometry(10.3, 28);
     const cupAt = (p, liquid) => { stMesh(cupGeo, cupMat, p.x, ST.top + 8, p.z); const s = new THREE.Mesh(surfGeo, liquid); s.rotation.x = -PI / 2; s.position.set(p.x, ST.top + 13, p.z); robotRoot.add(s); };
-    for (const k of INK_KEYS) { const w = INKS[k].wash, c = w ? [0, 1, 2].map((i) => round(215 + (INKS[k].rgb[i] - 215) * w)) : INKS[k].rgb; cupAt(CUPS[k], new THREE.MeshStandardMaterial({ color: rgbStr(c), roughness: .12, metalness: .1 })); }
+    for (const k of INK_KEYS) { const m = new THREE.MeshStandardMaterial({ color: rgbStr(INKS[k].rgb), roughness: .12, metalness: .1 }); cupMats[k] = m; cupAt(CUPS[k], m); }
+    updateWashCups();
     cupAt(RINSE, new THREE.MeshStandardMaterial({ color: 0x9fd3f0, roughness: .05, transparent: true, opacity: .6 }));
     stMesh(new THREE.BoxGeometry(30, 3, 30), new THREE.MeshStandardMaterial({ color: 0xf6f5f1, roughness: .95 }), PAPER.x, ST.top + 1.5, PAPER.z);
 
@@ -3093,6 +3294,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   function setV(id, html, cls) { const el = $(id); el.innerHTML = html; el.className = 'v' + (cls ? ' ' + cls : ''); }
   const grade = (x, g, m) => (x >= g ? 'good' : x >= m ? 'meh' : 'bad');
   function updateStats() {
+    const mp = $('#mach-pill');
+    mp.hidden = !(running && ['ink', 'hold'].includes(mode));
+    if (!mp.hidden) $('#mach-txt').textContent = `${round(mach.hz)} Hz · carrera ${fmt(mach.stroke, 1)} mm · brazo ${fmt(mach.spd, 0)} mm/s · aguja ${fmt(mach.depth, 1)} mm`;
     const prog = mode === 'done' ? 100 : totalLen ? clamp(doneLen() / totalLen * 100, 0, 100) : 0;
     setV('#st-prog', `${round(prog)}<small>%</small>`);
     $('#st-bar').style.width = prog + '%';
@@ -3180,12 +3384,13 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     size: ['#rng-size', '#out-size', (v) => v, (p) => p, (p) => `${fmt(p / 10, 1)} cm`],
     rot: ['#rng-rot', '#out-rot', (v) => v, (p) => p, (p) => `${p}°`]
   };
-  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', zoneDepth: '#sw-zonedepth', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', rinse: '#sw-rinse', shave: '#sw-shave', hydrate: '#sw-hydrate', numb: '#sw-numb', showGhost: '#sw-ghost', showStencil: '#sw-stencil', showErrors: '#sw-errors', showLens: '#sw-lens' };
+  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', zoneDepth: '#sw-zonedepth', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', rinse: '#sw-rinse', shave: '#sw-shave', hydrate: '#sw-hydrate', numb: '#sw-numb', showGhost: '#sw-ghost', showStencil: '#sw-stencil', autoMachine: '#sw-automaq', showErrors: '#sw-errors', showLens: '#sw-lens' };
   let jointSel = 'foreL';
   function syncControls() {
     for (const [k, [rid, oid, , toUI, label]] of Object.entries(RANGES)) { $(rid).value = toUI(params[k]); $(oid).textContent = label(params[k]); }
     for (const [k, id] of Object.entries(SWITCHES)) $(id).checked = params[k];
     for (const id of ['#f-latency', '#f-noise', '#f-predict']) $(id).classList.toggle('dim', !params.tracking);
+    for (const id of ['#f-freq', '#f-speed']) $(id).classList.toggle('dim', params.autoMachine);
     $$('.cartc').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cart === params.cart)));
     $$('.zone').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.zone === currentZoneKey)));
     $$('.pose').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pose === params.poseMode)));
@@ -3238,6 +3443,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     designSrc = { ...DESIGNS[key], key };
     $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.design === key)));
     $('#pad-wrap').hidden = true;
+    $('#img-wrap').hidden = key !== 'imagen';
+    // los diseños de siempre usan las diluciones de serie; la imagen calcula las suyas
+    if (key !== 'imagen') { WASH_KEYS.forEach((k, i) => { INKS[k].wash = WASH_DEF[i]; }); updateWashCups(); }
     const tk = designSrc.text;
     $('#f-text').hidden = !tk;
     if (tk) {
@@ -3255,7 +3463,77 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       : 'Negro rebajado con agua en tres vasos. Primero gris claro en toda la sombra, luego el medio y al final el oscuro solo en lo más oscuro. Cada gris nunca oscurece más que su tono.';
     $('#shade-note').textContent = t + (designSrc && designSrc.shade ? '' : ' (El diseño elegido no lleva sombra: prueba la rosa o la luna.)');
   }
-  $$('.shadec').forEach((b) => b.addEventListener('click', () => { params.shadeMode = b.dataset.shade; syncShadeNote(); if (designSrc && designSrc.shade) { buildDesign(); resetRun(); } }));
+  $$('.shadec').forEach((b) => b.addEventListener('click', () => { params.shadeMode = b.dataset.shade; syncShadeNote(); if (designSrc && designSrc.shade) { buildDesign(); resetRun(); if (designSrc.image) renderImg(); } }));
+  // ---------- Imagen propia ----------
+  function loadImageFrom(src) {
+    const im = new Image();
+    im.onload = () => { imgSrc = im; reanalyze(); };
+    im.onerror = () => showToast('No he podido abrir esa imagen');
+    im.src = src;
+  }
+  function reanalyze() {
+    if (!imgSrc) return;
+    imgAn = analyzeImage(imgSrc);
+    setDesign('imagen'); syncControls(); resetRun(); renderImg();
+  }
+  $('#file-img').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadImageFrom(URL.createObjectURL(f)); e.target.value = ''; });
+  $('#img-pick').addEventListener('click', () => $('#file-img').click());
+  $('#img-sample').addEventListener('click', () => loadImageFrom(sampleImage()));
+  $$('.imgc').forEach((b) => b.addEventListener('click', () => { imgOpts.color = b.dataset.imgcolor; $$('.imgc').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); reanalyze(); }));
+  $$('.imgd').forEach((b) => b.addEventListener('click', () => { imgOpts.detail = +b.dataset.imgdet; $$('.imgd').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); reanalyze(); }));
+  // Imagen de ejemplo: esfera sombreada con contorno, estrella negra, corazón rojo y una línea fina
+  function sampleImage() {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 420;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#fff'; c.fillRect(0, 0, 420, 420);
+    const g = c.createRadialGradient(120, 130, 10, 150, 160, 110); g.addColorStop(0, '#f2f2f2'); g.addColorStop(.55, '#9a9a9a'); g.addColorStop(1, '#303030');
+    c.fillStyle = g; c.beginPath(); c.arc(150, 160, 105, 0, TAU); c.fill();
+    c.lineWidth = 7; c.strokeStyle = '#000'; c.stroke();
+    c.fillStyle = '#000'; c.beginPath();
+    for (let i = 0; i < 10; i++) { const r = i % 2 ? 26 : 62, t = -PI / 2 + i * PI / 5; c.lineTo(320 + r * cos(t), 110 + r * sin(t)); }
+    c.closePath(); c.fill();
+    c.beginPath();
+    for (let i = 0; i <= 80; i++) { const t = i / 80 * TAU; c.lineTo(300 + 4.2 * 16 * sin(t) ** 3, 300 - 4.2 * (13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t))); }
+    c.closePath(); c.fillStyle = '#d42a2a'; c.fill(); c.lineWidth = 5; c.strokeStyle = '#000'; c.stroke();
+    c.beginPath(); for (let x = 40; x <= 220; x += 4) c.lineTo(x, 340 + 18 * sin(x / 18)); c.lineWidth = 3; c.stroke();
+    return cv.toDataURL();
+  }
+  function renderImg() {
+    if (!imgAn) return;
+    const A = imgAn, cv = $('#img-prev'), c = cv.getContext('2d');
+    cv.width = A.W; cv.height = A.H;
+    const im = c.createImageData(A.W, A.H), D = im.data, pres = params.shadeMode !== 'dilucion';
+    const colRGB = Object.keys(COLOR_HUES).map((k) => INKS[k].rgb);
+    for (let i = 0; i < A.W * A.H; i++) {
+      let r = 244, g = 238, b = 232;
+      const Lp = A.Lp[i], ci = A.col[i];
+      if (ci >= 0) [r, g, b] = colRGB[ci];
+      else if (Lp > .72) { r = 22; g = 20; b = 28; }
+      else if (Lp > .1) {
+        let op;
+        if (pres) op = clamp((Lp - .08) / .64, .05, 1) * .85;
+        else { op = 0; [.1, .38, .6].forEach((th, k) => { if (Lp > th) op = 1 - (1 - op) * (1 - A.ops[k]); }); }
+        r = round(r + (22 - r) * op); g = round(g + (20 - g) * op); b = round(b + (28 - b) * op);
+      }
+      D[4 * i] = r; D[4 * i + 1] = g; D[4 * i + 2] = b; D[4 * i + 3] = 255;
+    }
+    c.putImageData(im, 0, 0);
+    // resumen del plan
+    const P = imgPlan || { used: {} }, U = P.used, li = [];
+    const lin = ['1003RL', '1205RL', '1209RL'].filter((k) => U[k] && U[k].includes('line')).map((k) => `${k} (${U[k].filter((x) => x === 'line').length})`);
+    if (lin.length) li.push(`<b>Contornos:</b> ${lin.join(', ')}. Liner fino en los detalles, medio en las líneas normales y gordo en las siluetas grandes.`);
+    const fl = [['1207M1', 'magnum en las zonas anchas'], ['1205RL', 'liner en los trazos estrechos']].filter(([k]) => U[k] && U[k].includes('fill')).map(([k, t]) => `${k} (${t})`);
+    if (fl.length) li.push(`<b>Negro sólido:</b> ${fl.join(' y ')}.`);
+    if (A.toned) li.push(pres ? '<b>Sombras por presión:</b> 1211RM a medio péndulo, todo con tinta negra; la presión de cada punto sale del tono de la imagen.' : `<b>Sombras por dilución:</b> 1207M1 en tres capas: ${P.washTxt} (el resto, agua).`);
+    if (P.colors && P.colors.length) li.push(`<b>Color:</b> ${P.colors.map((k) => INKS[k].label.toLowerCase()).join(', ')} con 1207M1, enjuagando entre colores.`);
+    li.push('<b>Máquina:</b> líneas a 105–120 Hz, carrera 3,5–3,8 mm y brazo a 13–14 mm/s; rellenos a 100–105 Hz y 3,5–3,8 mm; sombras a 80–90 Hz y 3,0–3,2 mm. Frena donde la piel se estira o es dura, y la profundidad sale del grosor de la piel de cada punto.');
+    let secs = 0;
+    for (const st of strokes) { const m = jobSettings(st); secs += (st.type === 'dots' ? st.len * .35 : st.len / m.spd) + .45; }
+    const changes = new Set(strokes.map((st) => st.cart)).size, inks = new Set(strokes.map((st) => st.ink)).size;
+    secs += changes * 12 + inks * 8;
+    li.push(strokes.length ? `<b>${strokes.length} trazos</b>, unos ${max(1, round(secs / 60))} min a velocidad normal.` : '<b>No he encontrado nada que tatuar.</b> Prueba con una imagen con más contraste.');
+    $('#img-plan').innerHTML = li.map((t) => `<li>${t}</li>`).join('');
+  }
   let textTimer = 0;
   $('#txt-design').addEventListener('input', (e) => {
     const tk = designSrc && designSrc.text; if (!tk) return;
@@ -3283,7 +3561,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   $$('.tone').forEach((b) => b.addEventListener('click', () => { params.tone = +b.dataset.tone; $$('.tone').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); applyMap(); redrawPatch(); }));
   $$('.design').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.design;
-    if (id === 'propio') { $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); $('#pad-wrap').hidden = false; sizePad(); return; }
+    if (id === 'propio') { $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); $('#pad-wrap').hidden = false; $('#img-wrap').hidden = true; sizePad(); return; }
+    if (id === 'imagen' && !imgAn) { $('#file-img').click(); return; }
+    if (id === 'imagen') { setDesign('imagen'); syncControls(); resetRun(); renderImg(); return; }
     setDesign(id); syncControls(); resetRun();
   }));
   $$('.zone').forEach((b) => b.addEventListener('click', () => { if (!NV) return; clearScenario(); selectZone(b.dataset.zone); }));
