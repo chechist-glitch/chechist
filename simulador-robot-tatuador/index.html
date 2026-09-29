@@ -81,6 +81,13 @@ h1 { font: 800 clamp(2.4rem, 6vw, 3.6rem)/.92 var(--font-display); letter-spacin
 .status[data-kind="hold"] { background: var(--safety-soft); border-color: var(--safety); }
 .status[data-kind="hold"] i { background: var(--safety); }
 .status[data-kind="done"] i { background: var(--ok); }
+.status[data-kind="svc"] i { background: var(--ok); }
+.tool-pill { position: absolute; top: 44px; left: 10px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 500 12.5px/1 var(--font-mono); font-variant-numeric: tabular-nums; pointer-events: none; }
+.tool-pill .dot, .needles .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.ink-mini { width: 46px; height: 7px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.ink-mini b, .bar.ink b { display: block; height: 100%; width: 0; background: var(--fg); }
+.tool-pill.low .ink-mini b, .bar.ink.low b { background: var(--bad); }
+.tool-pill small { color: var(--muted); font-size: 11px; }
 .toast { position: absolute; top: 10px; right: 10px; padding: 6px 11px; border-radius: 999px; font: 600 12.5px/1 var(--font-mono); background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); pointer-events: none; }
 .lens-frame { position: absolute; right: 12px; bottom: 12px; border: 2px solid var(--fg); border-radius: 10px; pointer-events: none; }
 .lens-label { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 500 10.5px/1 var(--font-mono); white-space: nowrap; }
@@ -123,6 +130,8 @@ button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 2px so
 .l-err i { border-top: 2.5px solid #e3261d; }
 .l-ghost i { border-top: 1.5px solid var(--accent); width: 26px; }
 .l-dot i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.l-faint i { border-top: 2.5px solid rgba(22, 20, 28, .4); }
+.l-dry i { border-top: 3px solid rgba(205, 70, 60, .6); }
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 20px; min-width: 0; }
 .group { display: grid; gap: 12px; }
@@ -142,6 +151,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
 .dim { opacity: .45; }
 .designs { display: flex; flex-wrap: wrap; gap: 6px; }
 .designs .chip { padding: 8px 11px; font-size: 13px; }
+.needles { display: flex; flex-wrap: wrap; gap: 6px; }
+.needles .chip { padding: 8px 11px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.needles .chip[aria-pressed="true"] .dot { box-shadow: 0 0 0 2px var(--on-accent); }
 .tones { display: flex; gap: 8px; align-items: center; }
 .tones span { font-size: 14px; margin-right: auto; }
 .tone { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
@@ -188,12 +200,15 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     <button class="chip scn" data-scn="lenta" aria-pressed="false">Cámara lenta</button>
     <button class="chip scn" data-scn="ciegas" aria-pressed="false">Robot a ciegas</button>
     <button class="chip scn" data-scn="sinfrenos" aria-pressed="false">Sin frenos</button>
+    <button class="chip scn" data-scn="seco" aria-pressed="false">Tinta a ciegas</button>
+    <button class="chip scn" data-scn="magnum" aria-pressed="false">Todo con magnum</button>
   </div>
 
   <div class="lab">
     <section class="stage-card" aria-label="Simulación">
       <div class="stage" id="stage">
         <div class="status" id="status" data-kind="idle"><i></i><span id="status-text">Preparado</span></div>
+        <div class="tool-pill" id="tool-pill"><i class="dot" id="tool-dot"></i><span id="tool-needle">Sin aguja</span><span class="ink-mini"><b id="tool-ink"></b></span><span id="tool-ink-txt">0 %</span><small id="tool-sensor" hidden>el robot no lo ve</small></div>
         <div class="toast" id="toast" hidden></div>
         <div class="lens-frame" id="lens-frame"><span class="lens-label"><b id="lens-bar"></b>1 mm · lupa</span></div>
         <div class="gl-error" id="gl-error" hidden><p id="gl-error-text"></p></div>
@@ -210,6 +225,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         <button class="btn primary" id="btn-main">Pausar</button>
         <button class="btn" id="btn-restart">Borrar y empezar</button>
         <button class="btn warn" id="btn-jerk">¡Respingo!</button>
+        <button class="btn" id="btn-refill">Recargar tinta</button>
       </div>
       <div class="stats">
         <div class="stat"><span class="k">Progreso</span><span class="v" id="st-prog">0 %</span><div class="bar"><b id="st-bar"></b></div></div>
@@ -217,7 +233,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         <div class="stat"><span class="k">Error máximo</span><span class="v" id="st-max">–</span></div>
         <div class="stat"><span class="k">Dentro de ±0,5 mm</span><span class="v" id="st-within">–</span></div>
         <div class="stat"><span class="k">Profundidad buena</span><span class="v" id="st-depth">–</span></div>
+        <div class="stat"><span class="k">Trazo con tinta</span><span class="v" id="st-ink">–</span></div>
         <div class="stat"><span class="k">Paradas de seguridad</span><span class="v" id="st-holds">0</span></div>
+        <div class="stat"><span class="k">Tinta en el cartucho</span><span class="v" id="st-level">0<small>%</small></span><div class="bar ink" id="st-level-wrap"><b id="st-level-bar"></b></div></div>
+        <div class="stat"><span class="k">Aguja puesta</span><span class="v" id="st-needle">–</span></div>
+        <div class="stat"><span class="k">Recargas · cambios</span><span class="v" id="st-svc">0 · 0</span></div>
         <div class="stat"><span class="k">Inclinación máquina</span><span class="v" id="st-tilt">0<small>°</small></span></div>
         <div class="stat"><span class="k">Tiempo</span><span class="v" id="st-time">0,0<small>s</small></span></div>
       </div>
@@ -231,6 +251,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         <span class="l-shallow"><span class="sw-skin"><i></i></span>Muy superficial, no agarra</span>
         <span class="l-deep"><span class="sw-skin"><i></i></span>Muy profunda, se corre</span>
         <span class="l-err"><span class="sw-skin"><i></i></span>Fuera de sitio (más de 0,5 mm)</span>
+        <span class="l-faint"><span class="sw-skin"><i></i></span>Queda poca tinta</span>
+        <span class="l-dry"><span class="sw-skin"><i></i></span>Aguja seca: raya sin tinta</span>
         <span class="l-ghost"><i></i>Dónde cree el robot que está el brazo</span>
         <span class="l-dot"><i></i>Dónde apunta el robot</span>
       </div>
@@ -307,6 +329,29 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       </div>
 
       <div class="group">
+        <h2>Agujas y tinta</h2>
+        <div class="needles" role="group" aria-label="Aguja">
+          <button class="chip ndl" data-needle="auto" aria-pressed="true">Según el diseño</button>
+          <button class="chip ndl" data-needle="1RL" aria-pressed="false"><i class="dot" style="background:#e0463a"></i>1RL</button>
+          <button class="chip ndl" data-needle="3RL" aria-pressed="false"><i class="dot" style="background:#2f7de1"></i>3RL</button>
+          <button class="chip ndl" data-needle="5RL" aria-pressed="false"><i class="dot" style="background:#1f9d6a"></i>5RL</button>
+          <button class="chip ndl" data-needle="9RL" aria-pressed="false"><i class="dot" style="background:#e39b1b"></i>9RL</button>
+          <button class="chip ndl" data-needle="7M1" aria-pressed="false"><i class="dot" style="background:#b04fd8"></i>7M1</button>
+        </div>
+        <small class="note" id="needle-note"></small>
+        <div class="field">
+          <div class="field-head"><label for="rng-cap">Tinta que carga el cartucho</label><output id="out-cap"></output></div>
+          <input type="range" id="rng-cap" min="60" max="400" step="10" value="180">
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-refill">Recargar cuando quede</label><output id="out-refill"></output></div>
+          <input type="range" id="rng-refill" min="5" max="50" step="1" value="15">
+        </div>
+        <label class="toggle"><span><b>Sensor de tinta</b><small>El robot sabe cuánta tinta le queda en el cartucho.</small></span><input type="checkbox" class="sw" id="sw-inksensor" checked></label>
+        <label class="toggle"><span><b>Recarga automática</b><small>Va solo al vaso de tinta cuando baja del límite. Si no, se para y espera a que le des a «Recargar tinta».</small></span><input type="checkbox" class="sw" id="sw-autorefill" checked></label>
+      </div>
+
+      <div class="group">
         <h2>Vista</h2>
         <label class="toggle"><span><b>Ver lo que ve el robot</b></span><input type="checkbox" class="sw" id="sw-ghost" checked></label>
         <label class="toggle"><span><b>Marcar la tinta fuera de sitio</b></span><input type="checkbox" class="sw" id="sw-errors" checked></label>
@@ -321,7 +366,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       <p class="empty" id="hist-empty">Todavía no ha terminado ninguna prueba. Cada vez que el robot acabe un diseño, sale aquí con sus números para que compares ajustes.</p>
       <div class="table-scroll" id="hist-wrap" hidden>
         <table>
-          <thead><tr><th>#</th><th>Diseño</th><th>Condiciones</th><th>Error medio</th><th>En ±0,5 mm</th><th>Profundidad</th><th>Paradas</th><th>Resultado</th></tr></thead>
+          <thead><tr><th>#</th><th>Diseño</th><th>Condiciones</th><th>Error medio</th><th>En ±0,5 mm</th><th>Profundidad</th><th>Con tinta</th><th>Paradas</th><th>Recargas</th><th>Cambios</th><th>Resultado</th></tr></thead>
           <tbody id="hist-body"></tbody>
         </table>
       </div>
@@ -329,6 +374,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     <section class="card" aria-label="Cosas para probar">
       <h2>Cosas para probar</h2>
       <ul class="tips">
+        <li><b>Cambio de aguja.</b> Elige «Olas»: cada ola va con una aguja distinta y el robot las cambia solo en la estación.</li>
+        <li><b>Sin sensor de tinta.</b> Apágalo y mira cómo el robot sigue tatuando en seco y deja rayas rojas sin tinta.</li>
+        <li><b>El magnum se bebe la tinta.</b> Pon la 7M1 con poca carga y cuenta las recargas.</li>
         <li><b>Gira la muñeca.</b> Mueve «Girar el antebrazo» mientras tatúa y mira cómo el robot inclina la máquina para seguir perpendicular.</li>
         <li><b>Retraso sin predicción.</b> Sube el retraso a 250 ms, apaga la predicción y mueve el brazo: la tinta se va quedando atrás.</li>
         <li><b>Sin cámara.</b> Apaga el seguimiento. El robot tatúa donde estaba el brazo al principio, no donde está ahora.</li>
@@ -369,6 +417,20 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   const STANDOFF = 3, HOP = 9, APPROACH = 14;
   const LENS_D = 46, LENS_FOV = 24;
 
+  // Agujas (cartuchos): grosor de línea en mm. La tinta que gastan va con el grosor.
+  const NEEDLES = {
+    '1RL': { w: .4, color: '#e0463a', note: '1RL: liner fino, línea de 0,4 mm. Para detalles y letras pequeñas.' },
+    '3RL': { w: .8, color: '#2f7de1', note: '3RL: liner, línea de 0,8 mm. Líneas finas normales.' },
+    '5RL': { w: 1.1, color: '#1f9d6a', note: '5RL: liner medio, línea de 1,1 mm. Contornos.' },
+    '9RL': { w: 1.6, color: '#e39b1b', note: '9RL: liner grueso, línea de 1,6 mm. Contornos de tradicional.' },
+    '7M1': { w: 2.6, color: '#b04fd8', note: '7M1: magnum de 2,6 mm. Para sombrear y rellenar, y se bebe la tinta.' }
+  };
+  const NEEDLE_KEYS = Object.keys(NEEDLES);
+  // Estación junto al robot: soporte de cartuchos y vaso de tinta
+  const ST_TOP = 60, SLOT_Y = ST_TOP + 2, SLOT_Z = -178, SAFE_Y = 170, CUP = { x: 150, z: -120 }, CUP_Y = ST_TOP + 9;
+  const SLOT = {};
+  NEEDLE_KEYS.forEach((k, i) => { SLOT[k] = { x: 180 + i * 26, z: SLOT_Z }; });
+
   const R0 = (u) => 36 + 8.5 * clamp(u, -U_END, U_END) / U_END;      // radio: más fino en la muñeca
   const gB = (u) => exp(-(((u - 60) / 70) ** 2));                      // vientre del músculo
   const tw = (u) => (U_END - clamp(u, -U_END, U_END)) / (2 * U_END);   // la muñeca gira más que el codo
@@ -376,15 +438,19 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   const params = {
     move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12,
     predict: true, safety: true, force: true, speed: 18,
+    needle: 'auto', capacity: 180, refillAt: .15, inkSensor: true, autoRefill: true,
     showGhost: true, showErrors: true, showLens: true, tone: 1, design: 'estrella'
   };
+  const INK_OK = { needle: 'auto', capacity: 180, refillAt: .15, inkSensor: true, autoRefill: true };
   const SCENARIOS = {
-    tranquilo: { move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true },
-    nervioso: { move: .8, breath: .7, roll: 0, jerks: true, tracking: true, latency: 50, noise: .2, predict: true, safety: true, force: true },
-    gira: { move: .3, breath: .35, roll: 35 * PI / 180, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true },
-    lenta: { move: .55, breath: .5, roll: 0, jerks: false, tracking: true, latency: 220, noise: .12, predict: false, safety: true, force: false },
-    ciegas: { move: .5, breath: .6, roll: 0, jerks: false, tracking: false, latency: 40, noise: .12, predict: true, safety: true, force: false },
-    sinfrenos: { move: .5, breath: .5, roll: 0, jerks: true, tracking: true, latency: 50, noise: .12, predict: true, safety: false, force: false }
+    tranquilo: { move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, ...INK_OK },
+    nervioso: { move: .8, breath: .7, roll: 0, jerks: true, tracking: true, latency: 50, noise: .2, predict: true, safety: true, force: true, ...INK_OK },
+    gira: { move: .3, breath: .35, roll: 35 * PI / 180, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, ...INK_OK },
+    lenta: { move: .55, breath: .5, roll: 0, jerks: false, tracking: true, latency: 220, noise: .12, predict: false, safety: true, force: false, ...INK_OK },
+    ciegas: { move: .5, breath: .6, roll: 0, jerks: false, tracking: false, latency: 40, noise: .12, predict: true, safety: true, force: false, ...INK_OK },
+    sinfrenos: { move: .5, breath: .5, roll: 0, jerks: true, tracking: true, latency: 50, noise: .12, predict: true, safety: false, force: false, ...INK_OK },
+    seco: { move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, ...INK_OK, capacity: 120, inkSensor: false },
+    magnum: { move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, ...INK_OK, needle: '7M1', capacity: 140 }
   };
 
   // ---------- Utilidades ----------
@@ -435,29 +501,29 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
 
   // ---------- Diseños ----------
   const DESIGNS = {
-    estrella: { label: 'Estrella náutica', make() {
+    estrella: { label: 'Estrella náutica', needles: ['5RL', '3RL'], make() {
       const ring = [], out = [ring];
       for (let i = 0; i <= 10; i++) { const a = -PI / 2 + i * PI / 5, r = i % 2 ? .4 : 1; ring.push([r * cos(a), r * sin(a)]); }
       for (let i = 0; i < 5; i++) { const a = -PI / 2 + i * 2 * PI / 5; out.push([[0, 0], [cos(a), sin(a)]]); }
       return out;
     } },
-    corazon: { label: 'Corazón', make() {
+    corazon: { label: 'Corazón', needles: ['5RL'], make() {
       const p = [];
       for (let i = 0; i <= 240; i++) { const t = i / 240 * TAU; p.push([16 * sin(t) ** 3, -(13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t))]); }
       return [p];
     } },
-    flor: { label: 'Flor', make() {
+    flor: { label: 'Flor', needles: ['3RL', '1RL'], make() {
       const p = [], c = [];
       for (let i = 0; i <= 720; i++) { const t = i / 720 * TAU, r = cos(4 * t); p.push([r * cos(t), r * sin(t)]); }
       for (let i = 0; i <= 60; i++) { const t = i / 60 * TAU; c.push([.14 * cos(t), .14 * sin(t)]); }
       return [p, c];
     } },
-    espiral: { label: 'Espiral', make() {
+    espiral: { label: 'Espiral', needles: ['3RL'], make() {
       const p = [];
       for (let i = 0; i <= 700; i++) { const t = i / 700 * 8 * PI; p.push([t * cos(t), t * sin(t)]); }
       return [p];
     } },
-    ola: { label: 'Olas', make() {
+    ola: { label: 'Olas', needles: ['9RL', '5RL', '1RL'], make() {
       const out = [];
       for (let j = 0; j < 3; j++) {
         const p = [];
@@ -486,7 +552,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       if (clean.length < 2) continue;
       const cum = [0];
       for (let i = 1; i < clean.length; i++) cum.push(cum[i - 1] + hypot(clean[i].u - clean[i - 1].u, clean[i].v - clean[i - 1].v));
-      res.push({ pts: clean, cum, len: cum[cum.length - 1], hint: 0 });
+      res.push({ pts: clean, cum, len: cum[cum.length - 1], hint: 0, needle: pts.needle || '3RL' });
     }
     return res;
   }
@@ -501,7 +567,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     return o;
   }
   let strokes = [], totalLen = 0, designLabel = '';
-  function setDesign(list, label) {
+  function setDesign(list, label, needles) {
+    list.forEach((s, i) => { s.needle = needles[min(i, needles.length - 1)]; });
     strokes = buildStrokes(list);
     totalLen = strokes.reduce((a, s) => a + s.len, 0);
     designLabel = label;
@@ -527,8 +594,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   let ink = [], curInk = null, stats = null;
   const depthBuf = [], history = [];
   let runNo = 0;
+  // La máquina: qué cartucho lleva puesto y cuánta tinta le queda (0 a 1)
+  const tool = { mounted: null, level: 0 };
+  let svc = null, pendingSvc = null;
 
-  function resetStats() { stats = { n: 0, sumE: 0, maxE: 0, within: 0, depthOK: 0, holds: 0, time: 0 }; }
+  function resetStats() { stats = { n: 0, sumE: 0, maxE: 0, within: 0, depthOK: 0, inkOK: 0, holds: 0, refills: 0, changes: 0, time: 0 }; }
   resetStats();
 
   function pushHist(S) {
@@ -625,17 +695,26 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
 
     // 1) Punto de la piel al que apunta y altura de la máquina sobre la piel
     let ref = null, h = STANDOFF;
-    if (running) {
-      if (mode === 'approach') { ref = pointAt(strokes[0], 0, refP); h = APPROACH; }
+    if (mode === 'svc') {
+      // Viaje a la estación: la máquina va recta hacia abajo por una ruta de puntos
+      const w = svc.steps[svc.i];
+      svc.t += DT;
+      const q = clamp(svc.t / svc.dur, 0, 1), sq = q * q * (3 - 2 * q);
+      tgt.x = svc.fx + (w.x - svc.fx) * sq; tgt.y = svc.fy + (w.y - svc.fy) * sq; tgt.z = svc.fz + (w.z - svc.fz) * sq;
+      aim.ok = false;
+    } else if (running) {
+      if (mode === 'approach') { ref = pointAt(strokes[cur.k], cur.s, refP); h = APPROACH; }
       else if (mode === 'travel') {
         const p = trav.p;
         refP.u = trav.fu + (trav.tu - trav.fu) * p; refP.v = trav.fv + (trav.tv - trav.fv) * p;
         ref = refP; h = trav.h0 * (1 - p) + STANDOFF * p + trav.amp * sin(PI * p);
-      } else if (mode === 'lift') ref = liftD;
+      } else if (mode === 'lift' || mode === 'svclift') ref = liftD;
+      else if (mode === 'dry') { ref = liftD; h = STANDOFF + 6; }
       else ref = pointAt(strokes[cur.k], cur.s, Dp);
     }
     let dtx = 0, dty = -1, dtz = 0;
-    if (ref) {
+    if (mode === 'svc') { /* objetivo ya fijado */ }
+    else if (ref) {
       surf(ref.u, ref.v, Sest, SP);
       aim.x = SP.x; aim.y = SP.y; aim.z = SP.z; aim.ok = true;
       tgt.x = SP.x + SP.nx * h; tgt.y = SP.y + SP.ny * h; tgt.z = SP.z + SP.nz * h;
@@ -656,7 +735,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     if (am > 30000) { const f = 30000 / am; ax *= f; ay *= f; az *= f; }
     rob.vx += ax * DT; rob.vy += ay * DT; rob.vz += az * DT;
     const vm = hypot(rob.vx, rob.vy, rob.vz);
-    if (vm > 600) { const f = 600 / vm; rob.vx *= f; rob.vy *= f; rob.vz *= f; }
+    const vmax = mode === 'ink' || mode === 'travel' || mode === 'hold' || mode === 'lift' || mode === 'svclift' ? 600 : 320;
+    if (vm > vmax) { const f = vmax / vm; rob.vx *= f; rob.vy *= f; rob.vz *= f; }
     rob.x += rob.vx * DT; rob.y += rob.vy * DT; rob.z += rob.vz * DT;
     // Orientación: la máquina busca quedarse perpendicular a la piel
     const ko = min(1, DT / .04);
@@ -669,18 +749,39 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
 
     // 3) Estados
     let needle = false;
-    if (running) {
+    if (mode === 'svc') {
+      const w = svc.steps[svc.i];
+      if (svc.t >= svc.dur && tipErr < 1.2) {
+        svc.wait += DT;
+        if (w.fill && tool.mounted) tool.level = min(1, tool.level + DT / .7);
+        if (svc.wait >= (w.wait || 0)) {
+          if (w.act) w.act();
+          svc.i++; svc.wait = 0;
+          if (svc.i >= svc.steps.length) { svc = null; mode = running ? 'approach' : 'idle'; }
+          else {
+            const n = svc.steps[svc.i];
+            svc.fx = w.x; svc.fy = w.y; svc.fz = w.z; svc.t = 0;
+            svc.dur = max(.15, hypot(n.x - w.x, n.y - w.y, n.z - w.z) / 260);
+          }
+        }
+      }
+    } else if (running) {
       if (mode === 'approach') {
         if (tipErr < 1.2 && relV < 80) startTravel(refP.u, refP.v, refP.u, refP.v, APPROACH);
       } else if (mode === 'travel') {
         trav.p = min(1, trav.p + DT / trav.dur);
         if (trav.p >= 1 && tipErr < .6 && relV < 60) mode = 'ink';
-      }
+      } else if (mode === 'dry' && params.autoRefill) startService('refill');
       if (mode === 'ink') {
-        needle = true;
+        needle = !!tool.mounted;
         if (params.safety) {
           const sp = skinSpeedSeen(ref);
           if (tipErr > 2 || sp > 80) { mode = 'hold'; holdOk = 0; stats.holds++; needle = false; }
+        }
+        // Sensor de tinta: si lo lleva, el robot sabe cuándo le toca recargar
+        if (mode === 'ink' && params.inkSensor) {
+          if (params.autoRefill && tool.level <= params.refillAt) { requestService('refill'); needle = false; }
+          else if (!params.autoRefill && tool.level <= 0) { requestService('dry'); needle = false; }
         }
       } else if (mode === 'hold') {
         const sp = skinSpeedSeen(ref);
@@ -708,38 +809,86 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       if (!curInk) { curInk = []; ink.push(curInk); }
       const last = curInk[curInk.length - 1];
       if (!last || hypot(INV.u - last.u, INV.v - last.v) >= .25) {
-        const pt = { u: INV.u, v: INV.v, e, d: depth };
+        // con menos del 6 % la tinta sale floja; a cero, la aguja pica en seco
+        const f = tool.mounted ? clamp(tool.level / .06, 0, 1) : 0;
+        const pt = { u: INV.u, v: INV.v, e, d: depth, f, w: tool.mounted ? NEEDLES[tool.mounted].w : .8 };
         curInk.push(pt);
         drawInkSeg(last || pt, pt);
         stats.n++; stats.sumE += e; stats.maxE = max(stats.maxE, e);
         if (e <= TOL) stats.within++;
         if (depth >= DEPTH_MIN && depth <= DEPTH_MAX) stats.depthOK++;
+        if (f >= .5) stats.inkOK++;
       }
     } else curInk = null;
 
-    // 6) Avance por el diseño
+    // 6) Avance por el diseño, gastando tinta según el grosor de la aguja
     if (running) {
       stats.time += DT;
       if (mode === 'ink' && inSkin && (!params.safety || tipErr < .8)) {
-        const st = strokes[cur.k];
-        cur.s += params.speed * DT;
+        const st = strokes[cur.k], ds = params.speed * DT;
+        cur.s += ds;
+        if (tool.mounted) tool.level = max(0, tool.level - NEEDLES[tool.mounted].w * ds / params.capacity);
         if (cur.s >= st.len) { pointAt(st, st.len, liftD); cur.k++; cur.s = 0; mode = 'lift'; }
       } else if (mode === 'lift' && rob.e < .5) {
         if (cur.k >= strokes.length) finishRun();
+        else if (tool.mounted !== needleFor(cur.k)) startService('change');
+        else if (params.inkSensor && params.autoRefill && tool.level <= params.refillAt) startService('refill');
         else { const nx = strokes[cur.k].pts[0]; startTravel(liftD.u, liftD.v, nx.u, nx.v, STANDOFF); }
+      } else if (mode === 'svclift' && rob.e < .5) {
+        if (pendingSvc === 'dry') { mode = 'dry'; pendingSvc = null; }
+        else startService(pendingSvc || 'refill');
       }
     }
+  }
+
+  // ---------- Estación: cambio de aguja y recarga de tinta ----------
+  function needleFor(k) {
+    if (params.needle !== 'auto') return params.needle;
+    const st = strokes[min(k, strokes.length - 1)];
+    return (st && st.needle) || '3RL';
+  }
+  // Pide ir a la estación. Si está pinchando, primero saca la aguja de la piel.
+  function requestService(kind) {
+    if (svc || mode === 'svclift') return;
+    if (mode === 'ink' || mode === 'hold') { liftD.u = Dp.u; liftD.v = Dp.v; pendingSvc = kind; mode = 'svclift'; }
+    else if (mode === 'lift') { pendingSvc = kind; mode = 'svclift'; }
+    else if (kind === 'dry') return;
+    else if (mode === 'travel' || mode === 'approach' || mode === 'dry' || !running) startService(kind);
+  }
+  function startService(kind) {
+    const want = needleFor(running ? cur.k : 0);
+    const change = kind === 'change' || !tool.mounted;
+    const steps = [], up = (p) => ({ x: p.x, y: SAFE_Y, z: p.z });
+    steps.push({ x: rob.x - rob.dx * 30, y: rob.y - rob.dy * 30, z: rob.z - rob.dz * 30 });
+    if (change) {
+      if (tool.mounted) {
+        const s = SLOT[tool.mounted];
+        steps.push(up(s), { x: s.x, y: SLOT_Y, z: s.z, wait: .35, act: () => { tool.mounted = null; tool.level = 0; } }, up(s));
+      }
+      const s = SLOT[want];
+      steps.push(up(s), { x: s.x, y: SLOT_Y, z: s.z, wait: .35, act: () => { tool.mounted = want; tool.level = 0; } }, up(s));
+      stats.changes++;
+    } else stats.refills++;
+    // Siempre acaba mojando en el vaso: un cartucho nuevo viene seco
+    steps.push(up(CUP), { x: CUP.x, y: CUP_Y, z: CUP.z, wait: .8, fill: true }, up(CUP));
+    const f = steps[0];
+    svc = { kind: change ? 'change' : 'refill', from: tool.mounted, want, steps, i: 0, t: 0, wait: 0, fx: rob.x, fy: rob.y, fz: rob.z, dur: max(.15, hypot(f.x - rob.x, f.y - rob.y, f.z - rob.z) / 260) };
+    pendingSvc = null;
+    mode = 'svc';
   }
 
   function startRun() {
     if (!strokes.length) return;
     for (const s of strokes) s.hint = 0;
-    running = true; paused = false; mode = 'approach'; cur = { k: 0, s: 0 };
+    running = true; paused = false; cur = { k: 0, s: 0 }; svc = null; pendingSvc = null;
     copyS(cam.S, Sref);
+    if (tool.mounted !== needleFor(0)) startService('change');
+    else if (params.inkSensor && tool.level < .5) startService('refill');
+    else mode = 'approach';
     updateButtons();
   }
   function resetRun() {
-    running = false; paused = false; mode = 'idle';
+    running = false; paused = false; mode = 'idle'; svc = null; pendingSvc = null;
     ink = []; curInk = null; cur = { k: 0, s: 0 };
     resetStats(); depthBuf.length = 0;
     redrawPatch();
@@ -749,9 +898,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     running = false; mode = 'done';
     runNo++;
     const n = max(1, stats.n);
-    const within = stats.within / n * 100, dOK = stats.depthOK / n * 100, mean = stats.sumE / n;
-    const verdict = within >= 90 && dOK >= 90 ? ['Limpio', 'good'] : within >= 70 && dOK >= 75 ? ['Pasable', 'meh'] : ['Chapuza', 'bad'];
-    history.unshift({ n: runNo, design: designLabel, cfg: describeCfg(), mean, within, dOK, holds: stats.holds, verdict });
+    const within = stats.within / n * 100, dOK = stats.depthOK / n * 100, inkP = stats.inkOK / n * 100, mean = stats.sumE / n;
+    const verdict = within >= 90 && dOK >= 90 && inkP >= 97 ? ['Limpio', 'good'] : within >= 70 && dOK >= 75 && inkP >= 90 ? ['Pasable', 'meh'] : ['Chapuza', 'bad'];
+    history.unshift({ n: runNo, design: designLabel, cfg: describeCfg(), mean, within, dOK, inkP, holds: stats.holds, refills: stats.refills, changes: stats.changes, verdict });
     renderHistory();
     updateButtons();
   }
@@ -761,6 +910,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     if (p.tracking) parts.push(`cámara con ${p.latency} ms de retraso`, `ruido ${round(p.noise * 100)} %`, `predicción ${yes(p.predict)}`);
     else parts.push('sin seguimiento');
     parts.push(`sensor de fuerza ${yes(p.force)}`, `parada de seguridad ${yes(p.safety)}`);
+    parts.push(p.needle === 'auto' ? 'agujas según el diseño' : `todo con ${p.needle}`, `sensor de tinta ${yes(p.inkSensor)}`, `recarga automática ${yes(p.autoRefill)}`, `recarga al ${round(p.refillAt * 100)} %`, `carga ${capLabel()}`);
     return parts.join(' · ');
   }
 
@@ -774,12 +924,16 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   let patchDirty = true;
 
   function drawInkSeg(a, b) {
-    const lw = .8 * PPM, x1 = px(a.u), y1 = py(a.v), x2 = px(b.u) + (a === b ? .01 : 0), y2 = py(b.v);
+    const lw = b.w * PPM, x1 = px(a.u), y1 = py(a.v), x2 = px(b.u) + (a === b ? .01 : 0), y2 = py(b.v);
     pc.lineCap = 'round';
     const seg = (w, col) => { pc.lineWidth = w; pc.strokeStyle = col; pc.beginPath(); pc.moveTo(x1, y1); pc.lineTo(x2, y2); pc.stroke(); };
-    if (b.d > DEPTH_MAX) seg(lw * 3.4, 'rgba(38,64,140,.28)');
-    seg(lw, b.d < DEPTH_MIN ? 'rgba(22,20,28,.28)' : INK);
-    if (params.showErrors && b.e > TOL) seg(lw * 1.1, ERR);
+    if (b.f <= 0) seg(lw * 1.3, 'rgba(205,70,60,.38)');   // aguja seca: solo irrita la piel
+    else {
+      if (b.d > DEPTH_MAX) seg(lw * 3.4, `rgba(38,64,140,${(.28 * b.f).toFixed(3)})`);
+      const alpha = (b.d < DEPTH_MIN ? .28 : 1) * (.2 + .8 * b.f);
+      seg(lw, alpha >= 1 ? INK : `rgba(22,20,28,${alpha.toFixed(3)})`);
+    }
+    if (params.showErrors && b.e > TOL) seg(min(lw, .9 * PPM) * 1.1, ERR);
     patchDirty = true;
   }
   function redrawPatch() {
@@ -821,7 +975,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   let renderer = null, scene, camMain, camLens, controls;
   let armGroup, tube, tubeGeo, patchMesh, patchGeo, patchTex, baseTex, hand;
   let robotGroup, ghost, ghostGeo, targetDot, lensGroup, needleDot, needleRing, holdRing, grid, table, rest;
-  const stickers = [], parts = {}, M = {};
+  const stickers = [], parts = {}, M = {}, slotMeshes = {};
   let U_SAMPLES = [], NU = 0;
   const NP = 48, NPU = 88, NPV = 44;
   const GHOST_RINGS = [-150, -95, 95, 150], GHOST_LONG = [-1.5, -.95, .95, 1.5], RING_SEG = 64, LONG_SEG = 32, STK_SEG = 16;
@@ -1004,7 +1158,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     M.joint = new THREE.MeshStandardMaterial({ color: 0x34313f, roughness: .55 });
     M.pen = new THREE.MeshStandardMaterial({ color: 0x1d1b24, roughness: .35, metalness: .4 });
     M.grip = new THREE.MeshStandardMaterial({ color: 0x5a3fcf, roughness: .45 });
-    M.cart = new THREE.MeshStandardMaterial({ color: 0xd9dce6, roughness: .3, transparent: true, opacity: .75 });
+    M.cart = new THREE.MeshStandardMaterial({ color: 0xe4e7ef, roughness: .25, transparent: true, opacity: .5 });
+    M.band = new THREE.MeshStandardMaterial({ color: 0x2f7de1, roughness: .5 });
+    M.ink = new THREE.MeshStandardMaterial({ color: 0x0b0a0f, roughness: .15, metalness: .2 });
     M.needle = new THREE.MeshStandardMaterial({ color: 0xb8bcc6, roughness: .25, metalness: .9 });
     M.hold = new THREE.MeshBasicMaterial({ color: 0xf2b632 });
     M.target = new THREE.MeshBasicMaterial({ color: 0x5a3fcf });
@@ -1081,6 +1237,30 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     parts.pen = mk(unitCyl(12, 12), M.pen);
     parts.grip = mk(unitCyl(13.6, 13.6), M.grip);
     parts.cart = mk(unitCyl(2.2, 8), M.cart);
+    parts.band = mk(unitCyl(8.7, 8.7), M.band);
+    parts.inkFill = mk(unitCyl(6.2, 2.8), M.ink, false);
+
+    // Estación: soporte con un cartucho de cada aguja y vaso de tinta
+    const station = new THREE.Mesh(new THREE.BoxGeometry(195, ST_TOP, 110), M.rest);
+    station.position.set(222, ST_TOP / 2, -150); station.castShadow = true; station.receiveShadow = true;
+    scene.add(station);
+    const rack = new THREE.Mesh(new THREE.BoxGeometry(150, 14, 30), M.edge);
+    rack.position.set(SLOT[NEEDLE_KEYS[2]].x, ST_TOP + 7, SLOT_Z); rack.castShadow = true; rack.receiveShadow = true;
+    scene.add(rack);
+    const slotCart = new THREE.CylinderGeometry(8, 2.2, 24, 20), slotBand = new THREE.CylinderGeometry(8.7, 8.7, 4, 20);
+    for (const k of NEEDLE_KEYS) {
+      const g = new THREE.Group(), c = new THREE.Mesh(slotCart, M.cart);
+      const b = new THREE.Mesh(slotBand, new THREE.MeshStandardMaterial({ color: NEEDLES[k].color, roughness: .5 }));
+      c.position.y = 12; b.position.y = 22; c.castShadow = true; b.castShadow = true;
+      g.add(c, b); g.position.set(SLOT[k].x, SLOT_Y, SLOT[k].z);
+      scene.add(g); slotMeshes[k] = g;
+    }
+    const cupMat = new THREE.MeshStandardMaterial({ color: 0x2a2833, roughness: .45, side: THREE.DoubleSide });
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(11, 9, 16, 28, 1, true), cupMat);
+    cup.position.set(CUP.x, ST_TOP + 8, CUP.z); cup.castShadow = true;
+    const inkSurf = new THREE.Mesh(new THREE.CircleGeometry(10.3, 28), M.ink);
+    inkSurf.rotation.x = -PI / 2; inkSurf.position.set(CUP.x, ST_TOP + 13, CUP.z);
+    scene.add(cup, inkSurf);
     parts.needle = mk(unitCyl(.3, .3, 8), M.needle, false);
     holdRing = mk(new THREE.TorusGeometry(16, 1.4, 8, 40), M.hold, false);
 
@@ -1143,7 +1323,20 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     place(parts.pen, wx + dx * 16, wy + dy * 16, wz + dz * 16, wx + dx * bodyEnd, wy + dy * bodyEnd, wz + dz * bodyEnd);
     place(parts.grip, wx + dx * (LT - 52), wy + dy * (LT - 52), wz + dz * (LT - 52), wx + dx * (LT - 32), wy + dy * (LT - 32), wz + dz * (LT - 32));
     place(parts.cart, wx + dx * bodyEnd, wy + dy * bodyEnd, wz + dz * bodyEnd, rob.x, rob.y, rob.z);
-    parts.needle.visible = rob.e > .05;
+    // Cartucho puesto: banda de color de la aguja y la tinta que le queda por dentro
+    const has = !!tool.mounted;
+    parts.cart.visible = has; parts.band.visible = has;
+    parts.inkFill.visible = has && tool.level > .02;
+    if (has) {
+      M.band.color.set(NEEDLES[tool.mounted].color);
+      place(parts.band, rob.x - dx * 24, rob.y - dy * 24, rob.z - dz * 24, rob.x - dx * 20, rob.y - dy * 20, rob.z - dz * 20);
+      if (parts.inkFill.visible) {
+        const t = 3 + 17 * tool.level;
+        place(parts.inkFill, rob.x - dx * 3, rob.y - dy * 3, rob.z - dz * 3, rob.x - dx * t, rob.y - dy * t, rob.z - dz * t);
+      }
+    }
+    for (const k of NEEDLE_KEYS) slotMeshes[k].visible = tool.mounted !== k;
+    parts.needle.visible = has && rob.e > .05;
     if (parts.needle.visible) place(parts.needle, rob.x, rob.y, rob.z, tip.x, tip.y, tip.z);
     holdRing.visible = mode === 'hold';
     if (holdRing.visible) orient(holdRing, rob.x - dx * 10, rob.y - dy * 10, rob.z - dz * 10, dx, dy, dz, Zax);
@@ -1287,12 +1480,13 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   function updateStatus() {
     let kind = mode, text;
     if (paused) { kind = 'idle'; text = 'En pausa'; }
-    else text = { idle: 'Preparado', approach: 'Acercándose al brazo', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Retirando la aguja', hold: 'Parada de seguridad', done: 'Terminado' }[mode];
+    else if (mode === 'svc') text = svc.kind === 'change' ? `Cambiando aguja: ${svc.from || 'ninguna'} → ${svc.want}` : 'Recargando tinta';
+    else text = { idle: 'Preparado', approach: 'Acercándose al brazo', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Retirando la aguja', svclift: 'Retirando la aguja', hold: 'Parada de seguridad', dry: 'Sin tinta · dale a «Recargar tinta»', done: 'Terminado' }[mode];
     if (!params.tracking && running && !paused) text += ' · a ciegas';
     const key = kind + text;
     if (key === lastStatus) return;
     lastStatus = key;
-    statusEl.dataset.kind = kind === 'approach' || kind === 'travel' || kind === 'lift' ? 'idle' : kind;
+    statusEl.dataset.kind = kind === 'dry' ? 'hold' : kind === 'approach' || kind === 'travel' || kind === 'lift' || kind === 'svclift' ? 'idle' : kind;
     statusText.textContent = text;
   }
   function updateButtons() {
@@ -1310,8 +1504,25 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       setV('#st-max', `${fmt(stats.maxE, 1)}<small>mm</small>`, stats.maxE <= .5 ? 'good' : stats.maxE <= 1.5 ? 'meh' : 'bad');
       setV('#st-within', `${round(w)}<small>%</small>`, w >= 90 ? 'good' : w >= 70 ? 'meh' : 'bad');
       setV('#st-depth', `${round(d)}<small>%</small>`, d >= 90 ? 'good' : d >= 75 ? 'meh' : 'bad');
-    } else for (const id of ['#st-mean', '#st-max', '#st-within', '#st-depth']) setV(id, '–');
+      const ik = stats.inkOK / stats.n * 100;
+      setV('#st-ink', `${round(ik)}<small>%</small>`, ik >= 97 ? 'good' : ik >= 90 ? 'meh' : 'bad');
+    } else for (const id of ['#st-mean', '#st-max', '#st-within', '#st-depth', '#st-ink']) setV(id, '–');
     setV('#st-holds', String(stats.holds), stats.holds ? 'meh' : '');
+    const lvl = round(tool.level * 100), low = tool.mounted && tool.level <= params.refillAt;
+    setV('#st-level', tool.mounted ? `${lvl}<small>%</small>` : '–', low ? 'bad' : '');
+    $('#st-level-bar').style.width = (tool.mounted ? lvl : 0) + '%';
+    $('#st-level-wrap').classList.toggle('low', !!low);
+    setV('#st-needle', tool.mounted || 'ninguna');
+    setV('#st-svc', `${stats.refills} · ${stats.changes}`);
+    // Pastilla sobre la escena
+    const pill = $('#tool-pill');
+    $('#tool-dot').style.background = tool.mounted ? NEEDLES[tool.mounted].color : 'transparent';
+    $('#tool-needle').textContent = tool.mounted ? `Aguja ${tool.mounted}` : 'Sin aguja';
+    $('#tool-ink').style.width = (tool.mounted ? lvl : 0) + '%';
+    $('#tool-ink-txt').textContent = tool.mounted ? `${lvl} %` : '–';
+    $('#tool-sensor').hidden = params.inkSensor;
+    pill.classList.toggle('low', !!low);
+    $('#out-cap').textContent = capLabel();
     setV('#st-tilt', `${round(acos(clamp(-rob.dy, -1, 1)) * 180 / PI)}<small>°</small>`);
     setV('#st-time', `${fmt(stats.time, 1)}<small>s</small>`);
   }
@@ -1320,7 +1531,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     body.textContent = '';
     for (const h of history.slice(0, 12)) {
       const tr = document.createElement('tr');
-      const cells = [['num', String(h.n)], ['', h.design], ['cfg', h.cfg], ['num', `${fmt(h.mean, 2)} mm`], ['num', `${round(h.within)} %`], ['num', `${round(h.dOK)} %`], ['num', String(h.holds)]];
+      const cells = [['num', String(h.n)], ['', h.design], ['cfg', h.cfg], ['num', `${fmt(h.mean, 2)} mm`], ['num', `${round(h.within)} %`], ['num', `${round(h.dOK)} %`], ['num', `${round(h.inkP)} %`], ['num', String(h.holds)], ['num', String(h.refills)], ['num', String(h.changes)]];
       for (const [cls, txt] of cells) { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; tr.appendChild(td); }
       const td = document.createElement('td'), sp = document.createElement('span');
       sp.className = 'verdict ' + h.verdict[1]; sp.textContent = h.verdict[0];
@@ -1337,12 +1548,26 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     roll: ['#rng-roll', '#out-roll', (v) => v * PI / 180, (p) => round(p * 180 / PI), (p) => `${round(p * 180 / PI)}°`],
     latency: ['#rng-latency', '#out-latency', (v) => v, (p) => p, (p) => `${p} ms`],
     noise: ['#rng-noise', '#out-noise', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
-    speed: ['#rng-speed', '#out-speed', (v) => v, (p) => p, (p) => `${p} mm/s`]
+    speed: ['#rng-speed', '#out-speed', (v) => v, (p) => p, (p) => `${p} mm/s`],
+    capacity: ['#rng-cap', '#out-cap', (v) => v, (p) => p, () => capLabel()],
+    refillAt: ['#rng-refill', '#out-refill', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`]
   };
-  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', showGhost: '#sw-ghost', showErrors: '#sw-errors', showLens: '#sw-lens' };
+  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', showGhost: '#sw-ghost', showErrors: '#sw-errors', showLens: '#sw-lens' };
+  // Cuánta línea da un cartucho lleno con la aguja que toca
+  function capLabel() {
+    const k = params.needle !== 'auto' ? params.needle : (tool.mounted || '3RL');
+    return `≈ ${round(params.capacity / NEEDLES[k].w / 10)} cm con ${k}`;
+  }
+  function needleNote() {
+    if (params.needle !== 'auto') return NEEDLES[params.needle].note;
+    const used = [...new Set(strokes.map((s) => s.needle))];
+    return `Cada trazo lleva la aguja que pide el diseño y el robot la cambia solo en la estación. Este diseño usa ${used.join(', ')}.`;
+  }
   function syncControls() {
     for (const [k, [rid, oid, , toUI, label]] of Object.entries(RANGES)) { $(rid).value = toUI(params[k]); $(oid).textContent = label(params[k]); }
     for (const [k, id] of Object.entries(SWITCHES)) $(id).checked = params[k];
+    $$('.ndl').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.needle === params.needle)));
+    $('#needle-note').textContent = needleNote();
     for (const id of ['#f-latency', '#f-noise', '#f-predict']) $(id).classList.toggle('dim', !params.tracking);
     $('#lens-frame').hidden = !params.showLens || !renderer;
   }
@@ -1386,9 +1611,17 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     $('#pad-wrap').hidden = id !== 'propio';
     if (id === 'propio') { sizePad(); return; }
     params.design = id;
-    setDesign(fitDesign(DESIGNS[id].make()), DESIGNS[id].label);
+    setDesign(fitDesign(DESIGNS[id].make()), DESIGNS[id].label, DESIGNS[id].needles);
+    syncControls();
     resetRun(); startRun();
   }));
+  $$('.ndl').forEach((b) => b.addEventListener('click', () => {
+    params.needle = b.dataset.needle;
+    clearScenario();
+    syncControls();
+    if (running && tool.mounted !== needleFor(cur.k)) requestService('change');
+  }));
+  $('#btn-refill').addEventListener('click', () => requestService(tool.mounted ? 'refill' : 'change'));
   $('#btn-main').addEventListener('click', () => {
     if (running) paused = !paused;
     else { resetRun(); startRun(); }
@@ -1428,7 +1661,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         pointerRay(e);
         if (raycaster.ray.intersectPlane(dragPlane, hitP)) {
           drag.tx = clamp(armDrag.tx + hitP.x - armDrag.x, -60, 60);
-          drag.tz = clamp(armDrag.tz + hitP.z - armDrag.z, -50, 50);
+          drag.tz = clamp(armDrag.tz + hitP.z - armDrag.z, -30, 50);
         }
       } else if (e.target === cv && e.pointerType === 'mouse' && !e.buttons) cv.style.cursor = hitArm(e) ? 'grab' : 'default';
     });
@@ -1491,7 +1724,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       return { u: BOX.u0 + x * (BOX.u1 - BOX.u0), v: BOX.v0 + y * (BOX.v1 - BOX.v0) };
     }));
     if (!buildStrokes(list).length) { $('#pad-msg').textContent = 'Dibuja algo primero.'; return; }
-    setDesign(list, 'Diseño propio');
+    setDesign(list, 'Diseño propio', ['3RL']);
+    syncControls();
     resetRun(); startRun();
   });
 
@@ -1521,7 +1755,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   updateSkin();
   for (let i = 0; i < HN; i++) pushHist(skin);
   copyS(skin, cam.S); copyS(skin, Sest); copyS(skin, Sref);
-  setDesign(fitDesign(DESIGNS.estrella.make()), DESIGNS.estrella.label);
+  setDesign(fitDesign(DESIGNS.estrella.make()), DESIGNS.estrella.label, DESIGNS.estrella.needles);
   redrawBase(); redrawPatch();
   if (initGL()) {
     vD = new THREE.Vector3(); Yup = new THREE.Vector3(0, 1, 0); Zax = new THREE.Vector3(0, 0, 1);
