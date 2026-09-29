@@ -1,0 +1,1265 @@
+<title>Simulador Robot Tatuador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: banco de pruebas. Escenario grande a la izquierda, panel de mandos a la derecha, historial de pruebas debajo. En móvil, una columna. */
+:root {
+  --bg: #edecf1;
+  --surface: #fafafc;
+  --surface-2: #e3e1ea;
+  --fg: #1c1a25;
+  --muted: #5f5b6e;
+  --line: #d2cfdb;
+  --accent: #5a3fcf;
+  --accent-soft: #e7e1ff;
+  --on-accent: #ffffff;
+  --safety: #9a6700;
+  --safety-soft: #fff0c7;
+  --ok: #1d7447;
+  --ok-soft: #d8efe1;
+  --bad: #bf2f28;
+  --bad-soft: #fbe1df;
+  --stage: #e4e2ea;
+  --stage-dot: #c6c2d2;
+  --robot: #f8f8fb;
+  --robot-edge: #85819a;
+  --robot-joint: #34313f;
+  --shadow: rgba(28, 22, 48, .16);
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121117; --surface: #1b1a22; --surface-2: #272530; --fg: #ecebf3; --muted: #a4a0b4; --line: #34313f;
+    --accent: #a794ff; --accent-soft: #2a2346; --on-accent: #15102b;
+    --safety: #f2b632; --safety-soft: #3a2c0a; --ok: #52c48d; --ok-soft: #14301f; --bad: #ff6d63; --bad-soft: #3d1715;
+    --stage: #191820; --stage-dot: #302e3b; --robot: #dcdae5; --robot-edge: #6b6780; --robot-joint: #0e0d13;
+    --shadow: rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121117; --surface: #1b1a22; --surface-2: #272530; --fg: #ecebf3; --muted: #a4a0b4; --line: #34313f;
+  --accent: #a794ff; --accent-soft: #2a2346; --on-accent: #15102b;
+  --safety: #f2b632; --safety-soft: #3a2c0a; --ok: #52c48d; --ok-soft: #14301f; --bad: #ff6d63; --bad-soft: #3d1715;
+  --stage: #191820; --stage-dot: #302e3b; --robot: #dcdae5; --robot-edge: #6b6780; --robot-joint: #0e0d13;
+  --shadow: rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font-body); }
+.wrap { max-width: 1280px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); padding-block: 24px 56px; display: grid; gap: 20px; }
+
+header { display: grid; gap: 8px; }
+.eyebrow { font: 500 12px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h1 { font: 800 clamp(2.4rem, 6vw, 3.6rem)/.92 var(--font-display); letter-spacing: .01em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { max-width: 68ch; color: var(--muted); margin: 0; }
+
+.scenarios { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scenarios > span { font: 500 12px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.chip { font: 500 13.5px/1 var(--font-body); padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+.lab { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+@media (max-width: 940px) { .lab { grid-template-columns: minmax(0, 1fr); } }
+
+.stage-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 12px; min-width: 0; }
+.stage { position: relative; border-radius: 8px; overflow: hidden; background: var(--stage); }
+.stage canvas { display: block; width: 100%; touch-action: auto; }
+.status { position: absolute; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 500 12.5px/1 var(--font-mono); pointer-events: none; }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status[data-kind="ink"] i { background: var(--accent); }
+.status[data-kind="hold"] { background: var(--safety-soft); border-color: var(--safety); }
+.status[data-kind="hold"] i { background: var(--safety); }
+.status[data-kind="done"] i { background: var(--ok); }
+.toast { position: absolute; top: 10px; right: 10px; padding: 6px 11px; border-radius: 999px; font: 600 12.5px/1 var(--font-mono); background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); pointer-events: none; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { font: 600 14px/1 var(--font-body); padding: 11px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); min-width: 150px; }
+.btn.warn { background: var(--safety-soft); border-color: var(--safety); }
+button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+@media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+.stat .k { font: 500 11px/1.25 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font: 500 20px/1.15 var(--font-mono); font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 12px; color: var(--muted); margin-left: 2px; }
+.stat .v.good { color: var(--ok); } .stat .v.meh { color: var(--safety); } .stat .v.bad { color: var(--bad); }
+.bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.bar b { display: block; height: 100%; width: 0; background: var(--accent); }
+
+.depth { display: grid; gap: 6px; }
+.depth-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.depth-head strong { font-weight: 600; }
+.depth-head span { color: var(--muted); }
+.depth canvas { display: block; width: 100%; height: 96px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw-skin { width: 30px; height: 14px; border-radius: 3px; background: #d6a078; display: inline-grid; place-items: center; }
+.sw-skin i { display: block; width: 22px; height: 0; }
+.l-stencil i { border-top: 2px dashed #5a3fc0; }
+.l-ink i { border-top: 2.5px solid #16141c; }
+.l-shallow i { border-top: 2.5px solid rgba(22, 20, 28, .3); }
+.l-deep i { border-top: 2.5px solid #16141c; box-shadow: 0 0 0 2.5px rgba(38, 64, 140, .35); }
+.l-err i { border-top: 2.5px solid #e3261d; }
+.l-ghost { width: 30px; height: 14px; border: 1.5px dashed var(--accent); border-radius: 3px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 20px; min-width: 0; }
+.group { display: grid; gap: 12px; }
+.group + .group { border-top: 1px solid var(--line); padding-top: 18px; }
+.group h2 { font: 800 1.25rem/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase; margin: 0; }
+.field { display: grid; gap: 4px; }
+.field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+.field-head output { font: 500 13px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--accent); }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+.field small, .toggle small { display: block; font-size: 12.5px; line-height: 1.35; color: var(--muted); }
+.toggle { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; font-size: 14px; }
+.toggle b { font-weight: 500; }
+.sw { appearance: none; -webkit-appearance: none; flex: none; width: 40px; height: 23px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); position: relative; cursor: pointer; margin: 0; transition: background .15s; }
+.sw::before { content: ""; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.sw:checked { background: var(--accent); border-color: var(--accent); }
+.sw:checked::before { transform: translateX(17px); background: var(--on-accent); }
+.dim { opacity: .45; }
+.designs { display: flex; flex-wrap: wrap; gap: 6px; }
+.designs .chip { padding: 8px 11px; font-size: 13px; }
+.tones { display: flex; gap: 8px; align-items: center; }
+.tones span { font-size: 14px; margin-right: auto; }
+.tone { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.tone[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.pad-wrap { display: grid; gap: 8px; }
+.pad { display: block; width: 100%; aspect-ratio: 140 / 62; max-width: 100%; border-radius: 6px; border: 1.5px dashed var(--line); background: var(--surface-2); touch-action: none; cursor: crosshair; }
+.pad-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pad-row .btn { padding: 8px 12px; font-size: 13px; }
+.pad-msg { font-size: 12.5px; color: var(--bad); }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 940px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.card h2 { font: 800 1.35rem/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase; margin: 0; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; font: 500 11px/1.2 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 6px 10px 8px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
+.verdict { display: inline-block; padding: 3px 9px; border-radius: 999px; font: 600 12px/1.3 var(--font-mono); white-space: nowrap; }
+.verdict.good { background: var(--ok-soft); color: var(--ok); }
+.verdict.meh { background: var(--safety-soft); color: var(--safety); }
+.verdict.bad { background: var(--bad-soft); color: var(--bad); }
+.empty { color: var(--muted); font-size: 14px; margin: 0; }
+.tips { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
+.tips b { font-weight: 600; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+@media (prefers-reduced-motion: reduce) { .sw, .sw::before { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Banco de pruebas virtual</p>
+    <h1>Robot tatuador</h1>
+    <p class="lede">Un brazo robot tatúa sobre un antebrazo que se mueve, respira y da respingos. Toca los ajustes y mira dónde cae la tinta. Todo es simulado: los números son orientativos y sirven para entender los problemas, no para calibrar una máquina de verdad.</p>
+  </header>
+
+  <div class="scenarios" role="group" aria-label="Escenarios de prueba">
+    <span>Escenarios</span>
+    <button class="chip scn" data-scn="tranquilo" aria-pressed="true">Cliente tranquilo</button>
+    <button class="chip scn" data-scn="nervioso" aria-pressed="false">Cliente nervioso</button>
+    <button class="chip scn" data-scn="lenta" aria-pressed="false">Cámara lenta</button>
+    <button class="chip scn" data-scn="ciegas" aria-pressed="false">Robot a ciegas</button>
+    <button class="chip scn" data-scn="sinfrenos" aria-pressed="false">Sin frenos</button>
+  </div>
+
+  <div class="lab">
+    <section class="stage-card" aria-label="Simulación">
+      <div class="stage" id="stage">
+        <canvas id="cv" role="img" aria-label="Vista cenital de un brazo robot tatuando un antebrazo"></canvas>
+        <div class="status" id="status" data-kind="idle"><i></i><span id="status-text">Preparado</span></div>
+        <div class="toast" id="toast" hidden></div>
+      </div>
+      <p class="hint">Agarra el antebrazo y arrástralo para moverlo tú. Con la rueda del ratón lo giras. La lupa de abajo a la derecha sigue a la aguja.</p>
+      <div class="actions">
+        <button class="btn primary" id="btn-main">Pausar</button>
+        <button class="btn" id="btn-restart">Borrar y empezar</button>
+        <button class="btn warn" id="btn-jerk">¡Respingo!</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="k">Progreso</span><span class="v" id="st-prog">0 %</span><div class="bar"><b id="st-bar"></b></div></div>
+        <div class="stat"><span class="k">Error medio</span><span class="v" id="st-mean">–</span></div>
+        <div class="stat"><span class="k">Error máximo</span><span class="v" id="st-max">–</span></div>
+        <div class="stat"><span class="k">Dentro de ±0,5 mm</span><span class="v" id="st-within">–</span></div>
+        <div class="stat"><span class="k">Profundidad buena</span><span class="v" id="st-depth">–</span></div>
+        <div class="stat"><span class="k">Paradas de seguridad</span><span class="v" id="st-holds">0</span></div>
+        <div class="stat"><span class="k">Brazo se mueve a</span><span class="v" id="st-speed">0<small>mm/s</small></span></div>
+        <div class="stat"><span class="k">Tiempo</span><span class="v" id="st-time">0,0<small>s</small></span></div>
+      </div>
+      <div class="depth">
+        <div class="depth-head"><strong>Profundidad de la aguja</strong><span>Últimos 6 s · franja verde de 0,8 a 1,8 mm</span></div>
+        <canvas id="depth" aria-label="Gráfica de profundidad de la aguja en milímetros"></canvas>
+      </div>
+      <div class="legend" aria-label="Leyenda">
+        <span class="l-stencil"><span class="sw-skin"><i></i></span>Plantilla</span>
+        <span class="l-ink"><span class="sw-skin"><i></i></span>Tinta bien puesta</span>
+        <span class="l-shallow"><span class="sw-skin"><i></i></span>Muy superficial, no agarra</span>
+        <span class="l-deep"><span class="sw-skin"><i></i></span>Muy profunda, se corre</span>
+        <span class="l-err"><span class="sw-skin"><i></i></span>Fuera de sitio (más de 0,5 mm)</span>
+        <span><span class="l-ghost"></span>Dónde cree el robot que está el brazo</span>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Ajustes">
+      <div class="group">
+        <h2>Diseño</h2>
+        <div class="designs" role="group" aria-label="Diseño">
+          <button class="chip design" data-design="estrella" aria-pressed="true">Estrella náutica</button>
+          <button class="chip design" data-design="corazon" aria-pressed="false">Corazón</button>
+          <button class="chip design" data-design="flor" aria-pressed="false">Flor</button>
+          <button class="chip design" data-design="espiral" aria-pressed="false">Espiral</button>
+          <button class="chip design" data-design="ola" aria-pressed="false">Olas</button>
+          <button class="chip design" data-design="propio" aria-pressed="false">Dibujar el mío</button>
+        </div>
+        <div class="pad-wrap" id="pad-wrap" hidden>
+          <canvas class="pad" id="pad" aria-label="Zona de dibujo del diseño, 14 por 6 centímetros"></canvas>
+          <div class="pad-row">
+            <button class="btn" id="pad-clear">Borrar</button>
+            <button class="btn primary" id="pad-use">Tatuar este diseño</button>
+            <span class="pad-msg" id="pad-msg"></span>
+          </div>
+          <small class="note">La zona de dibujo mide 14 × 6,2 cm sobre la piel. Cada trazo que hagas es una pasada de la aguja.</small>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-speed">Velocidad del trazo</label><output id="out-speed"></output></div>
+          <input type="range" id="rng-speed" min="5" max="45" step="1" value="18">
+        </div>
+        <div class="tones" role="group" aria-label="Tono de piel">
+          <span>Tono de piel</span>
+          <button class="tone" data-tone="0" aria-pressed="false" aria-label="Piel muy clara" style="background:#f0c8a4"></button>
+          <button class="tone" data-tone="1" aria-pressed="true" aria-label="Piel clara" style="background:#d6a078"></button>
+          <button class="tone" data-tone="2" aria-pressed="false" aria-label="Piel morena" style="background:#a56a44"></button>
+          <button class="tone" data-tone="3" aria-pressed="false" aria-label="Piel oscura" style="background:#6a4029"></button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h2>Cliente</h2>
+        <div class="field">
+          <div class="field-head"><label for="rng-move">Cuánto se mueve</label><output id="out-move"></output></div>
+          <input type="range" id="rng-move" min="0" max="100" step="1" value="25">
+          <small>Deriva lenta del brazo y un pelín de temblor.</small>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-breath">Respiración y músculo</label><output id="out-breath"></output></div>
+          <input type="range" id="rng-breath" min="0" max="100" step="1" value="35">
+          <small>La piel se estira, se hincha y sube y baja.</small>
+        </div>
+        <label class="toggle"><span><b>Respingos por sorpresa</b><small>De vez en cuando pega un tirón.</small></span><input type="checkbox" class="sw" id="sw-jerks"></label>
+      </div>
+
+      <div class="group">
+        <h2>Robot</h2>
+        <label class="toggle"><span><b>Seguimiento en tiempo real</b><small>Una cámara sigue las pegatinas del brazo y el robot corrige sobre la marcha.</small></span><input type="checkbox" class="sw" id="sw-tracking" checked></label>
+        <div class="field" id="f-latency">
+          <div class="field-head"><label for="rng-latency">Retraso de la cámara</label><output id="out-latency"></output></div>
+          <input type="range" id="rng-latency" min="0" max="300" step="10" value="40">
+          <small>Lo que tarda en ver, procesar y reaccionar.</small>
+        </div>
+        <div class="field" id="f-noise">
+          <div class="field-head"><label for="rng-noise">Ruido del sensor</label><output id="out-noise"></output></div>
+          <input type="range" id="rng-noise" min="0" max="100" step="1" value="12">
+        </div>
+        <label class="toggle" id="f-predict"><span><b>Predecir el movimiento</b><small>Adivina dónde estará el brazo para compensar el retraso.</small></span><input type="checkbox" class="sw" id="sw-predict" checked></label>
+        <label class="toggle"><span><b>Sensor de fuerza en la aguja</b><small>Nota la piel al instante: controla la profundidad y detecta tirones.</small></span><input type="checkbox" class="sw" id="sw-force" checked></label>
+        <label class="toggle"><span><b>Parada de seguridad</b><small>Levanta la aguja si algo se mueve demasiado rápido.</small></span><input type="checkbox" class="sw" id="sw-safety" checked></label>
+      </div>
+
+      <div class="group">
+        <h2>Vista</h2>
+        <label class="toggle"><span><b>Ver lo que ve el robot</b></span><input type="checkbox" class="sw" id="sw-ghost" checked></label>
+        <label class="toggle"><span><b>Marcar la tinta fuera de sitio</b></span><input type="checkbox" class="sw" id="sw-errors" checked></label>
+        <label class="toggle"><span><b>Lupa en la aguja</b></span><input type="checkbox" class="sw" id="sw-lens" checked></label>
+      </div>
+    </aside>
+  </div>
+
+  <div class="lower">
+    <section class="card" aria-label="Historial de pruebas">
+      <h2>Historial de pruebas</h2>
+      <p class="empty" id="hist-empty">Todavía no ha terminado ninguna prueba. Cada vez que el robot acabe un diseño, sale aquí con sus números para que compares ajustes.</p>
+      <div class="table-scroll" id="hist-wrap" hidden>
+        <table>
+          <thead><tr><th>#</th><th>Diseño</th><th>Condiciones</th><th>Error medio</th><th>En ±0,5 mm</th><th>Profundidad</th><th>Paradas</th><th>Resultado</th></tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" aria-label="Cosas para probar">
+      <h2>Cosas para probar</h2>
+      <ul class="tips">
+        <li><b>Retraso sin predicción.</b> Sube el retraso a 250 ms, apaga la predicción y mueve el brazo: la tinta se va quedando atrás.</li>
+        <li><b>Sin cámara.</b> Apaga el seguimiento. El robot tatúa donde estaba el brazo al principio, no donde está ahora.</li>
+        <li><b>Frenos fuera.</b> Quita la parada de seguridad y dale a «¡Respingo!» mientras tatúa.</li>
+        <li><b>Profundidad a ojo.</b> Apaga el sensor de fuerza, sube la respiración y mira la gráfica de profundidad.</li>
+        <li><b>Muévelo tú.</b> Arrastra el antebrazo mientras tatúa, primero despacio y luego de golpe.</li>
+      </ul>
+      <p class="note">Modelo simplificado: antebrazo visto desde arriba, brazo robot de dos ejes, cámara a 60 imágenes por segundo y aguja a 1,2 mm de profundidad objetivo.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const { sin, cos, exp, hypot, atan2, acos, min, max, abs, round, sqrt, log, PI } = Math;
+  const TAU = PI * 2;
+  const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+
+  // ---------- Constantes del modelo (mm, s, rad) ----------
+  const DT = 0.002;                 // paso de simulación
+  const CAM_DT = 1 / 60;            // cámara a 60 fps
+  const DEPTH_TARGET = 1.2, DEPTH_MIN = 0.8, DEPTH_MAX = 1.8, TOL = 0.5;
+  const BASE = { x: 0, y: -196 }, L1 = 178, L2 = 150, HOME = { x: 0, y: -112 };
+  const SKIN_U = 235;
+  const BOX = { u0: -70, u1: 70, v0: -31, v1: 31 };
+  const WORLD = { x0: -170, x1: 170, y0: -232, y1: 96 };
+  const MARKERS = [[-95, -27], [-95, 27], [95, -31], [95, 31]];
+  const TONES = ['#f0c8a4', '#d6a078', '#a56a44', '#6a4029'];
+  const KEYS = ['x', 'y', 'th', 's', 'b', 'z'];
+  const INK = '#16141c', ERR = '#e3261d';
+
+  const params = {
+    move: .25, breath: .35, jerks: false, tracking: true, latency: 40, noise: .12,
+    predict: true, safety: true, force: true, speed: 18,
+    showGhost: true, showErrors: true, showLens: true, tone: 1, design: 'estrella'
+  };
+
+  const SCENARIOS = {
+    tranquilo: { move: .25, breath: .35, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true },
+    nervioso: { move: .8, breath: .7, jerks: true, tracking: true, latency: 50, noise: .2, predict: true, safety: true, force: true },
+    lenta: { move: .55, breath: .5, jerks: false, tracking: true, latency: 220, noise: .12, predict: false, safety: true, force: false },
+    ciegas: { move: .5, breath: .6, jerks: false, tracking: false, latency: 40, noise: .12, predict: true, safety: true, force: false },
+    sinfrenos: { move: .5, breath: .5, jerks: true, tracking: true, latency: 50, noise: .12, predict: true, safety: false, force: false }
+  };
+
+  // ---------- Utilidades ----------
+  const mkS = () => ({ x: 0, y: 0, th: 0, s: 0, b: 0, z: 0 });
+  const copyS = (a, b) => { for (const k of KEYS) b[k] = a[k]; return b; };
+  let spare = null;
+  function gauss() {
+    if (spare !== null) { const v = spare; spare = null; return v; }
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    v = Math.random();
+    const r = sqrt(-2 * log(u));
+    spare = r * sin(TAU * v);
+    return r * cos(TAU * v);
+  }
+  const fmt = (x, d) => x.toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+  function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function shade(hex, amt) {
+    const c = hexRgb(hex), t = amt < 0 ? 0 : 255, a = abs(amt);
+    return `rgb(${c.map((v) => round(v + (t - v) * a)).join(',')})`;
+  }
+  const halfW = (u) => 38 + 9 * (clamp(u, -SKIN_U, SKIN_U) + SKIN_U) / (2 * SKIN_U);
+
+  // Piel (u,v en mm sobre la piel) -> mundo (x,y en mm sobre la mesa)
+  function W(u, v, S, o) {
+    const g = exp(-(((u - 25) / 55) ** 2));
+    const u1 = u * (1 + S.s), v1 = v * (1 + S.b * g);
+    const c = cos(S.th), s = sin(S.th);
+    o.x = S.x + c * u1 - s * v1;
+    o.y = S.y + s * u1 + c * v1;
+    return o;
+  }
+  function Winv(x, y, S, o) {
+    const dx = x - S.x, dy = y - S.y, c = cos(S.th), s = sin(S.th);
+    const u = (c * dx + s * dy) / (1 + S.s);
+    const g = exp(-(((u - 25) / 55) ** 2));
+    o.u = u;
+    o.v = (-s * dx + c * dy) / (1 + S.b * g);
+    return o;
+  }
+
+  // ---------- Diseños ----------
+  const DESIGNS = {
+    estrella: { label: 'Estrella náutica', make() {
+      const ring = [], out = [ring];
+      for (let i = 0; i <= 10; i++) { const a = -PI / 2 + i * PI / 5, r = i % 2 ? .4 : 1; ring.push([r * cos(a), r * sin(a)]); }
+      for (let i = 0; i < 5; i++) { const a = -PI / 2 + i * 2 * PI / 5; out.push([[0, 0], [cos(a), sin(a)]]); }
+      return out;
+    } },
+    corazon: { label: 'Corazón', make() {
+      const p = [];
+      for (let i = 0; i <= 240; i++) { const t = i / 240 * TAU; p.push([16 * sin(t) ** 3, -(13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t))]); }
+      return [p];
+    } },
+    flor: { label: 'Flor', make() {
+      const p = [], c = [];
+      for (let i = 0; i <= 720; i++) { const t = i / 720 * TAU, r = cos(4 * t); p.push([r * cos(t), r * sin(t)]); }
+      for (let i = 0; i <= 60; i++) { const t = i / 60 * TAU; c.push([.14 * cos(t), .14 * sin(t)]); }
+      return [p, c];
+    } },
+    espiral: { label: 'Espiral', make() {
+      const p = [];
+      for (let i = 0; i <= 700; i++) { const t = i / 700 * 8 * PI; p.push([t * cos(t), t * sin(t)]); }
+      return [p];
+    } },
+    ola: { label: 'Olas', make() {
+      const out = [];
+      for (let j = 0; j < 3; j++) {
+        const p = [];
+        for (let i = 0; i <= 200; i++) { const x = -1 + 2 * i / 200; p.push([x, j * .42 + .14 * sin(x * PI * 3 + j * 1.1)]); }
+        out.push(p);
+      }
+      return out;
+    } }
+  };
+
+  function fitDesign(raw) {
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const s of raw) for (const [x, y] of s) { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y); }
+    const sc = min((BOX.u1 - BOX.u0) / (x1 - x0 || 1), (BOX.v1 - BOX.v0) / (y1 - y0 || 1));
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, bu = (BOX.u0 + BOX.u1) / 2, bv = (BOX.v0 + BOX.v1) / 2;
+    return raw.map((s) => s.map(([x, y]) => ({ u: bu + (x - cx) * sc, v: bv + (y - cy) * sc })));
+  }
+  function buildStrokes(list) {
+    const res = [];
+    for (const pts of list) {
+      if (!pts.length) continue;
+      const clean = [pts[0]];
+      for (let i = 1; i < pts.length; i++) {
+        const l = clean[clean.length - 1];
+        if (hypot(pts[i].u - l.u, pts[i].v - l.v) > .05) clean.push(pts[i]);
+      }
+      if (clean.length < 2) continue;
+      const cum = [0];
+      for (let i = 1; i < clean.length; i++) cum.push(cum[i - 1] + hypot(clean[i].u - clean[i - 1].u, clean[i].v - clean[i - 1].v));
+      res.push({ pts: clean, cum, len: cum[cum.length - 1], hint: 0 });
+    }
+    return res;
+  }
+  function pointAt(st, s, o) {
+    let i = st.hint;
+    if (i >= st.cum.length - 1 || s < st.cum[i]) i = 0;
+    while (i < st.cum.length - 2 && st.cum[i + 1] < s) i++;
+    st.hint = i;
+    const seg = st.cum[i + 1] - st.cum[i], f = seg > 0 ? clamp((s - st.cum[i]) / seg, 0, 1) : 0;
+    o.u = st.pts[i].u + (st.pts[i + 1].u - st.pts[i].u) * f;
+    o.v = st.pts[i].v + (st.pts[i + 1].v - st.pts[i].v) * f;
+    return o;
+  }
+
+  let strokes = [], totalLen = 0, designLabel = '';
+  function setDesign(list, label) {
+    strokes = buildStrokes(list);
+    totalLen = strokes.reduce((a, s) => a + s.len, 0);
+    designLabel = label;
+  }
+
+  // ---------- Estado de la simulación ----------
+  const skin = mkS(), Sest = mkS(), Sref = mkS(), tmpS = mkS(), tmpS2 = mkS();
+  const jerk = { x: 0, y: 0, th: 0, z: 0, vx: 0, vy: 0, vth: 0, vz: 0 };
+  const drag = { x: 0, y: 0, th: 0, tx: 0, ty: 0, tth: 0 };
+  const env = { A: params.move, D: params.breath };
+  const cam = { S: mkS(), vel: mkS(), age: 0, timer: 0 };
+  const HN = 256, hist = new Float64Array(HN * 6);
+  let hHead = 0, simT = 0;
+
+  const rob = { x: HOME.x, y: HOME.y, vx: 0, vy: 0, zn: 6, tfx: 0, tfy: 0, ptx: HOME.x, pty: HOME.y };
+  const T = { x: HOME.x, y: HOME.y }, Dp = { u: 0, v: 0 }, liftD = { u: 0, v: 0 }, Ap = { u: 0, v: 0 };
+  const Pa = { x: 0, y: 0 }, Pb = { x: 0, y: 0 };
+  let mode = 'idle', running = false, paused = false, holdOk = 0;
+  let cur = { k: 0, s: 0 };
+  let depth = -5, inSkin = false;
+  let ink = [], curInk = null;
+  let stats = null;
+  const depthBuf = [];
+  const history = [];
+  let runNo = 0;
+
+  function resetStats() { stats = { n: 0, sumE: 0, maxE: 0, within: 0, depthOK: 0, holds: 0, time: 0 }; }
+  resetStats();
+
+  function pushHist(S) {
+    hHead = (hHead + 1) % HN;
+    const o = hHead * 6;
+    hist[o] = S.x; hist[o + 1] = S.y; hist[o + 2] = S.th; hist[o + 3] = S.s; hist[o + 4] = S.b; hist[o + 5] = S.z;
+  }
+  function getHist(ago, out) {
+    const o = (((hHead - ago) % HN) + HN) % HN * 6;
+    out.x = hist[o]; out.y = hist[o + 1]; out.th = hist[o + 2]; out.s = hist[o + 3]; out.b = hist[o + 4]; out.z = hist[o + 5];
+    return out;
+  }
+
+  function updateSkin() {
+    const t = simT;
+    env.A += (params.move - env.A) * (DT / .8);
+    env.D += (params.breath - env.D) * (DT / .8);
+    const A = env.A, D = env.D;
+    const w = 11, zt = .45;
+    jerk.vx += (-w * w * jerk.x - 2 * zt * w * jerk.vx) * DT; jerk.x += jerk.vx * DT;
+    jerk.vy += (-w * w * jerk.y - 2 * zt * w * jerk.vy) * DT; jerk.y += jerk.vy * DT;
+    jerk.vth += (-w * w * jerk.th - 2 * zt * w * jerk.vth) * DT; jerk.th += jerk.vth * DT;
+    jerk.vz += (-w * w * jerk.z - 2 * zt * w * jerk.vz) * DT; jerk.z += jerk.vz * DT;
+    const kd = DT / .035;
+    drag.x += (drag.tx - drag.x) * kd; drag.y += (drag.ty - drag.y) * kd; drag.th += (drag.tth - drag.th) * kd;
+    skin.x = A * (14 * sin(TAU * .061 * t) + 7 * sin(TAU * .17 * t + 1.3) + .35 * sin(TAU * 1.7 * t) + .25 * sin(TAU * 2.9 * t + .4)) + jerk.x + drag.x;
+    skin.y = A * (9 * sin(TAU * .083 * t + .7) + 5 * sin(TAU * .21 * t + 2.1) + .3 * sin(TAU * 2.3 * t + 1.1)) + jerk.y + drag.y;
+    skin.th = A * (.07 * sin(TAU * .052 * t + .3) + .03 * sin(TAU * .23 * t + 1.7)) + jerk.th + drag.th;
+    const br = sin(TAU * .25 * t);
+    skin.s = D * .025 * br;
+    skin.b = D * (.05 + .05 * sin(TAU * .11 * t + .9) + .03 * br);
+    skin.z = D * (1.0 * sin(TAU * .25 * t + .5) + .12 * sin(TAU * 1.15 * t)) + jerk.z;
+  }
+
+  function triggerJerk() {
+    const a = Math.random() * TAU, sp = 300 + Math.random() * 150;
+    jerk.vx += sp * cos(a);
+    jerk.vy += sp * sin(a) * .7;
+    jerk.vth += (Math.random() - .5) * 1.2;
+    jerk.vz += (Math.random() < .5 ? -1 : 1) * (25 + Math.random() * 15);
+    showToast('¡Respingo!');
+  }
+
+  function camSample() {
+    const steps = min(HN - 1, round(params.latency / 1000 / DT));
+    getHist(steps, tmpS);
+    const n = params.noise;
+    tmpS.x += gauss() * .6 * n; tmpS.y += gauss() * .6 * n; tmpS.th += gauss() * .004 * n;
+    tmpS.z += gauss() * .3 * n; tmpS.s += gauss() * .002 * n; tmpS.b += gauss() * .004 * n;
+    for (const k of KEYS) {
+      const raw = (tmpS[k] - cam.S[k]) / CAM_DT;
+      cam.vel[k] += (raw - cam.vel[k]) * .35;
+      cam.S[k] = tmpS[k];
+    }
+    cam.age = 0;
+  }
+
+  function estimate(out) {
+    if (!params.tracking) copyS(Sref, out);
+    else if (params.predict) {
+      const h = params.latency / 1000 + cam.age;
+      for (const k of KEYS) out[k] = cam.S[k] + cam.vel[k] * h;
+    } else copyS(cam.S, out);
+    if (params.force) out.z = getHist(2, tmpS2).z + gauss() * .02;
+    return out;
+  }
+
+  // Velocidad de la piel bajo el punto del diseño, según lo que el robot puede medir
+  function skinSpeedSeen(D) {
+    if (params.force) {
+      getHist(2, tmpS); W(D.u, D.v, tmpS, Pa);
+      getHist(4, tmpS); W(D.u, D.v, tmpS, Pb);
+      return hypot(Pa.x - Pb.x, Pa.y - Pb.y) / (2 * DT);
+    }
+    if (!params.tracking) return 0;
+    W(D.u, D.v, cam.S, Pa);
+    for (const k of KEYS) tmpS[k] = cam.S[k] + cam.vel[k] * .01;
+    W(D.u, D.v, tmpS, Pb);
+    return hypot(Pb.x - Pa.x, Pb.y - Pa.y) / .01;
+  }
+
+  function step() {
+    simT += DT;
+    if (params.jerks && Math.random() < .2 * DT) triggerJerk();
+    updateSkin();
+    pushHist(skin);
+    cam.age += DT; cam.timer += DT;
+    if (cam.timer >= CAM_DT) { cam.timer -= CAM_DT; camSample(); }
+    estimate(Sest);
+
+    let tx = HOME.x, ty = HOME.y, ref = null;
+    if (running) {
+      if (mode === 'lift') ref = liftD;
+      else ref = pointAt(strokes[cur.k], cur.s, Dp);
+      W(ref.u, ref.v, Sest, T);
+      tx = T.x; ty = T.y;
+    } else { T.x = tx; T.y = ty; }
+
+    // Velocidad del objetivo filtrada (anticipación)
+    let rvx = (tx - rob.ptx) / DT, rvy = (ty - rob.pty) / DT;
+    if (hypot(tx - rob.ptx, ty - rob.pty) > 3) { rvx = 0; rvy = 0; }
+    rob.ptx = tx; rob.pty = ty;
+    const kf = DT / .025;
+    rob.tfx += (rvx - rob.tfx) * kf; rob.tfy += (rvy - rob.tfy) * kf;
+
+    // Servo XY
+    const wn = TAU * 14;
+    let ax = wn * wn * (tx - rob.x) + 2 * wn * (rob.tfx - rob.vx);
+    let ay = wn * wn * (ty - rob.y) + 2 * wn * (rob.tfy - rob.vy);
+    const am = hypot(ax, ay);
+    if (am > 30000) { ax *= 30000 / am; ay *= 30000 / am; }
+    rob.vx += ax * DT; rob.vy += ay * DT;
+    const vm = hypot(rob.vx, rob.vy);
+    if (vm > 600) { rob.vx *= 600 / vm; rob.vy *= 600 / vm; }
+    rob.x += rob.vx * DT; rob.y += rob.vy * DT;
+
+    const tipErr = hypot(tx - rob.x, ty - rob.y);
+    let needleWant = false;
+    if (running) {
+      if (mode === 'travel' && tipErr < .6 && hypot(rob.vx - rob.tfx, rob.vy - rob.tfy) < 60) mode = 'ink';
+      if (mode === 'ink') {
+        needleWant = true;
+        if (params.safety) {
+          const sp = skinSpeedSeen(ref);
+          if (tipErr > 2 || sp > 80) { mode = 'hold'; holdOk = 0; stats.holds++; needleWant = false; }
+        }
+      } else if (mode === 'hold') {
+        const sp = skinSpeedSeen(ref);
+        if (tipErr < 1 && sp < 40) { holdOk += DT; if (holdOk > .25) mode = 'travel'; } else holdOk = 0;
+      }
+    }
+
+    // Eje Z de la aguja
+    const zTarget = needleWant ? Sest.z - DEPTH_TARGET : Sest.z + 4;
+    rob.zn += (zTarget - rob.zn) * min(1, DT / .012);
+    depth = skin.z - rob.zn;
+    inSkin = depth > .3;
+
+    // Tinta: se deposita donde está la aguja de verdad sobre la piel de verdad
+    if (inSkin && running && ref) {
+      Winv(rob.x, rob.y, skin, Ap);
+      const e = hypot(Ap.u - ref.u, Ap.v - ref.v);
+      if (!curInk) { curInk = []; ink.push(curInk); }
+      const last = curInk[curInk.length - 1];
+      if (!last || hypot(Ap.u - last.u, Ap.v - last.v) >= .25) {
+        curInk.push({ u: Ap.u, v: Ap.v, e, d: depth });
+        stats.n++; stats.sumE += e; stats.maxE = max(stats.maxE, e);
+        if (e <= TOL) stats.within++;
+        if (depth >= DEPTH_MIN && depth <= DEPTH_MAX) stats.depthOK++;
+      }
+    } else curInk = null;
+
+    // Avance por el diseño
+    if (running) {
+      stats.time += DT;
+      if (mode === 'ink' && inSkin && (!params.safety || tipErr < .8)) {
+        const st = strokes[cur.k];
+        cur.s += params.speed * DT;
+        if (cur.s >= st.len) {
+          pointAt(st, st.len, liftD);
+          cur.k++; cur.s = 0;
+          mode = 'lift';
+        }
+      } else if (mode === 'lift' && depth < -1.5) {
+        if (cur.k >= strokes.length) finishRun(); else mode = 'travel';
+      }
+    }
+  }
+
+  function startRun() {
+    if (!strokes.length) return;
+    for (const s of strokes) s.hint = 0;
+    running = true; paused = false; mode = 'travel'; cur = { k: 0, s: 0 };
+    copyS(cam.S, Sref);
+    updateButtons();
+  }
+  function resetRun() {
+    running = false; paused = false; mode = 'idle';
+    ink = []; curInk = null; cur = { k: 0, s: 0 };
+    resetStats(); depthBuf.length = 0;
+    updateButtons();
+  }
+  function finishRun() {
+    running = false; mode = 'done';
+    runNo++;
+    const n = max(1, stats.n);
+    const within = stats.within / n * 100, dOK = stats.depthOK / n * 100, mean = stats.sumE / n;
+    const verdict = within >= 90 && dOK >= 90 ? ['Limpio', 'good'] : within >= 70 && dOK >= 75 ? ['Pasable', 'meh'] : ['Chapuza', 'bad'];
+    history.unshift({ n: runNo, design: designLabel, cfg: describeCfg(), mean, within, dOK, holds: stats.holds, verdict });
+    renderHistory();
+    updateButtons();
+  }
+  function describeCfg() {
+    const p = params, yes = (b) => (b ? 'sí' : 'no');
+    const parts = [`Movimiento ${round(p.move * 100)} %`, `respiración ${round(p.breath * 100)} %`, `respingos ${yes(p.jerks)}`];
+    if (p.tracking) parts.push(`cámara con ${p.latency} ms de retraso`, `ruido ${round(p.noise * 100)} %`, `predicción ${yes(p.predict)}`);
+    else parts.push('sin seguimiento');
+    parts.push(`sensor de fuerza ${yes(p.force)}`, `parada de seguridad ${yes(p.safety)}`);
+    return parts.join(' · ');
+  }
+
+  // ---------- Dibujo ----------
+  let dpr = 1;
+  const stageEl = $('#stage'), cv = $('#cv'), ctx = cv.getContext('2d');
+  const dcv = $('#depth'), dctx = dcv.getContext('2d');
+  let SW = 0, SH = 0, view = { s: 1, ox: 0, oy: 0 }, DW = 0, DH = 96;
+  const C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ['stage', 'stage-dot', 'robot', 'robot-edge', 'robot-joint', 'accent', 'safety', 'bad', 'ok', 'ok-soft', 'fg', 'muted', 'line', 'surface', 'surface-2', 'shadow']) C[k] = cs.getPropertyValue('--' + k).trim();
+    drawPad();
+  }
+
+  function sizeStage() {
+    dpr = min(2, window.devicePixelRatio || 1);
+    const w = stageEl.clientWidth;
+    if (!w) return;
+    const h = round(clamp(min(w * .96, window.innerHeight * .74), 300, 760));
+    if (w === SW && h === SH && cv.width === round(w * dpr)) return;
+    SW = w; SH = h;
+    cv.style.height = h + 'px';
+    cv.width = round(w * dpr); cv.height = round(h * dpr);
+    const s = min(w / (WORLD.x1 - WORLD.x0), h / (WORLD.y1 - WORLD.y0));
+    view = { s, ox: (w - s * (WORLD.x1 - WORLD.x0)) / 2 - s * WORLD.x0, oy: (h - s * (WORLD.y1 - WORLD.y0)) / 2 - s * WORLD.y0 };
+  }
+  function sizeDepth() {
+    const w = dcv.clientWidth;
+    if (!w) return;
+    DW = w;
+    dcv.width = round(w * dpr); dcv.height = round(DH * dpr);
+  }
+
+  const q = { x: 0, y: 0 }, q2 = { x: 0, y: 0 };
+  function skinPath(S, closed) {
+    const p = new Path2D(), N = 64;
+    for (let i = 0; i <= N; i++) {
+      const u = -SKIN_U + 2 * SKIN_U * i / N;
+      W(u, -halfW(u), S, q);
+      i ? p.lineTo(q.x, q.y) : p.moveTo(q.x, q.y);
+    }
+    if (!closed) {
+      for (let i = 0; i <= N; i++) {
+        const u = -SKIN_U + 2 * SKIN_U * i / N;
+        W(u, halfW(u), S, q);
+        i ? p.lineTo(q.x, q.y) : p.moveTo(q.x, q.y);
+      }
+      return p;
+    }
+    for (let i = N; i >= 0; i--) {
+      const u = -SKIN_U + 2 * SKIN_U * i / N;
+      W(u, halfW(u), S, q);
+      p.lineTo(q.x, q.y);
+    }
+    p.closePath();
+    return p;
+  }
+
+  function strokeSegs(ctx, test) {
+    ctx.beginPath();
+    for (const s of ink) {
+      if (s.length === 1) {
+        if (test(s[0])) { W(s[0].u, s[0].v, skin, q); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x + .01, q.y); }
+        continue;
+      }
+      for (let i = 1; i < s.length; i++) {
+        if (!test(s[i])) continue;
+        W(s[i - 1].u, s[i - 1].v, skin, q); W(s[i].u, s[i].v, skin, q2);
+        ctx.moveTo(q.x, q.y); ctx.lineTo(q2.x, q2.y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  function drawScene(ctx, v, lens) {
+    ctx.save();
+    ctx.setTransform(dpr * v.s, 0, 0, dpr * v.s, dpr * v.ox, dpr * v.oy);
+    const px = 1 / v.s;
+    const tone = TONES[params.tone], dark = params.tone >= 2;
+
+    // Antebrazo
+    const path = skinPath(skin, true);
+    if (!lens) {
+      ctx.save(); ctx.translate(2.5, 3.5); ctx.fillStyle = C.shadow; ctx.fill(path); ctx.restore();
+    }
+    W(0, -halfW(0), skin, q); W(0, halfW(0), skin, q2);
+    const g = ctx.createLinearGradient(q.x, q.y, q2.x, q2.y);
+    g.addColorStop(0, shade(tone, -.24)); g.addColorStop(.3, tone); g.addColorStop(.55, shade(tone, .07)); g.addColorStop(1, shade(tone, -.3));
+    ctx.fillStyle = g; ctx.fill(path);
+
+    // Cuadrícula de la piel (se deforma con ella)
+    ctx.save();
+    ctx.clip(path);
+    ctx.strokeStyle = dark ? 'rgba(255,255,255,.07)' : 'rgba(70,35,10,.09)';
+    ctx.lineWidth = px;
+    ctx.beginPath();
+    for (let u = -220; u <= 220; u += 10) {
+      W(u, -halfW(u), skin, q); ctx.moveTo(q.x, q.y);
+      for (let vv = -40; vv <= 50; vv += 10) { W(u, clamp(vv, -halfW(u), halfW(u)), skin, q); ctx.lineTo(q.x, q.y); }
+    }
+    for (let vv = -40; vv <= 40; vv += 10) {
+      for (let u = -230; u <= 230; u += 10) { W(u, vv, skin, q); u === -230 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y); }
+    }
+    ctx.stroke();
+    if (lens) {
+      Winv(rob.x, rob.y, skin, Ap);
+      const u0 = Math.floor(Ap.u) - 9, v0 = Math.floor(Ap.v) - 9;
+      ctx.strokeStyle = dark ? 'rgba(255,255,255,.08)' : 'rgba(70,35,10,.1)';
+      ctx.beginPath();
+      for (let i = 0; i <= 18; i++) {
+        W(u0 + i, v0, skin, q); W(u0 + i, v0 + 18, skin, q2); ctx.moveTo(q.x, q.y); ctx.lineTo(q2.x, q2.y);
+        W(u0, v0 + i, skin, q); W(u0 + 18, v0 + i, skin, q2); ctx.moveTo(q.x, q.y); ctx.lineTo(q2.x, q2.y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Plantilla (papel de calco morado)
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = dark ? 'rgba(206,190,255,.75)' : 'rgba(90,63,192,.6)';
+    ctx.lineWidth = max(.45, 1.1 * px);
+    ctx.setLineDash([2.2, 1.6]);
+    ctx.beginPath();
+    for (const st of strokes) {
+      st.pts.forEach((p, i) => { W(p.u, p.v, skin, q); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Tinta
+    const lw = max(.75, 1.4 * px);
+    ctx.lineWidth = lw * 3.4; ctx.strokeStyle = 'rgba(38,64,140,.28)';
+    strokeSegs(ctx, (p) => p.d > DEPTH_MAX);
+    ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(22,20,28,.28)';
+    strokeSegs(ctx, (p) => p.d < DEPTH_MIN);
+    ctx.strokeStyle = INK;
+    strokeSegs(ctx, (p) => p.d >= DEPTH_MIN);
+    if (params.showErrors) {
+      ctx.strokeStyle = ERR; ctx.lineWidth = lw * 1.1;
+      strokeSegs(ctx, (p) => p.e > TOL);
+    }
+
+    // Pegatinas de seguimiento
+    for (const [mu, mv] of MARKERS) {
+      W(mu, mv, skin, q);
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(q.x, q.y, 2.4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#111111'; ctx.beginPath(); ctx.arc(q.x, q.y, 1, 0, TAU); ctx.fill();
+    }
+
+    // Lo que ve el robot
+    if (!lens && params.showGhost) {
+      ctx.strokeStyle = C.accent; ctx.lineWidth = 1.4 * px; ctx.setLineDash([5 * px, 4 * px]);
+      ctx.stroke(skinPath(Sest, false));
+      ctx.setLineDash([]);
+      for (const [mu, mv] of MARKERS) { W(mu, mv, Sest, q); ctx.beginPath(); ctx.arc(q.x, q.y, 3.2, 0, TAU); ctx.stroke(); }
+    }
+    if (running) {
+      const r = lens ? .9 : 4;
+      ctx.strokeStyle = C.accent; ctx.lineWidth = (lens ? 1.5 : 1.4) * px;
+      ctx.beginPath(); ctx.moveTo(T.x - r, T.y); ctx.lineTo(T.x + r, T.y); ctx.moveTo(T.x, T.y - r); ctx.lineTo(T.x, T.y + r); ctx.stroke();
+    }
+    if (lens) {
+      ctx.fillStyle = inSkin ? INK : 'rgba(0,0,0,0)';
+      ctx.strokeStyle = inSkin ? '#ffffff' : C.fg; ctx.lineWidth = 1.5 * px;
+      ctx.beginPath(); ctx.arc(rob.x, rob.y, .35, 0, TAU); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function ik(px, py) {
+    const dx = px - BASE.x, dy = py - BASE.y;
+    const d = clamp(hypot(dx, dy), abs(L1 - L2) + 1, L1 + L2 - .5);
+    const phi = atan2(dy, dx);
+    const t2 = -acos(clamp((d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2), -1, 1));
+    const t1 = phi - atan2(L2 * sin(t2), L1 + L2 * cos(t2));
+    return { x: BASE.x + L1 * cos(t1), y: BASE.y + L1 * sin(t1) };
+  }
+
+  function line(ctx, a, b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+  function drawRobot(ctx, v) {
+    ctx.save();
+    ctx.setTransform(dpr * v.s, 0, 0, dpr * v.s, dpr * v.ox, dpr * v.oy);
+    const P = { x: rob.x, y: rob.y }, J = ik(P.x, P.y);
+    const HR = 11.5;
+    const dj = hypot(P.x - J.x, P.y - J.y) || 1;
+    const E = { x: P.x + (J.x - P.x) / dj * HR, y: P.y + (J.y - P.y) / dj * HR };
+    const lift = clamp(rob.zn - skin.z, 0, 8), sh = 3 + lift * .6;
+    ctx.lineCap = 'round';
+    // sombra
+    ctx.strokeStyle = C.shadow; ctx.fillStyle = C.shadow;
+    ctx.lineWidth = 17; line(ctx, { x: BASE.x + 4, y: BASE.y + 5 }, { x: J.x + 4, y: J.y + 5 });
+    ctx.lineWidth = 13; line(ctx, { x: J.x + 4, y: J.y + 5 }, { x: E.x + sh, y: E.y + sh });
+    ctx.beginPath(); ctx.arc(P.x + sh, P.y + sh, HR, 0, TAU); ctx.fill();
+    // base
+    ctx.fillStyle = C['robot-edge']; ctx.beginPath(); ctx.arc(BASE.x, BASE.y, 26, 0, TAU); ctx.fill();
+    ctx.fillStyle = C.robot; ctx.beginPath(); ctx.arc(BASE.x, BASE.y, 23.5, 0, TAU); ctx.fill();
+    // eslabones
+    ctx.strokeStyle = C['robot-edge']; ctx.lineWidth = 19; line(ctx, BASE, J);
+    ctx.strokeStyle = C.robot; ctx.lineWidth = 16; line(ctx, BASE, J);
+    ctx.strokeStyle = C['robot-edge']; ctx.lineWidth = 15; line(ctx, J, E);
+    ctx.strokeStyle = C.robot; ctx.lineWidth = 12; line(ctx, J, E);
+    // articulaciones
+    ctx.fillStyle = C['robot-joint'];
+    ctx.beginPath(); ctx.arc(BASE.x, BASE.y, 9, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(J.x, J.y, 7, 0, TAU); ctx.fill();
+    ctx.fillStyle = C.robot; ctx.beginPath(); ctx.arc(J.x, J.y, 2.6, 0, TAU); ctx.fill();
+    // cabezal con ventana para ver la aguja
+    const head = new Path2D();
+    head.arc(P.x, P.y, HR, 0, TAU); head.moveTo(P.x + 5, P.y); head.arc(P.x, P.y, 5, 0, TAU, true);
+    ctx.fillStyle = C.robot; ctx.fill(head, 'evenodd');
+    ctx.strokeStyle = C['robot-edge']; ctx.lineWidth = 1.2 / v.s; ctx.stroke(head);
+    ctx.strokeStyle = C['robot-joint']; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(P.x, P.y, 5.8, 0, TAU); ctx.stroke();
+    if (mode === 'hold') {
+      ctx.strokeStyle = C.safety; ctx.lineWidth = 2.4 / v.s;
+      ctx.beginPath(); ctx.arc(P.x, P.y, HR + 4, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawDots(ctx, v) {
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = C['stage-dot'];
+    const step = 10 * v.s;
+    const r = max(.7, v.s * .35);
+    if (step >= 8) {
+      const x0 = ((v.ox % step) + step) % step, y0 = ((v.oy % step) + step) % step;
+      for (let x = x0; x < SW; x += step) for (let y = y0; y < SH; y += step) ctx.fillRect(x - r / 2, y - r / 2, r, r);
+    }
+    ctx.restore();
+  }
+
+  function drawOverlays(ctx) {
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // escala 1 cm
+    const L = 10 * view.s, x = 14, y = SH - 16;
+    ctx.strokeStyle = C.fg; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x, y); ctx.lineTo(x + L, y); ctx.lineTo(x + L, y - 4); ctx.stroke();
+    ctx.fillStyle = C.fg; ctx.font = '500 11px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.fillText('1 cm', x + L + 6, y + 1);
+    ctx.restore();
+
+    if (!params.showLens) return;
+    const R = round(clamp(SW * .15, 52, 86)), cx = SW - R - 14, cy = SH - R - 14;
+    const ls = 10;
+    const lv = { s: ls, ox: cx - ls * rob.x, oy: cy - ls * rob.y };
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.clip();
+    ctx.fillStyle = C.stage; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+    drawScene(ctx, lv, true);
+    ctx.restore();
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.strokeStyle = C.fg; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
+    ctx.fillStyle = C.surface; ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+    const label = 'LUPA · 1 mm';
+    ctx.font = '500 10.5px "IBM Plex Mono", ui-monospace, monospace';
+    const tw = ctx.measureText(label).width + 30;
+    const bx = cx - tw / 2, by = cy + R - 22;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, tw, 16, 8) : ctx.rect(bx, by, tw, 16); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = C.fg; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(bx + 7, by + 8); ctx.lineTo(bx + 7 + ls, by + 8); ctx.stroke();
+    ctx.fillStyle = C.fg; ctx.fillText(label, bx + 22, by + 11.5);
+    ctx.restore();
+  }
+
+  function render() {
+    if (!SW) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = C.stage; ctx.fillRect(0, 0, SW, SH);
+    drawDots(ctx, view);
+    drawScene(ctx, view, false);
+    drawRobot(ctx, view);
+    drawOverlays(ctx);
+    drawDepth();
+  }
+
+  function drawDepth() {
+    if (!DW) return;
+    const c = dctx, w = DW, h = DH;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, h);
+    const pl = 40, pr = 8, pt = 6, pb = 8;
+    const pw = w - pl - pr;
+    const ym = (d) => pt + clamp(d, 0, 3) / 3 * (h - pt - pb);
+    c.fillStyle = C['ok-soft']; c.fillRect(pl, ym(DEPTH_MIN), pw, ym(DEPTH_MAX) - ym(DEPTH_MIN));
+    c.font = '500 10.5px "IBM Plex Mono", ui-monospace, monospace';
+    c.textAlign = 'right'; c.textBaseline = 'middle';
+    for (let d = 0; d <= 3; d++) {
+      c.strokeStyle = C.line; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(pl, round(ym(d)) + .5); c.lineTo(w - pr, round(ym(d)) + .5); c.stroke();
+      c.fillStyle = C.muted; c.fillText(d === 0 ? 'piel' : d + ' mm', pl - 6, ym(d));
+    }
+    c.strokeStyle = C.ok; c.setLineDash([4, 3]);
+    c.beginPath(); c.moveTo(pl, ym(DEPTH_TARGET)); c.lineTo(w - pr, ym(DEPTH_TARGET)); c.stroke();
+    c.setLineDash([]);
+    const now = simT, t0 = now - 6;
+    c.lineWidth = 2; c.lineJoin = 'round';
+    let prev = null;
+    for (const s of depthBuf) {
+      if (s.t < t0) { prev = null; continue; }
+      if (s.d === null) { prev = null; continue; }
+      const x = pl + (s.t - t0) / 6 * pw, y = ym(s.d);
+      if (prev) {
+        const bad = s.d < DEPTH_MIN || s.d > DEPTH_MAX;
+        c.strokeStyle = bad ? C.bad : C.fg;
+        c.beginPath(); c.moveTo(prev.x, prev.y); c.lineTo(x, y); c.stroke();
+      }
+      prev = { x, y };
+    }
+  }
+
+  // ---------- Interfaz ----------
+  const statusEl = $('#status'), statusText = $('#status-text'), toastEl = $('#toast');
+  let toastTimer = 0;
+  function showToast(t) {
+    toastEl.textContent = t; toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 1000);
+  }
+  let lastStatus = '';
+  function updateStatus() {
+    let kind = mode, text;
+    if (paused) { kind = 'idle'; text = 'En pausa'; }
+    else text = { idle: 'Preparado', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Levantando la aguja', hold: 'Parada de seguridad', done: 'Terminado' }[mode];
+    if (!params.tracking && running && !paused) text += ' · a ciegas';
+    const key = kind + text;
+    if (key === lastStatus) return;
+    lastStatus = key;
+    statusEl.dataset.kind = kind; statusText.textContent = text;
+  }
+  function updateButtons() {
+    $('#btn-main').textContent = running ? (paused ? 'Seguir' : 'Pausar') : (mode === 'done' ? 'Tatuar otra vez' : 'Empezar a tatuar');
+  }
+
+  let skinSpeed = 0;
+  const cprev = { x: 0, y: 0 };
+  function setV(id, html, cls) { const el = $(id); el.innerHTML = html; el.className = 'v' + (cls ? ' ' + cls : ''); }
+  function updateStats() {
+    const done = strokes.slice(0, cur.k).reduce((a, s) => a + s.len, 0) + (cur.k < strokes.length ? cur.s : 0);
+    const prog = mode === 'done' ? 100 : totalLen ? clamp(done / totalLen * 100, 0, 100) : 0;
+    setV('#st-prog', `${round(prog)}<small>%</small>`);
+    $('#st-bar').style.width = prog + '%';
+    if (stats.n) {
+      const mean = stats.sumE / stats.n, w = stats.within / stats.n * 100, d = stats.depthOK / stats.n * 100;
+      setV('#st-mean', `${fmt(mean, 2)}<small>mm</small>`, mean <= .25 ? 'good' : mean <= .5 ? 'meh' : 'bad');
+      setV('#st-max', `${fmt(stats.maxE, 1)}<small>mm</small>`, stats.maxE <= .5 ? 'good' : stats.maxE <= 1.5 ? 'meh' : 'bad');
+      setV('#st-within', `${round(w)}<small>%</small>`, w >= 90 ? 'good' : w >= 70 ? 'meh' : 'bad');
+      setV('#st-depth', `${round(d)}<small>%</small>`, d >= 90 ? 'good' : d >= 75 ? 'meh' : 'bad');
+    } else {
+      for (const id of ['#st-mean', '#st-max', '#st-within', '#st-depth']) setV(id, '–');
+    }
+    setV('#st-holds', String(stats.holds), stats.holds ? 'meh' : '');
+    setV('#st-speed', `${round(skinSpeed)}<small>mm/s</small>`);
+    setV('#st-time', `${fmt(stats.time, 1)}<small>s</small>`);
+  }
+
+  function renderHistory() {
+    const body = $('#hist-body');
+    body.textContent = '';
+    for (const h of history.slice(0, 12)) {
+      const tr = document.createElement('tr');
+      const cells = [
+        ['num', String(h.n)], ['', h.design], ['cfg', h.cfg],
+        ['num', `${fmt(h.mean, 2)} mm`], ['num', `${round(h.within)} %`], ['num', `${round(h.dOK)} %`], ['num', String(h.holds)]
+      ];
+      for (const [cls, txt] of cells) { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; tr.appendChild(td); }
+      const td = document.createElement('td'), sp = document.createElement('span');
+      sp.className = 'verdict ' + h.verdict[1]; sp.textContent = h.verdict[0];
+      td.appendChild(sp); tr.appendChild(td);
+      body.appendChild(tr);
+    }
+    $('#hist-empty').hidden = history.length > 0;
+    $('#hist-wrap').hidden = history.length === 0;
+  }
+
+  // Controles
+  const RANGES = {
+    move: ['#rng-move', '#out-move', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
+    breath: ['#rng-breath', '#out-breath', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
+    latency: ['#rng-latency', '#out-latency', (v) => v, (p) => p, (p) => `${p} ms`],
+    noise: ['#rng-noise', '#out-noise', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
+    speed: ['#rng-speed', '#out-speed', (v) => v, (p) => p, (p) => `${p} mm/s`]
+  };
+  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', showGhost: '#sw-ghost', showErrors: '#sw-errors', showLens: '#sw-lens' };
+
+  function syncControls() {
+    for (const [k, [rid, oid, , toUI, label]] of Object.entries(RANGES)) { $(rid).value = toUI(params[k]); $(oid).textContent = label(params[k]); }
+    for (const [k, id] of Object.entries(SWITCHES)) $(id).checked = params[k];
+    for (const id of ['#f-latency', '#f-noise', '#f-predict']) $(id).classList.toggle('dim', !params.tracking);
+  }
+  function clearScenario() { $$('.scn').forEach((b) => b.setAttribute('aria-pressed', 'false')); }
+
+  for (const [k, [rid, oid, fromUI, , label]] of Object.entries(RANGES)) {
+    $(rid).addEventListener('input', (e) => {
+      params[k] = fromUI(+e.target.value);
+      $(oid).textContent = label(params[k]);
+      if (k !== 'speed') clearScenario();
+    });
+  }
+  for (const [k, id] of Object.entries(SWITCHES)) {
+    $(id).addEventListener('change', (e) => {
+      const was = params[k];
+      params[k] = e.target.checked;
+      if (k === 'tracking' && was && !params.tracking) copyS(cam.S, Sref);
+      if (!k.startsWith('show')) clearScenario();
+      syncControls();
+    });
+  }
+
+  $$('.scn').forEach((b) => b.addEventListener('click', () => {
+    Object.assign(params, SCENARIOS[b.dataset.scn]);
+    $$('.scn').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    syncControls();
+    resetRun(); startRun();
+  }));
+
+  $$('.tone').forEach((b) => b.addEventListener('click', () => {
+    params.tone = +b.dataset.tone;
+    $$('.tone').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+
+  $$('.design').forEach((b) => b.addEventListener('click', () => {
+    $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    const id = b.dataset.design;
+    $('#pad-wrap').hidden = id !== 'propio';
+    if (id === 'propio') { sizePad(); return; }
+    params.design = id;
+    setDesign(fitDesign(DESIGNS[id].make()), DESIGNS[id].label);
+    resetRun(); startRun();
+  }));
+
+  $('#btn-main').addEventListener('click', () => {
+    if (running) paused = !paused;
+    else { resetRun(); startRun(); }
+    updateButtons();
+  });
+  $('#btn-restart').addEventListener('click', () => { resetRun(); startRun(); });
+  $('#btn-jerk').addEventListener('click', triggerJerk);
+
+  // Arrastrar el antebrazo
+  let dragging = null;
+  function toWorld(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
+  }
+  function onSkin(wp) { Winv(wp.x, wp.y, skin, Ap); return abs(Ap.u) < SKIN_U && abs(Ap.v) <= halfW(Ap.u); }
+  cv.addEventListener('pointerdown', (e) => {
+    const wp = toWorld(e);
+    if (!onSkin(wp)) return;
+    dragging = { id: e.pointerId, x: wp.x, y: wp.y, tx: drag.tx, ty: drag.ty };
+    cv.setPointerCapture(e.pointerId);
+    cv.style.cursor = 'grabbing';
+  });
+  cv.addEventListener('pointermove', (e) => {
+    const wp = toWorld(e);
+    if (dragging && e.pointerId === dragging.id) {
+      drag.tx = clamp(dragging.tx + wp.x - dragging.x, -50, 50);
+      drag.ty = clamp(dragging.ty + wp.y - dragging.y, -45, 40);
+    } else if (e.pointerType === 'mouse') cv.style.cursor = onSkin(wp) ? 'grab' : 'default';
+  });
+  const endDrag = (e) => { if (dragging && e.pointerId === dragging.id) { dragging = null; cv.style.cursor = 'grab'; } };
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+  cv.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    if (t && onSkin(toWorld(t))) e.preventDefault();
+  }, { passive: false });
+  cv.addEventListener('wheel', (e) => {
+    if (!onSkin(toWorld(e))) return;
+    e.preventDefault();
+    drag.tth = clamp(drag.tth + (e.deltaY > 0 ? .02 : -.02), -.35, .35);
+  }, { passive: false });
+
+  // Zona de dibujo
+  const pad = $('#pad'), pctx = pad.getContext('2d');
+  let padStrokes = [], padCur = null, PW = 0, PH = 0;
+  function sizePad() {
+    const r = pad.getBoundingClientRect();
+    if (!r.width) return;
+    PW = r.width; PH = r.height;
+    pad.width = round(PW * dpr); pad.height = round(PH * dpr);
+    drawPad();
+  }
+  function drawPad() {
+    if (!PW) return;
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pctx.clearRect(0, 0, PW, PH);
+    pctx.strokeStyle = C.line; pctx.lineWidth = 1;
+    pctx.beginPath();
+    for (let i = 1; i < 14; i++) { const x = round(PW * i / 14) + .5; pctx.moveTo(x, 0); pctx.lineTo(x, PH); }
+    for (let i = 1; i < 6.2; i++) { const y = round(PH * i / 6.2) + .5; pctx.moveTo(0, y); pctx.lineTo(PW, y); }
+    pctx.stroke();
+    if (!padStrokes.length) {
+      pctx.fillStyle = C.muted; pctx.font = '500 13px "IBM Plex Sans", system-ui, sans-serif';
+      pctx.textAlign = 'center'; pctx.textBaseline = 'middle';
+      pctx.fillText('Dibuja aquí con el dedo o el ratón', PW / 2, PH / 2);
+    }
+    pctx.strokeStyle = C.fg; pctx.lineWidth = 2.2; pctx.lineCap = 'round'; pctx.lineJoin = 'round';
+    for (const s of padStrokes) {
+      pctx.beginPath();
+      s.forEach((p, i) => (i ? pctx.lineTo(p.x * PW, p.y * PH) : pctx.moveTo(p.x * PW, p.y * PH)));
+      if (s.length === 1) pctx.lineTo(s[0].x * PW + .1, s[0].y * PH);
+      pctx.stroke();
+    }
+  }
+  const padNorm = (e) => { const r = pad.getBoundingClientRect(); return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) }; };
+  pad.addEventListener('pointerdown', (e) => { pad.setPointerCapture(e.pointerId); padCur = [padNorm(e)]; padStrokes.push(padCur); $('#pad-msg').textContent = ''; drawPad(); });
+  pad.addEventListener('pointermove', (e) => {
+    if (!padCur) return;
+    const p = padNorm(e), l = padCur[padCur.length - 1];
+    if (hypot(p.x - l.x, (p.y - l.y) * PH / (PW || 1)) > .005) { padCur.push(p); drawPad(); }
+  });
+  const padEnd = () => { padCur = null; };
+  pad.addEventListener('pointerup', padEnd);
+  pad.addEventListener('pointercancel', padEnd);
+  $('#pad-clear').addEventListener('click', () => { padStrokes = []; drawPad(); });
+  $('#pad-use').addEventListener('click', () => {
+    const list = padStrokes.filter((s) => s.length > 2).map((s) => {
+      const sm = s.map((p, i) => {
+        const a = s[max(0, i - 1)], c = s[min(s.length - 1, i + 1)];
+        return { x: (a.x + p.x + c.x) / 3, y: (a.y + p.y + c.y) / 3 };
+      });
+      return sm.map((p) => ({ u: BOX.u0 + p.x * (BOX.u1 - BOX.u0), v: BOX.v0 + p.y * (BOX.v1 - BOX.v0) }));
+    });
+    const built = buildStrokes(list);
+    if (!built.length) { $('#pad-msg').textContent = 'Dibuja algo primero.'; return; }
+    setDesign(list, 'Diseño propio');
+    resetRun(); startRun();
+  });
+
+  // ---------- Bucle ----------
+  let lastTs = null, acc = 0, statTimer = 0;
+  function frame(ts) {
+    if (lastTs === null) lastTs = ts;
+    const el = min(.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    if (!paused) {
+      acc += el;
+      let n = 0;
+      while (acc >= DT && n < 40) { step(); acc -= DT; n++; }
+      if (n >= 40) acc = 0;
+      W(0, 0, skin, q);
+      if (el > 0) skinSpeed += (hypot(q.x - cprev.x, q.y - cprev.y) / el - skinSpeed) * .15;
+      cprev.x = q.x; cprev.y = q.y;
+      depthBuf.push({ t: simT, d: inSkin ? depth : null });
+      while (depthBuf.length && depthBuf[0].t < simT - 6.2) depthBuf.shift();
+    }
+    render();
+    updateStatus();
+    statTimer += el;
+    if (statTimer > .1) { statTimer = 0; updateStats(); }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Arranque ----------
+  readColors();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  sizeStage(); sizeDepth();
+  new ResizeObserver(() => { sizeStage(); sizeDepth(); sizePad(); }).observe(document.body);
+  updateSkin();
+  for (let i = 0; i < HN; i++) pushHist(skin);
+  copyS(skin, cam.S); copyS(skin, Sest); copyS(skin, Sref);
+  syncControls();
+  setDesign(fitDesign(DESIGNS.estrella.make()), DESIGNS.estrella.label);
+  renderHistory();
+  startRun();
+  requestAnimationFrame(frame);
+})();
+</script>
