@@ -92,6 +92,8 @@ h1 { font: 800 clamp(2.4rem, 6vw, 3.6rem)/.92 var(--font-display); letter-spacin
 .img-wrap canvas { width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); image-rendering: auto; }
 .img-plan { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
 .img-plan b { color: var(--fg); font-weight: 600; }
+.img-plan i.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; box-shadow: 0 0 0 1px var(--line); }
+.img-plan .btn { margin-top: 4px; }
 .tool-pill small { color: var(--muted); font-size: 11px; }
 .ink-mini { width: 46px; height: 7px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
 .ink-mini b, .bar.ink b { display: block; height: 100%; width: 0; background: var(--fg); }
@@ -329,7 +331,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <div class="zone-card" id="zone-card"></div>
         <div class="field">
           <div class="field-head"><label for="rng-size">Tamaño del tatuaje</label><output id="out-size"></output></div>
-          <input type="range" id="rng-size" min="40" max="150" step="5" value="70">
+          <input type="range" id="rng-size" min="40" max="250" step="5" value="70">
         </div>
         <div class="field">
           <div class="field-head"><label for="rng-rot">Girar el diseño</label><output id="out-rot"></output></div>
@@ -515,7 +517,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     <section class="card" aria-label="Cosas para probar">
       <h2>Cosas para probar</h2>
       <ul class="tips">
-        <li><b>Tu propio tatuaje.</b> «Subir una imagen» (o «Usar una de ejemplo»): el robot separa líneas, negro, grises y colores, elige las agujas, la técnica y las diluciones, y ajusta la máquina en cada trazo. El plan sale debajo de la imagen.</li>
+        <li><b>Tu propio tatuaje.</b> «Subir una imagen» (o «Usar una de ejemplo»): el robot pasa cada línea por su centro con el liner de su grosor, hace el negro sólido con contorno y relleno, saca las sombras del tono de la imagen y los colores de la propia imagen (llena los vasos de la segunda fila con ellos), y ajusta la máquina en cada trazo. Debajo sale lo que va a hacer y, si la imagen tiene más detalle del que cabe, a qué tamaño saldría bien.</li>
         <li><b>Sombras.</b> Elige la rosa o la luna y compara «Por presión» (medio péndulo, solo negro) con «Por dilución» (gris claro, medio y oscuro por capas).</li>
         <li><b>Letras.</b> Con «Letras góticas» o «Caligrafía» escribe tu texto: el robot hace el contorno y rellena cada trazo.</li>
         <li><b>Mira dónde queda la tinta.</b> Al terminar, «Ver resultado sin plantilla» quita el stencil, y el «Corte de la piel» enseña cada pinchazo en su capa. Con «Piel fina, profundidad fija» verás tinta en la dermis honda.</li>
@@ -1285,9 +1287,15 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     // Diluciones de negro (grey wash): tinta negra rebajada con agua; nunca oscurece más que su tono
     gris1: { label: 'Gris claro', name: 'gris claro', rgb: [22, 20, 28], wash: .2 },
     gris2: { label: 'Gris medio', name: 'gris medio', rgb: [22, 20, 28], wash: .4 },
-    gris3: { label: 'Gris oscuro', name: 'gris oscuro', rgb: [22, 20, 28], wash: .65 }
+    gris3: { label: 'Gris oscuro', name: 'gris oscuro', rgb: [22, 20, 28], wash: .65 },
+    // Tintas de la imagen: vasos que se llenan con los colores que pide cada imagen subida
+    tinta1: { label: 'Color 1', name: 'color 1', rgb: [200, 60, 140], custom: true },
+    tinta2: { label: 'Color 2', name: 'color 2', rgb: [60, 90, 200], custom: true },
+    tinta3: { label: 'Color 3', name: 'color 3', rgb: [240, 130, 30], custom: true },
+    tinta4: { label: 'Color 4', name: 'color 4', rgb: [40, 160, 150], custom: true },
+    tinta5: { label: 'Color 5', name: 'color 5', rgb: [120, 60, 160], custom: true }
   };
-  const INK_KEYS = Object.keys(INKS), WASH_KEYS = INK_KEYS.filter((k) => INKS[k].wash), SOLID_KEYS = INK_KEYS.filter((k) => !INKS[k].wash);
+  const INK_KEYS = Object.keys(INKS), WASH_KEYS = INK_KEYS.filter((k) => INKS[k].wash), SOLID_KEYS = INK_KEYS.filter((k) => !INKS[k].wash), CUSTOM_KEYS = INK_KEYS.filter((k) => INKS[k].custom);
   const inkSwatch = (k) => (INKS[k].wash ? `rgba(22,20,28,${INKS[k].wash})` : rgbStr(INKS[k].rgb));
   const rgbStr = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
 
@@ -1357,7 +1365,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     return rings;
   }
   function textRings(text, fontKey) {
-    const fs = 170, cv = document.createElement('canvas'), c = cv.getContext('2d'), font = `${fs}px ${FONTS[fontKey]}`;
+    const fs = 170, cv = document.createElement('canvas'), c = cv.getContext('2d', { willReadFrequently: true }), font = `${fs}px ${FONTS[fontKey]}`;
     c.font = font;
     const W = ceil(c.measureText(text || ' ').width) + 90, H = round(fs * 1.7);
     cv.width = W; cv.height = H;
@@ -1367,9 +1375,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   }
 
   // =====================================================================
-  // CUALQUIER IMAGEN: se analiza y se planifica sola (agujas, técnica, diluciones y ajustes de la máquina)
+  // CUALQUIER IMAGEN: se analiza y se planifica sola (agujas, técnica, diluciones, colores y ajustes de la máquina)
   // =====================================================================
-  const cupMats = {}, WASH_DEF = WASH_KEYS.map((k) => INKS[k].wash);
+  const cupMats = {}, cupObjs = {}, WASH_DEF = WASH_KEYS.map((k) => INKS[k].wash);
   // color de los vasos de gris y nota con el porcentaje de tinta por cap
   function updateWashCups() {
     for (const k of WASH_KEYS) { const w = INKS[k].wash; if (cupMats[k]) cupMats[k].color.set(rgbStr([0, 1, 2].map((i) => round(215 + (INKS[k].rgb[i] - 215) * w)))); }
@@ -1377,76 +1385,424 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (el) el.textContent = 'Diluciones (tinta por cap, el resto agua): ' + WASH_KEYS.map((k) => `${INKS[k].label.toLowerCase()} ${round(OP_INK(INKS[k].wash) * 100)} %`).join(' · ') + '.';
     patchDirty = true;
   }
+  // Tintas de la imagen: los vasos de la segunda fila se llenan con los colores que pide cada imagen
+  function setImageInks(pal) {
+    CUSTOM_KEYS.forEach((k, i) => {
+      const p = pal[i], I = INKS[k];
+      I.on = !!p;
+      if (p) { I.rgb = p.rgb; I.label = p.label; I.name = p.label.toLowerCase(); }
+      if (cupMats[k]) cupMats[k].color.set(rgbStr(I.rgb));
+      if (cupObjs[k]) for (const m of cupObjs[k]) m.visible = I.on;
+    });
+    renderInkList();
+  }
+  function renderInkList() {
+    const el = $('#ink-list');
+    if (el) el.innerHTML = INK_KEYS.filter((k) => !INKS[k].custom || INKS[k].on).map((k) => `<span><i style="background:${inkSwatch(k)}"></i>${INKS[k].label}</span>`).join('') + '<span><i style="background:#9fd3f0"></i>Agua</span><span><i style="background:#f6f5f1"></i>Papel</span>';
+  }
   const INK_OP = (pct) => pct ** .6, OP_INK = (op) => clamp(op, 0, 1) ** (1 / .6);   // opacidad en la piel <-> fracción de tinta en el vaso
-  const COLOR_HUES = { rojo: 0, amarillo: 50, verde: 130 };
   let imgSrc = null, imgAn = null, imgPlan = null;
   const imgOpts = { color: 'auto', detail: 1 };
-  function analyzeImage(img) {
-    const maxPx = 480, sc = maxPx / max(img.width, img.height), W = max(8, round(img.width * sc)), H = max(8, round(img.height * sc));
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); c.drawImage(img, 0, 0, W, H);
-    const d = c.getImageData(0, 0, W, H).data, N = W * H;
-    let L = new Float32Array(N);
-    const sat = new Float32Array(N), hue = new Float32Array(N), val = new Float32Array(N);
-    for (let i = 0; i < N; i++) {
-      const r = d[4 * i] / 255, g = d[4 * i + 1] / 255, b = d[4 * i + 2] / 255, mx = max(r, g, b), mn = min(r, g, b);
-      L[i] = 1 - (.2126 * r + .7152 * g + .0722 * b);
-      val[i] = mx; sat[i] = mx > 0 ? (mx - mn) / mx : 0;
-      let h = 0; if (mx > mn) { h = mx === r ? (g - b) / (mx - mn) : mx === g ? 2 + (b - r) / (mx - mn) : 4 + (r - g) / (mx - mn); h = (h * 60 + 360) % 360; }
-      hue[i] = h;
+
+  // ---------- color: Lab para medir parecidos como los ve el ojo ----------
+  const linC = (c) => (c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4), unlinC = (c) => (c <= .0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - .055);
+  const labF = (t) => (t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  function rgb2lab(r, g, b) {
+    const R = linC(r / 255), G = linC(g / 255), B = linC(b / 255);
+    const fx = labF((.4124 * R + .3576 * G + .1805 * B) / .95047), fy = labF(.2126 * R + .7152 * G + .0722 * B), fz = labF((.0193 * R + .1192 * G + .9505 * B) / 1.08883);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  function lab2rgb(lab) {
+    const fy = (lab[0] + 16) / 116, fx = fy + lab[1] / 500, fz = fy - lab[2] / 200, fi = (t) => (t ** 3 > .008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+    const X = fi(fx) * .95047, Y = fi(fy), Z = fi(fz) * 1.08883;
+    return [3.2406 * X - 1.5372 * Y - .4986 * Z, -.9689 * X + 1.8758 * Y + .0415 * Z, .0557 * X - .204 * Y + 1.057 * Z].map((c) => round(unlinC(clamp(c, 0, 1)) * 255));
+  }
+  const dE = (a, b) => hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const COLOR_NAMES = [['Rojo', [200, 30, 35]], ['Granate', [120, 22, 38]], ['Rosa', [242, 150, 185]], ['Fucsia', [228, 30, 140]], ['Magenta', [205, 45, 195]], ['Morado', [110, 40, 150]], ['Lila', [185, 145, 220]], ['Azul', [35, 75, 190]], ['Azul marino', [22, 34, 92]], ['Celeste', [115, 185, 235]], ['Turquesa', [30, 180, 180]], ['Verde', [30, 130, 60]], ['Verde lima', [150, 210, 50]], ['Verde oliva', [110, 120, 40]], ['Amarillo', [240, 205, 30]], ['Naranja', [240, 125, 30]], ['Marrón', [110, 65, 35]], ['Beige', [222, 192, 150]], ['Salmón', [245, 150, 120]]].map(([n, c]) => [n, rgb2lab(...c)]);
+  const colorName = (lab) => COLOR_NAMES.reduce((b, c) => (dE(lab, c[1]) < dE(lab, b[1]) ? c : b))[0];
+
+  // ---------- herramientas de imagen (máscaras en píxeles) ----------
+  function boxBlur(src, W, H, r) {
+    const tmp = new Float32Array(W * H), out = new Float32Array(W * H), n = 2 * r + 1;
+    for (let y = 0; y < H; y++) {
+      const o = y * W; let acc = 0;
+      for (let x = -r; x <= r; x++) acc += src[o + clamp(x, 0, W - 1)];
+      for (let x = 0; x < W; x++) { tmp[o + x] = acc / n; acc += src[o + min(W - 1, x + r + 1)] - src[o + max(0, x - r)]; }
     }
-    // suavizado según el detalle: quita ruido y cositas que no se pueden tatuar
-    const rb = [0, 1, 2][imgOpts.detail];
-    for (let pass = 0; pass < rb; pass++) {
-      const T2 = new Float32Array(N);
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let s2 = 0, n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H) { s2 += L[yy * W + xx]; n++; } } T2[y * W + x] = s2 / n; }
-      L = T2;
+    for (let x = 0; x < W; x++) {
+      let acc = 0;
+      for (let y = -r; y <= r; y++) acc += tmp[clamp(y, 0, H - 1) * W + x];
+      for (let y = 0; y < H; y++) { out[y * W + x] = acc / n; acc += tmp[min(H - 1, y + r + 1) * W + x] - tmp[max(0, y - r) * W + x]; }
+    }
+    return out;
+  }
+  // desenfoque casi gaussiano (tres cajas) de sigma s píxeles
+  const blurG = (src, W, H, s) => { const r = round((sqrt(4 * s * s + 1) - 1) / 2); if (r < 1) return src; let o = src; for (let k = 0; k < 3; k++) o = boxBlur(o, W, H, r); return o; };
+  // distancia (px) de cada punto de la máscara al fondo más cercano (chaflán 3-4); fuera de la máscara vale 0.
+  // edge: si lo que queda fuera de la imagen cuenta como fondo
+  function distIn(M, W, H, edge) {
+    const N = W * H, D = new Float32Array(N);
+    for (let i = 0; i < N; i++) D[i] = M[i] ? 1e9 : 0;
+    const rl = (i, j, w) => { const v = D[j] + w; if (v < D[i]) D[i] = v; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x; if (!M[i]) continue;
+      if (edge && (x === 0 || y === 0 || x === W - 1 || y === H - 1)) D[i] = min(D[i], 3);
+      if (x > 0) rl(i, i - 1, 3);
+      if (y > 0) { rl(i, i - W, 3); if (x > 0) rl(i, i - W - 1, 4); if (x < W - 1) rl(i, i - W + 1, 4); }
+    }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+      const i = y * W + x; if (!M[i]) continue;
+      if (x < W - 1) rl(i, i + 1, 3);
+      if (y < H - 1) { rl(i, i + W, 3); if (x < W - 1) rl(i, i + W + 1, 4); if (x > 0) rl(i, i + W - 1, 4); }
+    }
+    for (let i = 0; i < N; i++) D[i] /= 3;
+    return D;
+  }
+  // manchas conectadas (8 vecinos): etiqueta de cada píxel y área de cada mancha
+  function labelComps(M, W, H) {
+    const N = W * H, lab = new Int32Array(N).fill(-1), area = [], st = new Int32Array(N);
+    for (let i0 = 0; i0 < N; i0++) {
+      if (!M[i0] || lab[i0] >= 0) continue;
+      const id = area.length; let sp = 0, n = 0;
+      st[sp++] = i0; lab[i0] = id;
+      while (sp) {
+        const i = st[--sp], x = i % W, y = (i - x) / W; n++;
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = y + dy; if (yy < 0 || yy >= H) continue;
+          for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= W) continue; const j = yy * W + xx; if (M[j] && lab[j] < 0) { lab[j] = id; st[sp++] = j; } }
+        }
+      }
+      area.push(n);
+    }
+    return { lab, area };
+  }
+  const dilate1 = (M, W, H) => { const O = new Uint8Array(W * H); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (M[y * W + x]) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H) O[yy * W + xx] = 1; } return O; };
+  // contornos de una máscara, mirando solo el recuadro donde hay algo
+  function ringsOf(M, W, H, eps, minArea) {
+    let x0 = W, x1 = -1, y0 = H, y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (M[y * W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return [];
+    return contourRings(x1 - x0 + 1, y1 - y0 + 1, (x, y) => M[(y + y0) * W + x + x0], eps, minArea).map((P) => P.map(([x, y]) => [x + x0, y + y0]));
+  }
+  // Adelgazado (Zhang-Suen): deja el esqueleto de un píxel de ancho, que es el centro de cada trazo
+  function thin(M, W, H) {
+    const S = new Uint8Array(W * H);
+    let act = [];
+    for (let i = 0; i < W * H; i++) if (M[i]) { S[i] = 1; act.push(i); }
+    const g = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? S[y * W + x] : 0);
+    for (let it = 0; it < 600; it++) {
+      let changed = 0;
+      for (let pass = 0; pass < 2; pass++) {
+        const del = [];
+        for (const i of act) {
+          if (!S[i]) continue;
+          const x = i % W, y = (i - x) / W;
+          const p2 = g(x, y - 1), p3 = g(x + 1, y - 1), p4 = g(x + 1, y), p5 = g(x + 1, y + 1), p6 = g(x, y + 1), p7 = g(x - 1, y + 1), p8 = g(x - 1, y), p9 = g(x - 1, y - 1);
+          const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+          if (B < 2 || B > 6) continue;
+          const A = ((p2 ^ 1) & p3) + ((p3 ^ 1) & p4) + ((p4 ^ 1) & p5) + ((p5 ^ 1) & p6) + ((p6 ^ 1) & p7) + ((p7 ^ 1) & p8) + ((p8 ^ 1) & p9) + ((p9 ^ 1) & p2);
+          if (A !== 1) continue;
+          if (pass === 0 ? (p2 & p4 & p6) || (p4 & p6 & p8) : (p2 & p4 & p8) || (p2 & p6 & p8)) continue;
+          del.push(i);
+        }
+        for (const i of del) S[i] = 0;
+        changed += del.length;
+      }
+      if (!changed) break;
+      act = act.filter((i) => S[i]);
+    }
+    // quita los escalones que sobran sin romper la línea
+    for (const i of act) {
+      if (!S[i]) continue;
+      const x = i % W, y = (i - x) / W;
+      const n = [g(x + 1, y), g(x + 1, y - 1), g(x, y - 1), g(x - 1, y - 1), g(x - 1, y), g(x - 1, y + 1), g(x, y + 1), g(x + 1, y + 1)];
+      if (n[0] + n[1] + n[2] + n[3] + n[4] + n[5] + n[6] + n[7] < 2) continue;
+      let nc = 0;
+      for (let k = 0; k < 8; k += 2) { const a = 1 - n[k], b = 1 - n[k + 1], c = 1 - n[(k + 2) % 8]; nc += a - a * b * c; }
+      if (nc === 1) S[i] = 0;
+    }
+    return S;
+  }
+  // Recorre el esqueleto: tramos entre puntas y cruces; quita los pelillos y empalma los tramos que siguen recto.
+  // Devuelve trazos en píxeles con su medio grosor (hw) sacado de la distancia al borde.
+  function traceSkel(S, W, H, D, spur) {
+    const N = W * H, deg = new Uint8Array(N), pix = [];
+    const OFF = [1, -W + 1, -W, -W - 1, -1, W - 1, W, W + 1], DX = [1, 1, 0, -1, -1, -1, 0, 1];
+    const nb = (i) => { const x = i % W, out = []; for (let k = 0; k < 8; k++) { const xx = x + DX[k], j = i + OFF[k]; if (xx >= 0 && xx < W && j >= 0 && j < N && S[j]) out.push(j); } return out; };
+    for (let i = 0; i < N; i++) if (S[i]) { pix.push(i); deg[i] = nb(i).length; }
+    const node = (i) => deg[i] !== 2, E = [], vis = new Uint8Array(N);
+    for (const n of pix) {
+      if (!node(n)) continue;
+      if (deg[n] === 0) { E.push({ px: [n] }); continue; }
+      for (const m of nb(n)) {
+        if (node(m) || vis[m]) continue;
+        const px = [n, m]; vis[m] = 1;
+        let prev = n, cur = m;
+        for (let guard = 0; guard < N; guard++) {
+          const nx = nb(cur).find((k) => k !== prev && (node(k) || !vis[k]));
+          if (nx === undefined) break;
+          px.push(nx);
+          if (node(nx)) break;
+          vis[nx] = 1; prev = cur; cur = nx;
+        }
+        E.push({ px });
+      }
+    }
+    for (const s of pix) {
+      if (node(s) || vis[s]) continue;
+      const px = [s]; vis[s] = 1;
+      let prev = -1, cur = s;
+      for (let guard = 0; guard < N; guard++) { const nx = nb(cur).find((k) => k !== prev && !vis[k]); if (nx === undefined) break; px.push(nx); vis[nx] = 1; prev = cur; cur = nx; }
+      px.push(s);
+      E.push({ px, loop: true });
+    }
+    const cl = new Int32Array(N).fill(-1);
+    let ncl = 0;
+    for (const n of pix) if (deg[n] >= 3 && cl[n] < 0) { const st = [n]; cl[n] = ncl; while (st.length) { const j = st.pop(); for (const k of nb(j)) if (deg[k] >= 3 && cl[k] < 0) { cl[k] = ncl; st.push(k); } } ncl++; }
+    const plen = (px) => { let L = 0; for (let i = 1; i < px.length; i++) { const a = px[i - 1], b = px[i]; L += a % W !== b % W && abs(a - b) > 1 ? 1.414 : 1; } return L; };
+    // pelillos: tramos cortos de una punta a un cruce (ruido del borde)
+    const live = E.filter((e) => {
+      if (e.loop || e.px.length < 2) return true;
+      const a = e.px[0], b = e.px[e.px.length - 1], ja = deg[a] >= 3, jb = deg[b] >= 3;
+      if (ja === jb) return true;
+      return plen(e.px) >= max(spur, 1.8 * D[ja ? a : b]);
+    });
+    const ends = new Map();
+    live.forEach((e, k) => { if (e.loop || e.px.length < 2) return; [0, 1].forEach((end) => { const p = end ? e.px[e.px.length - 1] : e.px[0]; if (deg[p] >= 3) { if (!ends.has(cl[p])) ends.set(cl[p], []); ends.get(cl[p]).push([k, end]); } }); });
+    const dirIn = (e, end) => { const P = e.px, k = min(5, P.length - 1), i0 = end ? P[P.length - 1] : P[0], i1 = end ? P[P.length - 1 - k] : P[k]; return [i1 % W - i0 % W, (i1 - i1 % W - i0 + i0 % W) / W]; };
+    const used = new Uint8Array(live.length), chains = [];
+    const extend = (chain, k, tail) => {
+      for (let guard = 0; guard < live.length; guard++) {
+        const e = live[k], p = tail ? e.px[e.px.length - 1] : e.px[0];
+        if (deg[p] < 3) return;
+        const din = dirIn(e, tail);
+        let best = -1, bend = 0, bc = .4;
+        for (const [k2, end2] of ends.get(cl[p]) || []) {
+          if (used[k2]) continue;
+          const d2 = dirIn(live[k2], end2), c = -(d2[0] * din[0] + d2[1] * din[1]) / (hypot(d2[0], d2[1]) * hypot(din[0], din[1]) || 1);
+          if (c > bc) { bc = c; best = k2; bend = end2; }
+        }
+        if (best < 0) return;
+        used[best] = 1;
+        const P = live[best].px;
+        for (const q of bend ? P.slice().reverse() : P) chain.push(q);
+        k = best; tail = 1 - bend;
+      }
+    };
+    const freeEnd = (e) => e.px.length > 1 && (deg[e.px[0]] < 3 || deg[e.px[e.px.length - 1]] < 3);
+    const order = live.map((_, k) => k).sort((a, b) => (freeEnd(live[b]) ? 1 : 0) - (freeEnd(live[a]) ? 1 : 0));
+    for (const k of order) {
+      if (used[k]) continue;
+      used[k] = 1;
+      const e = live[k];
+      if (e.loop || e.px.length < 2) { chains.push({ px: e.px, closed: !!e.loop }); continue; }
+      const fwd = [], bwd = [];
+      extend(fwd, k, 1); extend(bwd, k, 0);
+      chains.push({ px: bwd.reverse().concat(e.px, fwd), closed: false });
+    }
+    return chains.map((c) => {
+      let P = c.px.map((i) => [i % W, (i - i % W) / W]);
+      // suaviza la escalera de píxeles
+      if (P.length > 4) {
+        const Q = P.map((p) => p.slice()), n = P.length;
+        for (let i = c.closed ? 0 : 1; i < (c.closed ? n : n - 1); i++) {
+          let sx = 0, sy = 0, sw = 0;
+          for (let k = -2; k <= 2; k++) { const j = c.closed ? (i + k + n - 1) % (n - 1) : clamp(i + k, 0, n - 1), wk = 3 - abs(k); sx += P[j][0] * wk; sy += P[j][1] * wk; sw += wk; }
+          Q[i] = [sx / sw, sy / sw];
+        }
+        if (c.closed) Q[n - 1] = Q[0].slice();
+        P = rdp(Q, .3);
+      }
+      const ds = c.px.map((i) => D[i]).sort((a, b) => a - b);
+      return { P, hw: ds[floor(ds.length / 2)], closed: c.closed };
+    });
+  }
+  // Una mancha de tinta (negro o un color): los trazos finos van por su centro con el liner de su grosor;
+  // las zonas anchas llevan un contorno metido por dentro y relleno
+  function solidGeo(M0, W0, H0, mmpp) {
+    // se trabaja solo en el recuadro de la mancha (con margen) y luego se devuelve a su sitio
+    let bx0 = W0, bx1 = -1, by0 = H0, by1 = -1;
+    for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) if (M0[y * W0 + x]) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+    if (bx1 < 0) return { strokes: [], wide: [], narrow: [], outlines: [] };
+    bx0 = max(0, bx0 - 2); by0 = max(0, by0 - 2); bx1 = min(W0 - 1, bx1 + 2); by1 = min(H0 - 1, by1 + 2);
+    const W = bx1 - bx0 + 1, H = by1 - by0 + 1, M = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) M[y * W + x] = M0[(y + by0) * W0 + x + bx0];
+    const g = solidGeoIn(M, W, H, mmpp), sh = (P) => P.map(([x, y]) => [x + bx0, y + by0]);
+    return { strokes: g.strokes.map((s2) => ({ ...s2, P: sh(s2.P) })), wide: g.wide.map(sh), narrow: g.narrow.map(sh), outlines: g.outlines.map(sh) };
+  }
+  function solidGeoIn(M, W, H, mmpp) {
+    const N = W * H, D = distIn(M, W, H, true), ro = .63 / mmpp;   // medio ancho del liner más gordo (1209RL)
+    const notCore = new Uint8Array(N);
+    for (let i = 0; i < N; i++) notCore[i] = M[i] && D[i] >= ro + .5 ? 0 : 1;
+    const Dc = distIn(notCore, W, H, false), F = new Uint8Array(N);
+    let nF = 0;
+    for (let i = 0; i < N; i++) if (M[i] && Dc[i] <= ro + .5) { F[i] = 1; nF++; }
+    const S = thin(M, W, H);
+    for (let i = 0; i < N; i++) if (S[i] && D[i] >= ro + .5) S[i] = 0;
+    // manchitas que el adelgazado borra del todo: se quedan como un punto
+    const lc = labelComps(M, W, H), nl = lc.area.length, has = new Uint8Array(nl), sx = new Float64Array(nl), sy = new Float64Array(nl);
+    for (let i = 0; i < N; i++) { const l = lc.lab[i]; if (l < 0) continue; if (S[i] || F[i]) has[l] = 1; sx[l] += i % W; sy[l] += (i - i % W) / W; }
+    for (let l = 0; l < nl; l++) if (!has[l]) S[round(sy[l] / lc.area[l]) * W + round(sx[l] / lc.area[l])] = 1;
+    const strokes = traceSkel(S, W, H, D, max(2, .35 / mmpp)).map((p) => ({ P: p.P, w: max(1, 2 * p.hw - 1) * mmpp, closed: p.closed }));
+    let wide = [], narrow = [], outlines = [];
+    if (nF) {
+      const fl = labelComps(F, W, H), mx = new Float32Array(fl.area.length);
+      for (let i = 0; i < N; i++) if (F[i]) mx[fl.lab[i]] = max(mx[fl.lab[i]], D[i]);
+      const Mw = new Uint8Array(N), Mn = new Uint8Array(N), Mo = new Uint8Array(N), rl = CARTS['1205RL'].w / 2 / mmpp, minA = .25 / (mmpp * mmpp);
+      for (let i = 0; i < N; i++) if (F[i]) { if (2 * mx[fl.lab[i]] * mmpp >= 3.5) Mw[i] = 1; else Mn[i] = 1; if (D[i] >= rl + .5) Mo[i] = 1; }
+      wide = ringsOf(Mw, W, H, .6, minA); narrow = ringsOf(Mn, W, H, .6, minA);
+      outlines = ringsOf(Mo, W, H, .45, minA * .3);
+    }
+    return { strokes, wide, narrow, outlines };
+  }
+
+  // ---------- análisis: qué es línea, qué es negro sólido, qué es sombra y qué colores hay ----------
+  function analyzeImage(img, size) {
+    const t0 = performance.now(), det = imgOpts.detail;
+    // 1) se recorta el papel que sobra, para que el tamaño sea el del dibujo
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const s0 = min(1, 360 / max(iw, ih)), w0 = max(4, round(iw * s0)), h0 = max(4, round(ih * s0));
+    const c0 = document.createElement('canvas'); c0.width = w0; c0.height = h0;
+    const x0 = c0.getContext('2d', { willReadFrequently: true }); x0.fillStyle = '#fff'; x0.fillRect(0, 0, w0, h0); x0.drawImage(img, 0, 0, w0, h0);
+    const d0 = x0.getImageData(0, 0, w0, h0).data, dk = new Float32Array(w0 * h0);
+    for (let i = 0; i < w0 * h0; i++) { const r = d0[4 * i], g = d0[4 * i + 1], b = d0[4 * i + 2]; dk[i] = 1 - (.2126 * r + .7152 * g + .0722 * b) / 255 + (max(r, g, b) - min(r, g, b)) / 255 * .6; }
+    const paper = Float32Array.from(dk).sort()[floor(w0 * h0 * .02)], colN = new Int32Array(w0), rowN = new Int32Array(h0);
+    for (let y = 0; y < h0; y++) for (let x = 0; x < w0; x++) if (dk[y * w0 + x] > paper + .12) { colN[x]++; rowN[y]++; }
+    let bx0 = colN.findIndex((n) => n >= 2), by0 = rowN.findIndex((n) => n >= 2), bx1 = w0 - 1 - Array.from(colN).reverse().findIndex((n) => n >= 2), by1 = h0 - 1 - Array.from(rowN).reverse().findIndex((n) => n >= 2);
+    if (bx0 < 0 || by0 < 0) { bx0 = 0; by0 = 0; bx1 = w0 - 1; by1 = h0 - 1; }
+    const sx = max(0, (bx0 - 2) / s0), sy = max(0, (by0 - 2) / s0), sw = min(iw, (bx1 + 3) / s0) - sx, sh = min(ih, (by1 + 3) / s0) - sy;
+    // 2) resolución de trabajo: ~0,09 mm por píxel (sin inventar más de 2,2 veces lo que trae la imagen)
+    const sc = min(clamp(round(size / .09), 360, 1100) / max(sw, sh), 2.2);
+    const W = max(8, round(sw * sc)), H = max(8, round(sh * sc)), N = W * H, mmpp = size / max(W, H), px2 = mmpp * mmpp;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d', { willReadFrequently: true }); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); c.imageSmoothingQuality = 'high'; c.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+    const d = c.getImageData(0, 0, W, H).data;
+    const L = new Float32Array(N), chroma = new Float32Array(N), LAB = new Float32Array(3 * N);
+    for (let i = 0; i < N; i++) {
+      const r = d[4 * i], g = d[4 * i + 1], b = d[4 * i + 2];
+      L[i] = 1 - (.2126 * r + .7152 * g + .0722 * b) / 255;
+      if (max(r, g, b) - min(r, g, b) > 16) { const q = rgb2lab(r, g, b); LAB[3 * i] = q[0]; LAB[3 * i + 1] = q[1]; LAB[3 * i + 2] = q[2]; chroma[i] = hypot(q[1], q[2]); }
     }
     // niveles: el blanco del papel a 0 y lo más negro a 1
-    const sorted = Float32Array.from(L).sort(), lo = sorted[floor(N * .02)], hi = sorted[min(N - 1, floor(N * .995))];
-    const Lp = new Float32Array(N), span = hi - lo > .25 ? hi - lo : 1, base = hi - lo > .25 ? lo : 0;
-    for (let i = 0; i < N; i++) Lp[i] = clamp((L[i] - base) / span, 0, 1);
-    // color: solo si hay bastante y el usuario no ha pedido blanco y negro
-    const col = new Int8Array(N).fill(-1), CK = Object.keys(COLOR_HUES);
+    const srt = Float32Array.from(L).sort(), lo = srt[floor(N * .02)], hi = srt[min(N - 1, floor(N * .998))], okS = hi - lo > .25;
+    const Lp = new Float32Array(N);
+    for (let i = 0; i < N; i++) Lp[i] = clamp((L[i] - (okS ? lo : 0)) / (okS ? hi - lo : 1), 0, 1);
+    // 3) colores: k-medias en Lab y se juntan los que se parecen; cada uno será una tinta
+    const colIdx = new Int8Array(N).fill(-1), palette = [];
+    const isCol = (i) => chroma[i] > 20 && LAB[3 * i] > 18;
     let nCol = 0;
-    for (let i = 0; i < N; i++) {
-      if (sat[i] < .35 || val[i] < .25 || Lp[i] > .9) continue;
-      let bi = -1, bd = 40;
-      CK.forEach((k, j) => { const dh = abs(((hue[i] - COLOR_HUES[k] + 540) % 360) - 180); if (dh < bd) { bd = dh; bi = j; } });
-      if (bi >= 0) { col[i] = bi; nCol++; }
+    if (imgOpts.color === 'auto') for (let i = 0; i < N; i++) if (isCol(i)) nCol++;
+    if (nCol > N * .003) {
+      const pts = [], stepS = max(1, floor(nCol / 12000));
+      for (let i = 0, k = 0; i < N; i++) if (isCol(i) && k++ % stepS === 0) pts.push([LAB[3 * i], LAB[3 * i + 1], LAB[3 * i + 2]]);
+      const rnd = seeded(7), d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+      const cen = [pts[floor(rnd() * pts.length)]], dmin = pts.map((p) => d2(p, cen[0]));
+      while (cen.length < 7) {
+        let tot = 0; for (const v of dmin) tot += v;
+        if (tot <= 0) break;
+        let r = rnd() * tot, j = 0;
+        for (; j < pts.length - 1; j++) { r -= dmin[j]; if (r <= 0) break; }
+        cen.push(pts[j]); pts.forEach((p, q) => { dmin[q] = min(dmin[q], d2(p, pts[j])); });
+      }
+      const asg = new Int32Array(pts.length);
+      for (let it = 0; it < 14; it++) {
+        const acc = cen.map(() => [0, 0, 0, 0]);
+        pts.forEach((p, q) => { let bi = 0, bd = Infinity; cen.forEach((c2, k) => { const v = d2(p, c2); if (v < bd) { bd = v; bi = k; } }); asg[q] = bi; const a = acc[bi]; a[0] += p[0]; a[1] += p[1]; a[2] += p[2]; a[3]++; });
+        acc.forEach((a, k) => { if (a[3]) cen[k] = [a[0] / a[3], a[1] / a[3], a[2] / a[3]]; });
+      }
+      let cl = cen.map((lab) => ({ lab, n: 0 }));
+      asg.forEach((k) => { cl[k].n++; });
+      for (let merged = true; merged;) {
+        merged = false;
+        for (let a = 0; a < cl.length && !merged; a++) for (let b = a + 1; b < cl.length; b++) if (dE(cl[a].lab, cl[b].lab) < 22) {
+          const n = cl[a].n + cl[b].n; cl[a].lab = cl[a].lab.map((v, t) => (v * cl[a].n + cl[b].lab[t] * cl[b].n) / max(1, n)); cl[a].n = n; cl.splice(b, 1); merged = true; break;
+        }
+      }
+      cl = cl.filter((q) => q.n > pts.length * .04).sort((a, b) => b.n - a.n).slice(0, CUSTOM_KEYS.length);
+      for (let i = 0; i < N; i++) if (isCol(i)) { let bi = -1, bd = 45; cl.forEach((q, k) => { const v = dE([LAB[3 * i], LAB[3 * i + 1], LAB[3 * i + 2]], q.lab); if (v < bd) { bd = v; bi = k; } }); colIdx[i] = bi; }
+      const names = cl.map((q) => colorName(q.lab));
+      cl.forEach((q, k) => {
+        const same = cl.filter((_, j) => names[j] === names[k]);
+        let label = names[k];
+        if (same.length > 1) { const rank = same.filter((o) => o.lab[0] > q.lab[0]).length; label += same.length === 2 ? (rank ? ' oscuro' : ' claro') : ' ' + (rank + 1); }
+        palette.push({ rgb: lab2rgb(q.lab), label, lab: q.lab });
+      });
     }
-    const colorOn = imgOpts.color === 'auto' && nCol > N * .01;
-    if (!colorOn) col.fill(-1);
-    // máscaras: negro sólido, tonos (sombra) y colores
-    const blk = new Uint8Array(N);
-    for (let i = 0; i < N; i++) blk[i] = col[i] < 0 && Lp[i] > .72 ? 1 : 0;
-    // grosor: distancia al borde dentro del negro (chaflán 3-4)
-    const DTa = new Float32Array(N);
-    for (let i = 0; i < N; i++) DTa[i] = blk[i] ? 1e6 : 0;
-    const relax = (i, j, w) => { if (DTa[j] + w < DTa[i]) DTa[i] = DTa[j] + w; };
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (!blk[i]) continue; if (x > 0) relax(i, i - 1, 3); else DTa[i] = min(DTa[i], 3); if (y > 0) { relax(i, i - W, 3); if (x > 0) relax(i, i - W - 1, 4); if (x < W - 1) relax(i, i - W + 1, 4); } else DTa[i] = min(DTa[i], 3); }
-    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (!blk[i]) continue; if (x < W - 1) relax(i, i + 1, 3); else DTa[i] = min(DTa[i], 3); if (y < H - 1) { relax(i, i + W, 3); if (x < W - 1) relax(i, i + W + 1, 4); if (x > 0) relax(i, i + W - 1, 4); } else DTa[i] = min(DTa[i], 3); }
-    const blackRings = contourRings(W, H, (x, y) => blk[y * W + x], .6, 4).map((P) => {
-      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-      for (const [x, y] of P) { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y); }
-      let t = 0;
-      for (let y = max(0, floor(y0)); y <= min(H - 1, ceil(y1)); y++) for (let x = max(0, floor(x0)); x <= min(W - 1, ceil(x1)); x++) t = max(t, DTa[y * W + x] / 3);
-      return { P, t };   // t: medio grosor en píxeles
+    // 4) negro: lo oscuro que no es color. Las manchitas sueltas se pintan; las que van en grupo son trama de sombra
+    const B0 = new Uint8Array(N);
+    for (let i = 0; i < N; i++) B0[i] = Lp[i] > .58 && colIdx[i] < 0 ? 1 : 0;
+    const cc = labelComps(B0, W, H), nc = cc.area.length, cx = new Float32Array(nc), cy = new Float32Array(nc);
+    for (let i = 0; i < N; i++) { const l = cc.lab[i]; if (l >= 0) { cx[l] += i % W; cy[l] += (i - i % W) / W; } }
+    const aMin = [.05, .12, .3][det] / px2, aSmall = 1.2 / px2, R = 1.5 / mmpp, grid = new Map(), gk = (x, y) => floor(x / R) * 100003 + floor(y / R);
+    for (let l = 0; l < nc; l++) { cx[l] /= cc.area[l]; cy[l] /= cc.area[l]; if (cc.area[l] < aSmall) { const k = gk(cx[l], cy[l]); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(l); } }
+    const keep = new Uint8Array(nc);
+    let nTex = 0;
+    for (let l = 0; l < nc; l++) {
+      if (cc.area[l] >= aSmall) { keep[l] = 1; continue; }
+      let n = 0;
+      const gx = floor(cx[l] / R), gy = floor(cy[l] / R);
+      for (let yy = gy - 1; yy <= gy + 1; yy++) for (let xx = gx - 1; xx <= gx + 1; xx++) for (const m of grid.get(xx * 100003 + yy) || []) if (m !== l && hypot(cx[m] - cx[l], cy[m] - cy[l]) < R) n++;
+      keep[l] = n <= 1 && cc.area[l] >= aMin ? 1 : 0;
+      if (!keep[l] && n > 1) nTex++;
+    }
+    const B = new Uint8Array(N);
+    for (let i = 0; i < N; i++) B[i] = B0[i] && keep[cc.lab[i]] ? 1 : 0;
+    // trama cerrada (puntos que se tocan y forman una red con agujeritos): la aguja no la puede dibujar, es sombra.
+    // Se nota porque al cerrar los huecos de menos de medio milímetro aparece mucho blanco encerrado y el negro no llega a ser macizo
+    {
+      const rc = .25 / mmpp, nB = new Uint8Array(N);
+      for (let i = 0; i < N; i++) nB[i] = B[i] ? 0 : 1;
+      const Dn = distIn(nB, W, H, false), Dil = new Uint8Array(N);
+      for (let i = 0; i < N; i++) Dil[i] = B[i] || Dn[i] <= rc + .5 ? 1 : 0;
+      const De = distIn(Dil, W, H, true), X = new Float32Array(N), Bf = new Float32Array(N);
+      for (let i = 0; i < N; i++) { X[i] = !B[i] && De[i] > rc + .5 ? 1 : 0; Bf[i] = B[i]; }
+      const sg = .5 / mmpp, dX = blurG(X, W, H, sg), dB = blurG(Bf, W, H, sg);
+      for (let i = 0; i < N; i++) if (B[i] && dX[i] > .12 && dB[i] < .78) { B[i] = 0; nTex++; }
+      // lo que queda suelto después de quitar la trama, si es muy pequeño, también es sombra
+      const c2 = labelComps(B, W, H);
+      for (let i = 0; i < N; i++) if (B[i] && c2.area[c2.lab[i]] < aMin) B[i] = 0;
+    }
+    const Bd = dilate1(B, W, H);
+    // el borde entre negro y color no es ni lo uno ni lo otro
+    for (let i = 0; i < N; i++) if (colIdx[i] >= 0 && Bd[i]) colIdx[i] = -1;
+    const black = solidGeo(B, W, H, mmpp);
+    const colors = palette.map((_, j) => {
+      const Mc = new Uint8Array(N); for (let i = 0; i < N; i++) Mc[i] = colIdx[i] === j ? 1 : 0;
+      // fuera el ruido: manchitas de color de menos de 0,15 mm²
+      const lc = labelComps(Mc, W, H);
+      for (let i = 0; i < N; i++) if (Mc[i] && lc.area[lc.lab[i]] < .15 / px2) Mc[i] = 0;
+      return solidGeo(Mc, W, H, mmpp);
     });
-    // tonos por capas: claro (todo lo sombreado), medio y oscuro; fuera del negro (un pelín ensanchado)
-    // el borde suavizado del negro no es sombra: se aparta un margen de 2 px
-    const nb = new Uint8Array(N);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (blk[y * W + x]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H) nb[yy * W + xx] = 1; }
-    const nearBlk = (i) => nb[i];
-    const TH = [.1, .38, .6];
-    const toneRings = TH.map((th) => contourRings(W, H, (x, y) => { const i = y * W + x; return col[i] < 0 && Lp[i] > th && !nearBlk(i); }, .8, 12));
-    // diluciones automáticas: que cada capa, sumada a las de debajo, dé el tono medio de su franja
-    const bands = [[.1, .38], [.38, .6], [.6, .72]].map(([a, b]) => { const v = []; for (let i = 0; i < N; i += 3) if (col[i] < 0 && Lp[i] > a && Lp[i] <= b) v.push(Lp[i]); v.sort(); return v.length ? v[floor(v.length / 2)] : (a + b) / 2; });
-    const ops = []; let acc = 0;
-    for (const m of bands) { const op = clamp(1 - (1 - m * .92) / (1 - acc), .06, .85); ops.push(op); acc = 1 - (1 - acc) * (1 - op); }
-    const colorRings = {};
-    if (colorOn) CK.forEach((k, j) => { const r = contourRings(W, H, (x, y) => col[y * W + x] === j, .8, 10); if (r.length) colorRings[k] = r; });
-    return { W, H, Lp, col, blackRings, toneRings, colorRings, ops, colorOn, toned: toneRings[0].length > 0 };
+    // 5) sombra: el tono de alrededor (sin el halo de las líneas), suavizado a lo que resuelve una aguja
+    const colD = new Uint8Array(N); for (let i = 0; i < N; i++) colD[i] = colIdx[i] >= 0 ? 1 : 0;
+    const Ex = dilate1(colD, W, H), num = new Float32Array(N), den = new Float32Array(N);
+    for (let i = 0; i < N; i++) { const k = Bd[i] || Ex[i] ? 0 : 1; num[i] = Lp[i] * k; den[i] = k; }
+    const sT = max(1, .45 / mmpp), bn = blurG(num, W, H, sT), bdn = blurG(den, W, H, sT), T = new Float32Array(N);
+    let nTone = 0;
+    for (let i = 0; i < N; i++) { T[i] = Ex[i] || bdn[i] < .12 ? 0 : clamp(bn[i] / bdn[i], 0, 1); if (T[i] > .07) nTone++; }
+    const toned = nTone > N * .004;
+    // diluciones: cada capa, sumada a las de debajo, da el tono medio de su franja
+    const TH = [.07, .33, .58], toneRings = [], ops = [];
+    let acc = 0;
+    [[.07, .33], [.33, .58], [.58, 1.01]].forEach(([a, b]) => {
+      const v = []; for (let i = 0; i < N; i += 3) if (T[i] > a && T[i] <= b) v.push(T[i]);
+      v.sort((p, q) => p - q);
+      const m = v.length ? v[floor(v.length / 2)] : (a + b) / 2, op = clamp(1 - (1 - m * .92) / (1 - acc), .06, .85);
+      ops.push(op); acc = 1 - (1 - acc) * (1 - op);
+    });
+    if (toned) for (const th of TH) { const Mt = new Uint8Array(N); for (let i = 0; i < N; i++) Mt[i] = T[i] > th ? 1 : 0; toneRings.push(ringsOf(Mt, W, H, .8, .8 / px2)); }
+    else toneRings.push([], [], []);
+    // 6) ¿cabe el detalle? las líneas más finas que la aguja más fina (0,6 mm) salen más gordas
+    let lenAll = 0, lenFine = 0;
+    for (const s of black.strokes) { let l = 0; for (let i = 1; i < s.P.length; i++) l += hypot(s.P[i][0] - s.P[i - 1][0], s.P[i][1] - s.P[i - 1][1]); l *= mmpp; lenAll += l; if (s.w < .42) lenFine += l; }
+    const fineShare = lenAll ? lenFine / lenAll : 0;
+    let recSize = 0;
+    if (fineShare > .25 && size < 200) {
+      const ws = black.strokes.map((s) => s.w).sort((a, b) => a - b), w30 = ws[floor(ws.length * .3)] || .3;
+      recSize = min(250, ceil(size * .5 / w30 / 10) * 10);
+      if (recSize < size + 20) recSize = 0;
+    }
+    return { W, H, N, mmpp, size, Lp, B, T, colIdx, palette, black, colors, toneRings, ops, toned, fineShare, recSize, nTex, crop: [sx, sy, sw, sh], ms: round(performance.now() - t0) };
   }
   // Ajustes de la máquina por tipo de trazo: frecuencia (Hz), carrera (mm) y velocidad del brazo (mm/s)
   function machineFor(kind, cart) {
@@ -1458,51 +1814,116 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const hz = c.n <= 3 ? 120 : c.n <= 5 ? 115 : 105;
     return { hz, stroke: c.n <= 5 ? 3.5 : 3.8, spd: round(hz * .12) };   // unos 0,12 mm entre pinchazo y pinchazo: línea sólida
   }
+  // Presión que pide cada tono de la imagen (0 = la mano casi sin apretar, 1 = a fondo).
+  // Tabla medida en el simulador con una tira de grises: cuánto oscurece la piel (d) cada presión (w)
+  const SHADE_TAB = [[0, 0], [.032, .057], [.061, .18], [.103, .29], [.162, .39], [.24, .49], [.345, .59], [.458, .69], [.573, .8], [.68, .9], [.782, 1]];
+  let shadeW = (t) => {
+    const d = .95 * t;
+    for (let i = 1; i < SHADE_TAB.length; i++) { const [d0, w0] = SHADE_TAB[i - 1], [d1, w1] = SHADE_TAB[i]; if (d <= d1) return w0 + (w1 - w0) * (d - d0) / (d1 - d0); }
+    return 1;
+  };
+  // Sombra por presión sobre el mapa de tonos: filas paralelas y cada punto con la presión que pide la imagen.
+  // Primero el magnum curvo grande donde cabe entero; lo que queda (zonas estrechas), con el shader redondo.
+  function pressureRows(A) {
+    const { W, H, mmpp, T, B } = A, t0 = .07, out = [];
+    const idx = (u, v) => { const x = round(u / mmpp + W / 2), y = round(v / mmpp + H / 2); return x < 0 || y < 0 || x >= W || y >= H ? -1 : y * W + x; };
+    const cov = new Uint8Array(W * H), R = hypot(W, H) * mmpp / 2 + 2, ang = .6, ca = cos(ang), sa = sin(ang);
+    for (const cart of ['1211RM', '1207RS']) {
+      const fw = CARTS[cart].w, sp = fw * .5, stp = .4, m = max(0, fw / 2 - .3), big = cart === '1211RM';
+      let row = 0;
+      for (let q = -R; q <= R; q += sp, row++) {
+        const runs = [];
+        let run = null;
+        for (let s = -R; s <= R; s += stp) {
+          const u = ca * s - sa * q, v = sa * s + ca * q, i = idx(u, v);
+          let ok = i >= 0 && T[i] > t0 && (big || !cov[i]);
+          // la huella entera tiene que caer en sombra o en negro: no mancha el blanco ni el color
+          if (ok) for (const k of [-1, -.5, .5, 1]) { const j = idx(u - sa * m * k, v + ca * m * k); if (j < 0 || !(T[j] > t0 * .5 || B[j])) { ok = false; break; } }
+          if (ok) {
+            (run || (run = [])).push({ u, v, w: shadeW(T[i]) });
+            if (big) for (let a2 = -fw / 2; a2 <= fw / 2; a2 += mmpp * .8) for (let a = -stp / 2; a < stp / 2; a += mmpp * .8) { const j = idx(u + ca * a - sa * a2, v + sa * a + ca * a2); if (j >= 0) cov[j] = 1; }
+          } else if (run) { runs.push(run); run = null; }
+        }
+        if (run) runs.push(run);
+        const good = runs.filter((r) => r.length >= 3);
+        if (row % 2) { good.reverse(); good.forEach((r) => r.reverse()); }
+        for (const r of good) out.push({ cart, pts: r });
+      }
+    }
+    return out;
+  }
   // Plan del tatuaje a partir del análisis, ya en milímetros según el tamaño elegido
   function planImage() {
-    const A = imgAn, mmpp = params.size / max(A.W, A.H), toMM = (P) => P.map(([x, y]) => ({ u: (x - A.W / 2) * mmpp, v: (y - A.H / 2) * mmpp }));
+    if (!imgSrc) return [];
+    if (!imgAn || imgAn.size !== params.size) { imgAn = analyzeImage(imgSrc, params.size); setImageInks(imgAn.palette); setTimeout(renderImg, 0); }
+    const A = imgAn, mmpp = A.mmpp, toMM = (P) => P.map(([x, y]) => ({ u: (x - A.W / 2) * mmpp, v: (y - A.H / 2) * mmpp }));
     const els = [], used = {}, note = (k, t) => { (used[k] = used[k] || []).push(t); };
-    // 1) contornos del negro, con el liner que pide el grosor de cada trazo; agrupados por aguja y del más cercano al siguiente
-    const lines = { '1209RL': [], '1205RL': [], '1003RL': [] };
-    for (const r of A.blackRings) {
-      const thick = 2 * r.t * mmpp, cart = thick < .9 ? '1003RL' : thick < 2.6 ? '1205RL' : '1209RL', pts = toMM(r.P);
-      let per = 0; for (let i = 1; i < pts.length; i++) per += hypot(pts[i].u - pts[i - 1].u, pts[i].v - pts[i - 1].v);
-      if (per >= 1.2) lines[cart].push(pts);
-    }
-    let pu = 0, pv = 0;
-    const pushLines = (cart) => {
-      const L = lines[cart].slice();
-      while (L.length) {
-        let bi = 0, bd = Infinity;
-        L.forEach((pts, i) => { const d = hypot(pts[0].u - pu, pts[0].v - pv); if (d < bd) { bd = d; bi = i; } });
-        const pts = L.splice(bi, 1)[0];
-        els.push({ kind: 'line', pts: pts.concat([pts[0]]), cart, ink: 'negro', set: machineFor('line', cart), mm: true });
-        note(cart, 'line'); pu = pts[0].u; pv = pts[0].v;
+    const linerFor = (w) => (w < .78 ? '1003RL' : w < 1.1 ? '1205RL' : '1209RL');
+    // el trabajo de una tinta (negro o un color), repartido por aguja
+    const work = (G, ink) => {
+      const Bk = { '1209RL': [], '1205RL': [], '1205RL·f': [], '1003RL': [], '1207M1·f': [] }, dots = { '1003RL': [], '1205RL': [], '1209RL': [] };
+      for (const s of G.strokes) {
+        const pts = toMM(s.P), cart = linerFor(s.w);
+        let len = 0; for (let i = 1; i < pts.length; i++) len += hypot(pts[i].u - pts[i - 1].u, pts[i].v - pts[i - 1].v);
+        if (len < .3) { dots[cart].push(pts[0]); continue; }
+        Bk[cart].push({ kind: 'line', pts, cart, ink, set: machineFor('line', cart), closed: s.closed });
       }
+      for (const r of G.outlines) { const pts = toMM(r); Bk['1205RL'].push({ kind: 'line', pts: pts.concat([pts[0]]), cart: '1205RL', ink, set: machineFor('line', '1205RL'), closed: true }); }
+      if (G.narrow.length) Bk['1205RL·f'].push({ kind: 'fill', rings: G.narrow.map(toMM), cart: '1205RL', ink, angle: .9, set: machineFor('fill', '1205RL') });
+      if (G.wide.length) Bk['1207M1·f'].push({ kind: 'fill', rings: G.wide.map(toMM), cart: '1207M1', ink, angle: .9, set: machineFor('fill', '1207M1') });
+      for (const k in dots) if (dots[k].length) Bk[k].push({ kind: 'dots', list: dots[k], cart: k, ink, set: machineFor('dots', k) });
+      return Bk;
     };
-    // 2) relleno del negro: magnum en las zonas anchas, liner en los trazos estrechos
-    const wide = A.blackRings.filter((r) => 2 * r.t * mmpp >= 3.5), narrow = A.blackRings.filter((r) => 2 * r.t * mmpp < 3.5);
-    const pushFill = (grp, cart) => { if (!grp.length) return; els.push({ kind: 'fill', rings: grp.map((r) => toMM(r.P)), cart, ink: 'negro', angle: .9, set: machineFor('fill', cart), mm: true }); note(cart, 'fill'); };
-    pushLines('1209RL'); pushLines('1205RL'); pushFill(narrow, '1205RL'); pushLines('1003RL'); pushFill(wide, '1207M1');
-    // 3) sombras: por presión (una tinta, la mano sube y baja) o por diluciones calculadas de la imagen
-    let washTxt = '';
+    // del más cercano al siguiente (las líneas abiertas se pueden empezar por cualquier punta; los aros, por el punto más cercano)
+    let pu = 0, pv = 0;
+    const d0 = (p) => hypot(p.u - pu, p.v - pv);
+    const nnOrder = (list) => {
+      const out = [], Lr = list.slice();
+      while (Lr.length) {
+        let bi = 0, bd = Infinity, rev = false;
+        Lr.forEach((e, i) => {
+          if (e.kind === 'dots') { const d = d0(e.list[0]); if (d < bd) { bd = d; bi = i; rev = false; } return; }
+          if (e.kind !== 'line') { if (bd === Infinity) bi = i; return; }
+          const da = d0(e.pts[0]), db = e.closed ? Infinity : d0(e.pts[e.pts.length - 1]);
+          if (da < bd) { bd = da; bi = i; rev = false; }
+          if (db < bd) { bd = db; bi = i; rev = true; }
+        });
+        const e = Lr.splice(bi, 1)[0];
+        if (e.kind === 'line') {
+          if (rev) e.pts.reverse();
+          else if (e.closed && e.pts.length > 3) { let j = 0, bj = Infinity; e.pts.forEach((p, k) => { const d = d0(p); if (d < bj) { bj = d; j = k; } }); const r = e.pts.slice(0, -1); e.pts = r.slice(j).concat(r.slice(0, j), [r[j]]); }
+          const z = e.pts[e.pts.length - 1]; pu = z.u; pv = z.v;
+        } else if (e.kind === 'dots') {
+          const Ld = e.list.slice(), o = [];
+          while (Ld.length) { let k = 0, kd = Infinity; Ld.forEach((p, q) => { const d = d0(p); if (d < kd) { kd = d; k = q; } }); const p = Ld.splice(k, 1)[0]; o.push(p); pu = p.u; pv = p.v; }
+          e.list = o;
+        }
+        out.push(e);
+      }
+      return out;
+    };
+    const emit = (list) => { for (const e of nnOrder(list)) { els.push(e); note(e.cart, e.kind === 'fill' ? 'fill' : e.kind === 'dots' ? 'dots' : 'line'); } };
+    const ORDER = ['1209RL', '1205RL', '1205RL·f', '1003RL', '1207M1·f'];
+    // 1) negro: líneas por aguja, contornos, rellenos
+    const blk = work(A.black, 'negro');
+    for (const k of ORDER) emit(blk[k]);
+    // 2) sombras: por presión (una tinta, la mano sube y baja) o por diluciones calculadas de la imagen
+    let washTxt = '', nShade = { '1211RM': 0, '1207RS': 0 };
     if (A.toned) {
       if (params.shadeMode === 'dilucion') {
         WASH_KEYS.forEach((k, i) => { INKS[k].wash = A.ops[i]; });
         updateWashCups();
-        A.toneRings.forEach((R, i) => { if (R.length) { els.push({ kind: 'fill', rings: R.map(toMM), cart: '1207M1', ink: WASH_KEYS[i], angle: .6 + i * .5, set: machineFor('wash', '1207M1'), shade: true, mm: true }); } });
-        note('1207M1', 'wash');
+        A.toneRings.forEach((R, i) => { if (R.length) { els.push({ kind: 'fill', rings: R.map(toMM), cart: '1207M1', ink: WASH_KEYS[i], angle: .6 + i * .5, set: machineFor('wash', '1207M1'), shade: true, soft: true }); note('1207M1', 'wash'); } });
         washTxt = WASH_KEYS.map((k, i) => `${INKS[k].label.toLowerCase()} ${round(OP_INK(A.ops[i]) * 100)} % de tinta`).join(', ');
       } else {
-        const wmap = (u, v) => { const x = round(u / mmpp + A.W / 2), y = round(v / mmpp + A.H / 2); if (x < 0 || y < 0 || x >= A.W || y >= A.H) return .05; return clamp((A.Lp[y * A.W + x] - .08) / .64, .05, 1); };
-        els.push({ kind: 'wfill', rings: A.toneRings[0].map(toMM), cart: '1211RM', ang: .6, wmap, set: machineFor('pressure', '1211RM'), mm: true });
-        if (A.toneRings[1].length) els.push({ kind: 'wfill', rings: A.toneRings[1].map(toMM), cart: '1211RM', ang: .6 + PI / 2, wmap: (u, v) => wmap(u, v) * .8, set: machineFor('pressure', '1211RM'), mm: true });
-        note('1211RM', 'pressure');
+        for (const r of pressureRows(A)) { els.push({ kind: 'line', pts: r.pts, cart: r.cart, ink: 'negro', shade: true, set: machineFor('pressure', r.cart) }); nShade[r.cart]++; note(r.cart, 'pressure'); }
       }
     }
-    // 4) colores, cada uno con su relleno
-    for (const k in A.colorRings) { els.push({ kind: 'fill', rings: A.colorRings[k].map(toMM), cart: '1207M1', ink: k, angle: .3, set: machineFor('fill', '1207M1'), mm: true, outline: true }); note('1207M1', k); }
-    imgPlan = { used, washTxt, colors: Object.keys(A.colorRings) };
+    // 3) colores: cada uno con su tinta; primero todas las líneas (enjuagando entre colores) y luego los rellenos
+    const colW = A.colors.map((G, j) => work(G, CUSTOM_KEYS[j]));
+    for (const k of ORDER) for (const Wk of colW) emit(Wk[k]);
+    const nLines = els.filter((e) => e.kind === 'line' && !e.shade).length, nDots = els.reduce((a, e) => a + (e.kind === 'dots' ? e.list.length : 0), 0);
+    imgPlan = { used, washTxt, nShade, nLines, nDots, colors: A.palette.map((p, j) => ({ key: CUSTOM_KEYS[j], label: p.label })) };
     return els;
   }
   function rdp(P, eps) {
@@ -1611,7 +2032,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       ];
     } },
     letras: { label: 'Letras góticas', text: 'letras', note: 'Letra gótica: contorno con 1205RL y cada trazo relleno con el mismo liner. Cambia el texto abajo.', make() { return textEls('letras', '1205RL'); } },
-    imagen: { label: 'Imagen subida', image: true, shade: true, note: 'El robot analiza la imagen y lo decide todo: agujas, técnica, diluciones y ajustes de la máquina.', make() { return []; } },
+    imagen: { label: 'Imagen subida', image: true, shade: true, note: 'El robot analiza la imagen y lo decide todo: agujas, técnica, diluciones, colores y ajustes de la máquina.', make() { return []; } },
     caligrafia: { label: 'Caligrafía', text: 'caligrafia', note: 'Letra caligráfica: contorno fino con 1003RL y relleno con 1205RL, que cabe en los trazos finos. Cambia el texto abajo.', make() { return textEls('caligrafia', '1003RL'); } }
   };
   const box = () => ({ u0: -params.size / 2, u1: params.size / 2, v0: -params.size / 2, v1: params.size / 2 });
@@ -1645,10 +2066,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     return inside;
   }
   // Pasadas de relleno en zigzag dentro de uno o varios contornos (par-impar: los huecos de las letras se respetan)
-  function hatch(rings, sp, ang, cart) {
+  function hatch(rings, sp, ang, cart, soft) {
     const c = cos(ang), s = sin(ang), cc = cart ? CARTS[cart] : null, mag = !cc || cc.mag;
-    // el relleno se queda metido media huella de agujas (más un pelín) para que no asome por fuera del contorno
-    const inset = cc ? (mag ? cc.t : cc.w) / 2 + .1 : .3, edge = cc ? (mag ? cc.w : cc.w) / 2 + .1 : sp / 2, minL = 2 * inset + .05;
+    // el relleno se queda metido media huella de agujas (más un pelín) para que no asome por fuera del contorno;
+    // en las sombras (soft) el borde es suave y basta con no pasarse mucho
+    const inset = soft ? .15 : cc ? (mag ? cc.t : cc.w) / 2 + .1 : .3, edge = soft ? sp / 2 : cc ? cc.w / 2 + .1 : sp / 2, minL = soft ? .6 : 2 * inset + .05;
     const R = rings.map((poly) => poly.map((p) => ({ x: p.u * c + p.v * s, y: -p.u * s + p.v * c })));
     const back = (x, y) => ({ u: x * c - y * s, v: x * s + y * c });
     // ¿está dentro de la forma? (par-impar, respetando huecos)
@@ -1839,13 +2261,16 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const jobs = [], sten = [];
     for (const el of els) {
       const n0 = jobs.length;
-      if (el.kind === 'line') { sten.push({ pts: el.pts, closed: false }); const j = makeLine(el.pts, el.cart, el.ink, null); if (j) jobs.push(j); }
-      else if (el.kind === 'fill') {
+      if (el.kind === 'line') {
+        // las filas de sombra no se calcan en la plantilla: la sombra se hace a ojo sobre el dibujo
+        if (!el.shade) sten.push({ pts: el.pts, closed: false });
+        const j = makeLine(el.pts, el.cart, el.ink, null); if (j) { if (el.shade) j.shade = true; jobs.push(j); }
+      } else if (el.kind === 'fill') {
         const rings = el.rings || [el.poly];
         if (!el.rings) sten.push({ pts: el.poly, closed: true });
         if (el.outline) for (const r of rings) sten.push({ pts: r, closed: true });
         const c = CARTS[el.cart], sp = c.mag ? c.w * .55 : c.w * .7, ang = el.angle || 0;
-        for (const path of hatch(rings, sp, ang, el.cart)) { const j = makeLine(path, el.cart, el.ink, c.mag ? ang + PI / 2 : null); if (j) { j.fill = true; j.region = rings; if (el.shade) j.shade = true; jobs.push(j); } }
+        for (const path of hatch(rings, sp, ang, el.cart, el.soft)) { const j = makeLine(path, el.cart, el.ink, c.mag ? ang + PI / 2 : null); if (j) { j.fill = true; j.region = rings; if (el.shade) j.shade = true; jobs.push(j); } }
       } else if (el.kind === 'wfill') {
         // sombra por presión sobre un mapa de tonos: filas con la presión que pide cada punto de la imagen
         const c = CARTS[el.cart];
@@ -1859,7 +2284,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         }
       } else if (el.kind === 'shade') { const n0 = jobs.length; shadeJobs(el, jobs); for (let i = n0; i < jobs.length; i++) { jobs[i].shade = true; jobs[i].region = [el.poly]; } } else if (el.kind === 'dots') {
         let dots;
-        if (el.pts) { sten.push({ pts: el.pts, closed: false }); dots = dotPath(el.pts, el.spacing || 1.2); }
+        if (el.list) dots = el.list.map((p) => ({ u: p.u, v: p.v, hits: 1 }));
+        else if (el.pts) { sten.push({ pts: el.pts, closed: false }); dots = dotPath(el.pts, el.spacing || 1.2); }
         else { const region = el.poly ? polyRegion(el.poly) : ringRegion(el.ring); sten.push(...region.outline); dots = stipple(region, el.dens || (() => .6), el.rMin || .9, el.rMax || 2.4, 11); }
         if (dots.length) jobs.push({ type: 'dots', dots, len: dots.length, cart: el.cart, ink: el.ink });
       }
@@ -1869,7 +2295,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   }
   let designSrc = null, strokes = [], stencil = [], totalLen = 0;
   function buildDesign() {
-    const els = designSrc.image ? (imgAn ? planImage() : []) : designSrc.pad ? mapPadElements(designSrc.els) : fitElements(designSrc.make());
+    const els = designSrc.image ? planImage() : designSrc.pad ? mapPadElements(designSrc.els) : fitElements(designSrc.make());
     const { jobs, sten } = buildJobs(els);
     strokes = jobs; stencil = sten;
     totalLen = strokes.reduce((a, s) => a + (s.type === 'dots' ? s.len * 1.5 : s.len), 0);
@@ -1979,6 +2405,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   const SLOT = {};
   CART_KEYS.forEach((k, i) => { SLOT[k] = { x: 280 + i * 28, z: SLOT_Z }; });
   const CUPS = { negro: { x: 262, z: CUP_Z }, rojo: { x: 288, z: CUP_Z }, amarillo: { x: 314, z: CUP_Z }, verde: { x: 340, z: CUP_Z }, gris1: { x: 262, z: CUP_Z + 32 }, gris2: { x: 288, z: CUP_Z + 32 }, gris3: { x: 314, z: CUP_Z + 32 } };
+  CUSTOM_KEYS.forEach((k, i) => { CUPS[k] = { x: 340 + i * 26, z: CUP_Z + 32 }; });
   const RINSE = { x: 376, z: CUP_Z }, PAPER = { x: 418, z: CUP_Z };
 
   // =====================================================================
@@ -2477,9 +2904,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   const markerPos = () => { const a = params.size / 2 + 14, b = params.size / 2 + 10; return [[-a, -b], [a, -b], [-a, b], [a, b]]; };
   // Capas de la piel en un punto: epidermis, franja buena de la dermis, fondo de la dermis (debajo, grasa)
   const skinLayers = (sk) => ({ epi: .07 + .05 * sk.dC, derm: sk.hi + .45 + .25 * sk.dC });
+  // tinta que deja cada pinchazo según la presión (w): a fondo todo; con la mano muy ligera, casi nada
+  function WF(w) { return w >= 1 ? 1 : w >= .04 ? .06 + .94 * w ** 1.8 : 1.5 * max(0, w); }
   function stamp(h) {
     const L = LAYOUT[h.c], dia = CARTS[h.c].dia, cs = cos(h.s), sn = sin(h.s), r = dia * .58 * PPM * h.spread;
-    const X = h.wash ? LY[h.wash].x : LY.ink.x, wf = h.w >= 1 ? 1 : .06 + .94 * h.w ** 1.8;
+    const X = h.wash ? LY[h.wash].x : LY.ink.x, wf = WF(h.w);
     for (const p of L) {
       const x = px(h.u + cs * p.a - sn * p.b), y = py(h.v + sn * p.a + cs * p.b), dn = h.d - p.z;
       if (h.f <= 0) { dotL(LY.ink.x, x, y, r * 1.4, 'rgba(205,70,60,.08)'); continue; }
@@ -2675,8 +3104,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     }
     const cupMat = new THREE.MeshStandardMaterial({ color: 0x2a2833, roughness: .45, side: THREE.DoubleSide });
     const cupGeo = new THREE.CylinderGeometry(11, 9, 16, 28, 1, true), surfGeo = new THREE.CircleGeometry(10.3, 28);
-    const cupAt = (p, liquid) => { stMesh(cupGeo, cupMat, p.x, ST.top + 8, p.z); const s = new THREE.Mesh(surfGeo, liquid); s.rotation.x = -PI / 2; s.position.set(p.x, ST.top + 13, p.z); robotRoot.add(s); };
-    for (const k of INK_KEYS) { const m = new THREE.MeshStandardMaterial({ color: rgbStr(INKS[k].rgb), roughness: .12, metalness: .1 }); cupMats[k] = m; cupAt(CUPS[k], m); }
+    const cupAt = (p, liquid) => { const a = stMesh(cupGeo, cupMat, p.x, ST.top + 8, p.z); const s = new THREE.Mesh(surfGeo, liquid); s.rotation.x = -PI / 2; s.position.set(p.x, ST.top + 13, p.z); robotRoot.add(s); return [a, s]; };
+    for (const k of INK_KEYS) {
+      const m = new THREE.MeshStandardMaterial({ color: rgbStr(INKS[k].rgb), roughness: .12, metalness: .1 }); cupMats[k] = m; cupObjs[k] = cupAt(CUPS[k], m);
+      if (INKS[k].custom) for (const o of cupObjs[k]) o.visible = !!INKS[k].on;
+    }
     updateWashCups();
     cupAt(RINSE, new THREE.MeshStandardMaterial({ color: 0x9fd3f0, roughness: .05, transparent: true, opacity: .6 }));
     stMesh(new THREE.BoxGeometry(30, 3, 30), new THREE.MeshStandardMaterial({ color: 0xf6f5f1, roughness: .95 }), PAPER.x, ST.top + 1.5, PAPER.z);
@@ -3229,7 +3661,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     else Object.assign(MOT, { A: BI.spine, Aax: 0, B: BI.chest, Bax: 1, T: BI.chest, amp: [.006, .005, .008] });
     const Rc = params.size * .71 + 28;
     CH = buildChart(anchor, Rc);
-    PPM = min(8, 1600 / (2 * Rc));
+    PPM = min(8, 2048 / (2 * Rc));
     setPatchSize(ceil(2 * Rc * PPM));
     const Aw = anchorWorld(anchor, { R: pose.R, t: pose.t, ang: pose.base }, {});
     zoneInfo = { label: label || anchor.name, anchor, world: Aw };
@@ -3258,7 +3690,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   function previewAnchor(anchor, label) {
     const Rc = params.size * .71 + 28;
     CH = buildChart(anchor, Rc);
-    PPM = min(8, 1600 / (2 * Rc));
+    PPM = min(8, 2048 / (2 * Rc));
     setPatchSize(ceil(2 * Rc * PPM));
     zoneInfo = { ...zoneInfo, label: label || anchor.name, anchor };
     buildDesign(); buildPatchMesh(); resetRun();
@@ -3415,8 +3847,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
 
   $('#cart-chips').innerHTML = ['<button class="chip cartc" data-cart="auto" aria-pressed="true">Según el diseño</button>']
     .concat(CART_KEYS.map((k) => `<button class="chip cartc" data-cart="${k}" aria-pressed="false"><i class="dot" style="background:${CARTS[k].color}"></i>${k}</button>`)).join('');
-  $('#ink-list').innerHTML = INK_KEYS.map((k) => `<span><i style="background:${inkSwatch(k)}"></i>${INKS[k].label}</span>`).join('') + '<span><i style="background:#9fd3f0"></i>Agua</span><span><i style="background:#f6f5f1"></i>Papel</span>';
-  $('#pad-inks').innerHTML = INK_KEYS.map((k, i) => `<button class="chip pink" data-ink="${k}" aria-pressed="${i === 0}"><i class="dot" style="background:${inkSwatch(k)}"></i>${INKS[k].label}</button>`).join('');
+  renderInkList();
+  $('#pad-inks').innerHTML = INK_KEYS.filter((k) => !INKS[k].custom).map((k, i) => `<button class="chip pink" data-ink="${k}" aria-pressed="${i === 0}"><i class="dot" style="background:${inkSwatch(k)}"></i>${INKS[k].label}</button>`).join('');
   $('#zone-chips').innerHTML = Object.entries(ZONES).map(([k, z]) => `<button class="chip zone" data-zone="${k}" aria-pressed="false">${z.label}</button>`).join('');
   $('#joint-chips').innerHTML = JOINT_UI.map(([b, lab]) => `<button class="chip jointc" data-j="${b}" aria-pressed="false">${lab}</button>`).join('');
   $('#map-chips').innerHTML = ['<button class="chip mapc" data-map="none" aria-pressed="true">Sin mapa</button>'].concat(Object.entries(MAPS).map(([k, m]) => `<button class="chip mapc" data-map="${k}" aria-pressed="false">${m.label}</button>`)).join('');
@@ -3445,7 +3877,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     $('#pad-wrap').hidden = true;
     $('#img-wrap').hidden = key !== 'imagen';
     // los diseños de siempre usan las diluciones de serie; la imagen calcula las suyas
-    if (key !== 'imagen') { WASH_KEYS.forEach((k, i) => { INKS[k].wash = WASH_DEF[i]; }); updateWashCups(); }
+    if (key !== 'imagen') { WASH_KEYS.forEach((k, i) => { INKS[k].wash = WASH_DEF[i]; }); updateWashCups(); setImageInks([]); }
+    else if (imgAn) setImageInks(imgAn.palette);
     const tk = designSrc.text;
     $('#f-text').hidden = !tk;
     if (tk) {
@@ -3473,9 +3906,16 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   }
   function reanalyze() {
     if (!imgSrc) return;
-    imgAn = analyzeImage(imgSrc);
-    setDesign('imagen'); syncControls(); resetRun(); renderImg();
+    $('#img-plan').innerHTML = '<li>Analizando la imagen…</li>';
+    // un respiro para que se vea el aviso antes de ponerse a calcular
+    setTimeout(() => { imgAn = null; setDesign('imagen'); syncControls(); resetRun(); renderImg(); }, 30);
   }
+  $('#img-plan').addEventListener('click', (e) => {
+    const b = e.target.closest('#img-rec'); if (!b || running) return;
+    params.size = +b.dataset.size; $('#rng-size').value = params.size; $('#out-size').textContent = RANGES.size[4](params.size);
+    $('#img-plan').innerHTML = '<li>Analizando la imagen…</li>';
+    setTimeout(() => { reanchor(); renderImg(); }, 30);
+  });
   $('#file-img').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadImageFrom(URL.createObjectURL(f)); e.target.value = ''; });
   $('#img-pick').addEventListener('click', () => $('#file-img').click());
   $('#img-sample').addEventListener('click', () => loadImageFrom(sampleImage()));
@@ -3498,40 +3938,46 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     c.beginPath(); for (let x = 40; x <= 220; x += 4) c.lineTo(x, 340 + 18 * sin(x / 18)); c.lineWidth = 3; c.stroke();
     return cv.toDataURL();
   }
+  // Vista previa de lo que va a hacer el robot: cada trazo con el ancho de su aguja, sus grises y sus colores
   function renderImg() {
     if (!imgAn) return;
-    const A = imgAn, cv = $('#img-prev'), c = cv.getContext('2d');
-    cv.width = A.W; cv.height = A.H;
-    const im = c.createImageData(A.W, A.H), D = im.data, pres = params.shadeMode !== 'dilucion';
-    const colRGB = Object.keys(COLOR_HUES).map((k) => INKS[k].rgb);
-    for (let i = 0; i < A.W * A.H; i++) {
-      let r = 244, g = 238, b = 232;
-      const Lp = A.Lp[i], ci = A.col[i];
-      if (ci >= 0) [r, g, b] = colRGB[ci];
-      else if (Lp > .72) { r = 22; g = 20; b = 28; }
-      else if (Lp > .1) {
-        let op;
-        if (pres) op = clamp((Lp - .08) / .64, .05, 1) * .85;
-        else { op = 0; [.1, .38, .6].forEach((th, k) => { if (Lp > th) op = 1 - (1 - op) * (1 - A.ops[k]); }); }
-        r = round(r + (22 - r) * op); g = round(g + (20 - g) * op); b = round(b + (28 - b) * op);
-      }
-      D[4 * i] = r; D[4 * i + 1] = g; D[4 * i + 2] = b; D[4 * i + 3] = 255;
+    const A = imgAn, cv = $('#img-prev'), c = cv.getContext('2d'), pres = params.shadeMode !== 'dilucion';
+    const Wm = A.W * A.mmpp, Hm = A.H * A.mmpp, k = 560 / max(Wm, Hm);
+    cv.width = max(8, round(Wm * k)); cv.height = max(8, round(Hm * k));
+    const X = (u) => (u + Wm / 2) * k, Y = (v) => (v + Hm / 2) * k;
+    const layer = () => { const o = document.createElement('canvas'); o.width = cv.width; o.height = cv.height; const x = o.getContext('2d'); x.lineCap = 'round'; x.lineJoin = 'round'; return x; };
+    const main = layer(), wash = {};
+    for (const wk of WASH_KEYS) wash[wk] = layer();
+    for (const st of strokes) {
+      const cart = CARTS[st.cart], I = INKS[st.ink] || INKS.negro, x = I.wash ? wash[st.ink] : main, col = I.wash ? '22,20,28' : I.rgb.join(',');
+      x.lineWidth = max(.7, cart.w * k);
+      if (st.type === 'dots') { x.fillStyle = `rgb(${col})`; for (const d of st.dots) { x.beginPath(); x.arc(X(d.u), Y(d.v), max(.6, cart.w / 2 * k), 0, TAU); x.fill(); } continue; }
+      if (st.hasW) {
+        x.lineCap = 'butt';
+        for (let i = 1; i < st.pts.length; i++) { const a = st.pts[i - 1], b = st.pts[i]; x.strokeStyle = `rgba(${col},${(.6 * WF((a.w + b.w) / 2)).toFixed(3)})`; x.beginPath(); x.moveTo(X(a.u), Y(a.v)); x.lineTo(X(b.u), Y(b.v)); x.stroke(); }
+        x.lineCap = 'round';
+      } else { x.strokeStyle = `rgb(${col})`; x.beginPath(); st.pts.forEach((p, i) => (i ? x.lineTo(X(p.u), Y(p.v)) : x.moveTo(X(p.u), Y(p.v)))); x.stroke(); }
     }
-    c.putImageData(im, 0, 0);
+    c.fillStyle = '#f3ebe2'; c.fillRect(0, 0, cv.width, cv.height);
+    for (const wk of WASH_KEYS) { c.globalAlpha = INKS[wk].wash; c.drawImage(wash[wk].canvas, 0, 0); }
+    c.globalAlpha = 1; c.drawImage(main.canvas, 0, 0);
     // resumen del plan
-    const P = imgPlan || { used: {} }, U = P.used, li = [];
-    const lin = ['1003RL', '1205RL', '1209RL'].filter((k) => U[k] && U[k].includes('line')).map((k) => `${k} (${U[k].filter((x) => x === 'line').length})`);
-    if (lin.length) li.push(`<b>Contornos:</b> ${lin.join(', ')}. Liner fino en los detalles, medio en las líneas normales y gordo en las siluetas grandes.`);
-    const fl = [['1207M1', 'magnum en las zonas anchas'], ['1205RL', 'liner en los trazos estrechos']].filter(([k]) => U[k] && U[k].includes('fill')).map(([k, t]) => `${k} (${t})`);
-    if (fl.length) li.push(`<b>Negro sólido:</b> ${fl.join(' y ')}.`);
-    if (A.toned) li.push(pres ? '<b>Sombras por presión:</b> 1211RM a medio péndulo, todo con tinta negra; la presión de cada punto sale del tono de la imagen.' : `<b>Sombras por dilución:</b> 1207M1 en tres capas: ${P.washTxt} (el resto, agua).`);
-    if (P.colors && P.colors.length) li.push(`<b>Color:</b> ${P.colors.map((k) => INKS[k].label.toLowerCase()).join(', ')} con 1207M1, enjuagando entre colores.`);
+    const P = imgPlan || { used: {}, nShade: {}, colors: [] }, U = P.used, li = [], cnt = (key, t) => (U[key] || []).filter((q) => q === t).length;
+    const lin = ['1003RL', '1205RL', '1209RL'].filter((key) => cnt(key, 'line')).map((key) => `${key} (${cnt(key, 'line')})`);
+    if (lin.length) li.push(`<b>Líneas, por el centro del trazo:</b> ${lin.join(', ')}. El liner sale del grosor de cada línea: fino por debajo de 0,8 mm, medio hasta 1,1 y gordo por encima.`);
+    if (P.nDots) li.push(`<b>Puntos sueltos:</b> ${P.nDots}, uno a uno.`);
+    const fl = [['1207M1', 'magnum en las zonas anchas'], ['1205RL', 'liner en las estrechas']].filter(([key]) => cnt(key, 'fill')).map(([key, t]) => `${key} (${t})`);
+    if (fl.length) li.push(`<b>Negro sólido:</b> contorno con 1205RL metido por dentro del borde y relleno con ${fl.join(' y ')}.`);
+    if (A.toned) li.push(pres ? `<b>Sombras por presión:</b> ${P.nShade['1211RM'] || 0} pasadas con 1211RM donde cabe y ${P.nShade['1207RS'] || 0} con 1207RS en lo estrecho, todo con tinta negra. Cada punto lleva la presión que pide el tono de la imagen.` : `<b>Sombras por dilución:</b> 1207M1 en tres capas: ${P.washTxt} (el resto, agua).`);
+    if (P.colors.length) li.push(`<b>Colores de la imagen:</b> ${P.colors.map((q) => `<i class="swatch" style="background:${inkSwatch(q.key)}"></i>${q.label.toLowerCase()}`).join(', ')}. Cada uno en su vaso; primero sus líneas y luego sus rellenos con 1207M1, enjuagando entre colores.`);
     li.push('<b>Máquina:</b> líneas a 105–120 Hz, carrera 3,5–3,8 mm y brazo a 13–14 mm/s; rellenos a 100–105 Hz y 3,5–3,8 mm; sombras a 80–90 Hz y 3,0–3,2 mm. Frena donde la piel se estira o es dura, y la profundidad sale del grosor de la piel de cada punto.');
+    if (A.recSize) li.push(`<b>Ojo con el detalle:</b> el ${round(A.fineShare * 100)} % de las líneas es más fino que la aguja más fina (0,6 mm) y saldrá más gordo. A ${fmt(A.recSize / 10, 0)} cm saldría bastante más fiel. <button class="btn small" id="img-rec" data-size="${A.recSize}">Ponerlo a ${fmt(A.recSize / 10, 0)} cm</button>`);
+    else if (A.fineShare > .25) li.push(`<b>Ojo con el detalle:</b> el ${round(A.fineShare * 100)} % de las líneas es más fino que la aguja más fina (0,6 mm): esas saldrán algo más gordas que en la imagen.`);
     let secs = 0;
     for (const st of strokes) { const m = jobSettings(st); secs += (st.type === 'dots' ? st.len * .35 : st.len / m.spd) + .45; }
-    const changes = new Set(strokes.map((st) => st.cart)).size, inks = new Set(strokes.map((st) => st.ink)).size;
-    secs += changes * 12 + inks * 8;
-    li.push(strokes.length ? `<b>${strokes.length} trazos</b>, unos ${max(1, round(secs / 60))} min a velocidad normal.` : '<b>No he encontrado nada que tatuar.</b> Prueba con una imagen con más contraste.');
+    secs += new Set(strokes.map((st) => st.cart)).size * 12 + new Set(strokes.map((st) => st.ink)).size * 8;
+    const tt = secs < 5400 ? `unos ${max(1, round(secs / 60))} min` : `unas ${fmt(secs / 3600, 1)} h`;
+    li.push(strokes.length ? `<b>${strokes.length} trazos</b>, ${tt} a velocidad normal.` : '<b>No he encontrado nada que tatuar.</b> Prueba con una imagen con más contraste.');
     $('#img-plan').innerHTML = li.map((t) => `<li>${t}</li>`).join('');
   }
   let textTimer = 0;
