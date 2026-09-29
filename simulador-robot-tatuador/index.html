@@ -1,7 +1,7 @@
 <title>Simulador Robot Tatuador</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Pinyon+Script&family=UnifrakturMaguntia&display=swap">
 <style>
 /* Layout: estudio de tatuaje en 3D. Escena grande a la izquierda, panel de mandos a la derecha, historial debajo. En móvil, una columna. */
 :root {
@@ -130,6 +130,13 @@ button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 2px so
 .depth-head strong { font-weight: 600; }
 .depth-head span { color: var(--muted); }
 .depth canvas { display: block; width: 100%; height: 96px; }
+.depth canvas.section { height: 170px; border-radius: 6px; }
+.sec-row { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+.sec-row .field { flex: 1 1 220px; }
+.sec-row .toggle { flex: 0 0 auto; gap: 10px; }
+.handle { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; background: var(--accent); color: var(--on-accent); border: 2px solid var(--surface); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); display: grid; place-items: center; font: 600 15px/1 var(--font-body); cursor: grab; touch-action: none; user-select: none; z-index: 2; }
+.handle.h-move { width: 36px; height: 36px; margin: -18px 0 0 -18px; }
+.handle:active { cursor: grabbing; }
 
 .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12.5px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
@@ -241,6 +248,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <div class="toast" id="toast" hidden></div>
         <div class="lens-frame" id="lens-frame"><span class="lens-label"><b id="lens-bar"></b>1 mm · lupa</span></div>
         <div class="inspector" id="inspector" hidden></div>
+        <div class="handle h-move" id="h-move" title="Arrastra para mover el tatuaje por el cuerpo" hidden>✥</div>
+        <div class="handle" id="h-size" title="Arrastra para cambiar el tamaño" hidden>⤡</div>
+        <div class="handle" id="h-rot" title="Arrastra para girar el diseño" hidden>↻</div>
         <div class="place-hint" id="place-hint" hidden>Pincha en el cuerpo donde quieres el tatuaje</div>
         <div class="overlay-msg" id="loader"><p id="loader-text">Generando el cuerpo…</p></div>
       </div>
@@ -256,11 +266,12 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <button class="chip sm tspeed" data-t="2" aria-pressed="false">×2</button>
         <button class="chip sm tspeed" data-t="4" aria-pressed="false">×4</button>
       </div>
-      <p class="hint">Arrastra para girar la cámara y usa la rueda o pellizca para acercarte. Pasa el ratón por el cuerpo para ver cómo es la piel en cada sitio. Con «Elegir sitio en el cuerpo» pinchas donde quieres el tatuaje.</p>
+      <p class="hint">Arrastra para girar la cámara y usa la rueda o pellizca para acercarte. Pasa el ratón por el cuerpo para ver cómo es la piel en cada sitio. Con el robot parado, arrastra los tiradores del tatuaje: el del centro lo mueve por el cuerpo, el de la esquina cambia el tamaño y el de arriba lo gira. También puedes pinchar donde lo quieres con «Elegir sitio en el cuerpo».</p>
       <div class="actions">
         <button class="btn primary" id="btn-main">Pausar</button>
         <button class="btn" id="btn-restart">Borrar y empezar</button>
         <button class="btn" id="btn-place" aria-pressed="false">Elegir sitio en el cuerpo</button>
+        <button class="btn" id="btn-clean" aria-pressed="false">Ver resultado sin plantilla</button>
         <button class="btn warn" id="btn-jerk">¡Respingo!</button>
         <button class="btn" id="btn-refill">Recargar tinta</button>
       </div>
@@ -281,6 +292,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       <div class="depth">
         <div class="depth-head"><strong>Profundidad de la aguja</strong><span>Últimos 6 s · la franja verde es la profundidad buena de la piel que pisa</span></div>
         <canvas id="depth" aria-label="Gráfica de profundidad de la aguja en milímetros"></canvas>
+      </div>
+      <div class="depth">
+        <div class="depth-head"><strong>Corte de la piel</strong><span id="sec-info">Hasta dónde ha llegado la tinta en cada capa</span></div>
+        <canvas class="section" id="section" aria-label="Corte lateral de la piel: epidermis, dermis y grasa, con la tinta metida en cada capa"></canvas>
+        <div class="sec-row">
+          <label class="toggle"><span><b>Seguir la aguja</b></span><input type="checkbox" class="sw" id="sw-secfollow" checked></label>
+          <div class="field"><div class="field-head"><label for="rng-sec">Dónde corto</label><output id="out-sec">centro</output></div><input type="range" id="rng-sec" min="-100" max="100" step="1" value="0"></div>
+        </div>
       </div>
       <div class="legend" aria-label="Leyenda">
         <span class="l-stencil"><span class="sw-skin"><i></i></span>Plantilla</span>
@@ -319,9 +338,20 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
           <button class="chip design" data-design="mandala" aria-pressed="false">Mandala de puntos</button>
           <button class="chip design" data-design="ola" aria-pressed="false">Olas</button>
           <button class="chip design" data-design="prueba" aria-pressed="false">Prueba de agujas</button>
+          <button class="chip design" data-design="rosa" aria-pressed="false">Rosa sombreada</button>
+          <button class="chip design" data-design="luna" aria-pressed="false">Luna con sombra</button>
+          <button class="chip design" data-design="letras" aria-pressed="false">Letras góticas</button>
+          <button class="chip design" data-design="caligrafia" aria-pressed="false">Caligrafía</button>
           <button class="chip design" data-design="propio" aria-pressed="false">Dibujar el mío</button>
         </div>
         <small class="note" id="design-note"></small>
+        <div class="field" id="f-text" hidden><div class="field-head"><label for="txt-design">Texto</label></div><input type="text" id="txt-design" maxlength="18" autocomplete="off"></div>
+        <h3>Sombreado</h3>
+        <div class="chips" role="group" aria-label="Técnica de sombreado">
+          <button class="chip shadec" data-shade="presion" aria-pressed="true">Por presión · medio péndulo</button>
+          <button class="chip shadec" data-shade="dilucion" aria-pressed="false">Por dilución · grises</button>
+        </div>
+        <small class="note" id="shade-note"></small>
         <div class="pad-wrap" id="pad-wrap" hidden>
           <div class="chips" role="group" aria-label="Técnica del dibujo">
             <button class="chip tech" data-tech="linea" aria-pressed="true">Línea</button>
@@ -433,6 +463,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <h3>Mapa de la piel</h3>
         <div class="chips" role="group" aria-label="Mapa de la piel" id="map-chips"></div>
         <div id="map-legend" hidden><div class="ramp" id="map-ramp"></div><div class="ramp-labels"><span id="map-lo"></span><span id="map-hi"></span></div></div>
+        <label class="toggle"><span><b>Plantilla y pegatinas</b><small>El stencil morado y las pegatinas que sigue la cámara.</small></span><input type="checkbox" class="sw" id="sw-stencil" checked></label>
         <label class="toggle"><span><b>Ver lo que ve el robot</b></span><input type="checkbox" class="sw" id="sw-ghost" checked></label>
         <label class="toggle"><span><b>Marcar la tinta fuera de sitio</b></span><input type="checkbox" class="sw" id="sw-errors" checked></label>
         <label class="toggle"><span><b>Lupa en la aguja</b></span><input type="checkbox" class="sw" id="sw-lens" checked></label>
@@ -454,6 +485,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     <section class="card" aria-label="Cosas para probar">
       <h2>Cosas para probar</h2>
       <ul class="tips">
+        <li><b>Sombras.</b> Elige la rosa o la luna y compara «Por presión» (medio péndulo, solo negro) con «Por dilución» (gris claro, medio y oscuro por capas).</li>
+        <li><b>Letras.</b> Con «Letras góticas» o «Caligrafía» escribe tu texto: el robot hace el contorno y rellena cada trazo.</li>
+        <li><b>Mira dónde queda la tinta.</b> Al terminar, «Ver resultado sin plantilla» quita el stencil, y el «Corte de la piel» enseña cada pinchazo en su capa. Con «Piel fina, profundidad fija» verás tinta en la dermis honda.</li>
         <li><b>Mira la piel.</b> Pon el mapa de «Dolor» o de «Dureza» y pasa el ratón por el cuerpo: costillas, espinilla, codo y tobillo son duros y duelen; tripa y muslo, blandos.</li>
         <li><b>Tatúa donde quieras.</b> Pulsa «Elegir sitio en el cuerpo» y pincha. El cliente se coloca solo y el robot se acerca con su carro.</li>
         <li><b>Mueve al cliente.</b> Dobla el codo o gira la muñeca mientras tatúa: el diseño se deforma con la piel y el robot lo sigue.</li>
@@ -461,7 +495,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <li><b>Abdomen sin sensor de fuerza.</b> La tripa es blanda: la aguja la hunde y se queda corta.</li>
         <li><b>Espinilla seca.</b> Quita la hidratación: sobre el hueso, la piel seca coge peor la tinta.</li>
       </ul>
-      <p class="note">Modelo simplificado: cuerpo liso tipo maniquí generado con formas redondeadas, esqueleto de 21 huesos, mapa de piel aproximado por zonas, brazo robot de tres ejes con muñeca esférica sobre un carro con columna. Las cifras son orientativas.</p>
+      <p class="note">Modelo simplificado: cuerpo liso tipo maniquí generado con formas redondeadas, esqueleto de 21 huesos, mapa de piel y grosores de epidermis, dermis y grasa aproximados por zonas, sombreado y diluciones simplificados, brazo robot de tres ejes con muñeca esférica sobre un carro con columna. Las cifras son orientativas.</p>
     </section>
   </div>
 </div>
@@ -1216,13 +1250,103 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     negro: { label: 'Negro', name: 'negra', rgb: [22, 20, 28] },
     rojo: { label: 'Rojo', name: 'roja', rgb: [178, 32, 36] },
     amarillo: { label: 'Amarillo', name: 'amarilla', rgb: [232, 176, 24] },
-    verde: { label: 'Verde', name: 'verde', rgb: [30, 122, 62] }
+    verde: { label: 'Verde', name: 'verde', rgb: [30, 122, 62] },
+    // Diluciones de negro (grey wash): tinta negra rebajada con agua; nunca oscurece más que su tono
+    gris1: { label: 'Gris claro', name: 'gris claro', rgb: [22, 20, 28], wash: .2 },
+    gris2: { label: 'Gris medio', name: 'gris medio', rgb: [22, 20, 28], wash: .4 },
+    gris3: { label: 'Gris oscuro', name: 'gris oscuro', rgb: [22, 20, 28], wash: .65 }
   };
-  const INK_KEYS = Object.keys(INKS);
+  const INK_KEYS = Object.keys(INKS), WASH_KEYS = INK_KEYS.filter((k) => INKS[k].wash), SOLID_KEYS = INK_KEYS.filter((k) => !INKS[k].wash);
+  const inkSwatch = (k) => (INKS[k].wash ? `rgba(22,20,28,${INKS[k].wash})` : rgbStr(INKS[k].rgb));
   const rgbStr = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
 
   const circle = (r, n = 120, cx = 0, cy = 0) => { const p = []; for (let i = 0; i <= n; i++) { const t = i / n * TAU; p.push([cx + r * cos(t), cy + r * sin(t)]); } return p; };
   const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  const ellArc = (cx, cy, rx, ry, a0, a1, n = 60) => { const p = []; for (let i = 0; i <= n; i++) { const t = a0 + (a1 - a0) * i / n; p.push([cx + rx * cos(t), cy + ry * sin(t)]); } return p; };
+  // Hoja: dos bordes curvos de la base a la punta y el nervio central
+  function leafShape(bx, by, ang, L, W) {
+    const dx = cos(ang), dy = sin(ang), top = [], bot = [];
+    for (let i = 0; i <= 30; i++) { const q = i / 30, w = W * sin(PI * q) ** .8 * (1 - .25 * q); top.push([bx + dx * L * q - dy * w, by + dy * L * q + dx * w]); bot.push([bx + dx * L * q + dy * w, by + dy * L * q - dx * w]); }
+    return { poly: top.concat(bot.reverse().slice(1, -1)), rib: [[bx, by], [bx + dx * L * .9, by + dy * L * .9]] };
+  }
+  const star4 = (x, y, r) => [[x, y - r], [x + r * .22, y - r * .22], [x + r, y], [x + r * .22, y + r * .22], [x, y + r], [x - r * .22, y + r * .22], [x - r, y], [x - r * .22, y - r * .22], [x, y - r]];
+  // Media luna: arco del círculo grande por fuera y del pequeño por dentro
+  function crescent(c2x, c2y, r2) {
+    const d = hypot(c2x, c2y), ux = c2x / d, uy = c2y / d, a = (1 - r2 * r2 + d * d) / (2 * d), hh = sqrt(max(0, 1 - a * a));
+    const P1 = [a * ux - hh * uy, a * uy + hh * ux], P2 = [a * ux + hh * uy, a * uy - hh * ux];
+    let t1 = atan2(P1[1], P1[0]), t2 = atan2(P2[1], P2[0]);
+    const away = atan2(-uy, -ux);
+    // arco exterior de P1 a P2 pasando por el lado contrario al círculo pequeño
+    let span = wrapA(t2 - t1); if (span < 0) span += TAU;
+    const mid = t1 + span / 2;
+    if (abs(wrapA(mid - away)) > PI / 2) span -= TAU;
+    const out = [];
+    for (let i = 0; i <= 90; i++) { const t = t1 + span * i / 90; out.push([cos(t), sin(t)]); }
+    let s1 = atan2(P2[1] - c2y, P2[0] - c2x), s2 = atan2(P1[1] - c2y, P1[0] - c2x), sp2 = wrapA(s2 - s1);
+    const toward = atan2(-c2y, -c2x);
+    if (abs(wrapA(s1 + sp2 / 2 - toward)) > PI / 2) sp2 = sp2 > 0 ? sp2 - TAU : sp2 + TAU;
+    for (let i = 1; i < 60; i++) { const t = s1 + sp2 * i / 60; out.push([c2x + r2 * cos(t), c2y + r2 * sin(t)]); }
+    return out;
+  }
+  // Letras: se escribe el texto en un lienzo y se sacan los contornos de cada letra (cuadrados que avanzan)
+  const FONTS = { letras: '"UnifrakturMaguntia", "Old English Text MT", "Times New Roman", serif', caligrafia: '"Pinyon Script", "Brush Script MT", "Segoe Script", cursive' };
+  const designText = { letras: 'Familia', caligrafia: 'Libertad' };
+  function textRings(text, fontKey) {
+    const fs = 170, cv = document.createElement('canvas'), c = cv.getContext('2d'), font = `${fs}px ${FONTS[fontKey]}`;
+    c.font = font;
+    const W = ceil(c.measureText(text || ' ').width) + 90, H = round(fs * 1.7);
+    cv.width = W; cv.height = H;
+    c.font = font; c.textBaseline = 'middle'; c.fillStyle = '#000'; c.fillText(text || ' ', 45, H / 2);
+    const img = c.getImageData(0, 0, W, H).data;
+    const on = (x, y) => (x >= 0 && y >= 0 && x < W && y < H && img[4 * (y * W + x) + 3] > 127 ? 1 : 0);
+    const KX = 2 * W + 8, key = (x2, y2) => (y2 + 2) * KX + x2 + 2;   // puntos a medio píxel, en doble resolución
+    const segA = [], segB = [], ends = new Map();
+    const addEnd = (k, i) => { const l = ends.get(k); if (l) l.push(i); else ends.set(k, [i]); };
+    const T = (x, y) => key(2 * x + 1, 2 * y), R = (x, y) => key(2 * x + 2, 2 * y + 1), B = (x, y) => key(2 * x + 1, 2 * y + 2), L = (x, y) => key(2 * x, 2 * y + 1);
+    const TABLE = { 1: [[L, B]], 2: [[B, R]], 3: [[L, R]], 4: [[T, R]], 5: [[L, T], [B, R]], 6: [[T, B]], 7: [[L, T]], 8: [[L, T]], 9: [[T, B]], 10: [[T, R], [L, B]], 11: [[T, R]], 12: [[L, R]], 13: [[B, R]], 14: [[L, B]] };
+    for (let y = -1; y < H; y++) for (let x = -1; x < W; x++) {
+      const idx = on(x, y) * 8 + on(x + 1, y) * 4 + on(x + 1, y + 1) * 2 + on(x, y + 1);
+      const segs = TABLE[idx]; if (!segs) continue;
+      for (const [f, g] of segs) { const i = segA.length, a = f(x, y), b = g(x, y); segA.push(a); segB.push(b); addEnd(a, i); addEnd(b, i); }
+    }
+    const used = new Uint8Array(segA.length), rings = [];
+    const pt = (k) => [(k % KX - 2) / 2, (floor(k / KX) - 2) / 2];
+    for (let i0 = 0; i0 < segA.length; i0++) {
+      if (used[i0]) continue;
+      used[i0] = 1;
+      const loop = [segA[i0]];
+      let cur = segB[i0];
+      for (let guard = 0; guard < 200000 && cur !== segA[i0]; guard++) {
+        loop.push(cur);
+        const nx = (ends.get(cur) || []).find((j) => !used[j]);
+        if (nx === undefined) break;
+        used[nx] = 1; cur = segA[nx] === cur ? segB[nx] : segA[nx];
+      }
+      if (loop.length < 14) continue;
+      const P = rdp(loop.map(pt), .7);
+      let area = 0; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; area += a[0] * b[1] - b[0] * a[1]; }
+      if (abs(area) / 2 < 40) continue;
+      rings.push(P.map(([x, y]) => [x / 100, y / 100]));
+    }
+    return rings;
+  }
+  function rdp(P, eps) {
+    if (P.length < 4) return P;
+    const keep = new Uint8Array(P.length); keep[0] = keep[P.length - 1] = 1;
+    const st = [[0, P.length - 1]];
+    while (st.length) {
+      const [i0, i1] = st.pop(), a = P[i0], b = P[i1], dx = b[0] - a[0], dy = b[1] - a[1], L = hypot(dx, dy) || 1;
+      let bi = -1, bd = eps;
+      for (let i = i0 + 1; i < i1; i++) { const d = abs((P[i][0] - a[0]) * dy - (P[i][1] - a[1]) * dx) / L; if (d > bd) { bd = d; bi = i; } }
+      if (bi > 0) { keep[bi] = 1; st.push([i0, bi], [bi, i1]); }
+    }
+    return P.filter((_, i) => keep[i]);
+  }
+  const textEls = (key, outCart) => {
+    const R = textRings(designText[key], key);
+    if (!R.length) return [{ kind: 'line', pts: [[0, 0], [1, 0]], cart: outCart, ink: 'negro' }];
+    return R.map((r) => ({ kind: 'line', pts: r.concat([r[0]]), cart: outCart, ink: 'negro' })).concat([{ kind: 'fill', rings: R, cart: '1205RL', ink: 'negro', angle: .9 }]);
+  };
   const DESIGNS = {
     estrella: { label: 'Estrella náutica', note: 'Contorno 1209RL, líneas 1205RL, mitades en negro y en rojo con relleno sólido de 1207M1.', make() {
       const O = (i) => [cos(-PI / 2 + i * 2 * PI / 5), sin(-PI / 2 + i * 2 * PI / 5)];
@@ -1278,26 +1402,61 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       els.push({ kind: 'fill', poly: rect(1.3, .56, 1.62, 1.0), cart: '1211RM', ink: 'negro' });
       els.push({ kind: 'dots', poly: rect(1.75, 0, 2.05, 1.0), dens: (q) => 1 - q.ny, rMin: 1.0, rMax: 2.8, cart: '1003RL', ink: 'negro' });
       return els;
-    } }
+    } },
+    rosa: { label: 'Rosa', shade: true, note: 'Rosa en negro y grises: contorno 1205RL, detalles de los pétalos con 1003RL y sombra con magnum: curvo 1211RM en la flor y 1207M1 en las hojas.', make() {
+      const cx = 0, cy = -.2, head = [];
+      for (let i = 0; i <= 200; i++) { const t = i / 200 * TAU, r = .72 * (1 + .09 * abs(sin(2.5 * (t + .3)))); head.push([cx + r * cos(t), cy + .8 * r * sin(t)]); }
+      const spiral = [];
+      for (let i = 0; i <= 140; i++) { const t = i / 140 * 2.4 * PI, r = .05 + .42 * t / (2.4 * PI); spiral.push([cx + r * cos(t - 1), cy - .08 + .75 * r * sin(t - 1)]); }
+      const L1 = leafShape(-.3, .36, PI * .82, .78, .2), L2 = leafShape(.3, .4, PI * .12, .72, .19);
+      return [
+        { kind: 'line', pts: head, cart: '1205RL', ink: 'negro' },
+        { kind: 'line', pts: L1.poly.concat([L1.poly[0]]), cart: '1205RL', ink: 'negro' },
+        { kind: 'line', pts: L2.poly.concat([L2.poly[0]]), cart: '1205RL', ink: 'negro' },
+        { kind: 'line', pts: [[0, .4], [.04, .66], [-.02, .92], [.05, 1.15]], cart: '1205RL', ink: 'negro' },
+        { kind: 'line', pts: spiral, cart: '1003RL', ink: 'negro' },
+        { kind: 'line', pts: ellArc(cx, cy + .06, .56, .3, .12 * PI, .88 * PI), cart: '1003RL', ink: 'negro' },
+        { kind: 'line', pts: ellArc(cx - .27, cy - .04, .36, .48, .58 * PI, 1.02 * PI), cart: '1003RL', ink: 'negro' },
+        { kind: 'line', pts: ellArc(cx + .27, cy - .04, .36, .48, -.02 * PI, .42 * PI), cart: '1003RL', ink: 'negro' },
+        { kind: 'line', pts: L1.rib, cart: '1003RL', ink: 'negro' },
+        { kind: 'line', pts: L2.rib, cart: '1003RL', ink: 'negro' },
+        { kind: 'shade', poly: head.slice(0, -1), grad: { rad: true, cx, cy: cy - .06, r0: 0, r1: .78 }, cart: '1211RM' },
+        { kind: 'shade', poly: L1.poly, grad: { ang: PI * .82 }, cart: '1207M1' },
+        { kind: 'shade', poly: L2.poly, grad: { ang: PI * .12 }, cart: '1207M1' }
+      ];
+    } },
+    luna: { label: 'Luna con sombra', shade: true, note: 'Media luna con sombra degradada desde el borde de dentro (1207M1) y estrellas finas con 1003RL.', make() {
+      const c2 = [.44, -.22], r2 = .82, moon = crescent(c2[0], c2[1], r2), d = hypot(c2[0], c2[1]);
+      return [
+        { kind: 'line', pts: moon.concat([moon[0]]), cart: '1205RL', ink: 'negro' },
+        { kind: 'line', pts: star4(1.05, -.88, .2), cart: '1003RL', ink: 'negro' },
+        { kind: 'line', pts: star4(1.25, .15, .13), cart: '1003RL', ink: 'negro' },
+        { kind: 'line', pts: star4(.78, .9, .11), cart: '1003RL', ink: 'negro' },
+        { kind: 'shade', poly: moon, grad: { rad: true, cx: c2[0], cy: c2[1], r0: r2, r1: 1 + d }, cart: '1207M1' }
+      ];
+    } },
+    letras: { label: 'Letras góticas', text: 'letras', note: 'Letra gótica: contorno con 1205RL y cada trazo relleno con el mismo liner. Cambia el texto abajo.', make() { return textEls('letras', '1205RL'); } },
+    caligrafia: { label: 'Caligrafía', text: 'caligrafia', note: 'Letra caligráfica: contorno fino con 1003RL y relleno con 1205RL, que cabe en los trazos finos. Cambia el texto abajo.', make() { return textEls('caligrafia', '1003RL'); } }
   };
   const box = () => ({ u0: -params.size / 2, u1: params.size / 2, v0: -params.size / 2, v1: params.size / 2 });
   function fitElements(els) {
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
     const acc = ([x, y]) => { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y); };
     for (const e of els) {
-      (e.pts || []).forEach(acc); (e.poly || []).forEach(acc);
+      (e.pts || []).forEach(acc); (e.poly || []).forEach(acc); (e.rings || []).forEach((r) => r.forEach(acc));
       if (e.ring) { acc([e.ring.cx - e.ring.r1, e.ring.cy - e.ring.r1]); acc([e.ring.cx + e.ring.r1, e.ring.cy + e.ring.r1]); }
     }
     const B = box();
     const sc = min((B.u1 - B.u0) / (x1 - x0 || 1), (B.v1 - B.v0) / (y1 - y0 || 1));
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     const F = ([x, y]) => ({ u: (x - cx) * sc, v: (y - cy) * sc });
-    return els.map((e) => ({ ...e, pts: e.pts && e.pts.map(F), poly: e.poly && e.poly.map(F), ring: e.ring && { c: F([e.ring.cx, e.ring.cy]), r0: e.ring.r0 * sc, r1: e.ring.r1 * sc } }));
+    return els.map((e) => ({ ...e, pts: e.pts && e.pts.map(F), poly: e.poly && e.poly.map(F), rings: e.rings && e.rings.map((r) => r.map(F)), ring: e.ring && { c: F([e.ring.cx, e.ring.cy]), r0: e.ring.r0 * sc, r1: e.ring.r1 * sc },
+      grad: e.grad && (e.grad.rad ? { rad: true, c: F([e.grad.cx, e.grad.cy]), r0: e.grad.r0 * sc, r1: e.grad.r1 * sc } : { ang: e.grad.ang }) }));
   }
   function mapPadElements(els) {
     const w = params.size, h = params.size * 54 / 140;
     const F = ([x, y]) => ({ u: (x - .5) * w, v: (y - .5) * h });
-    return els.map((e) => ({ ...e, pts: e.pts && e.pts.map(F), poly: e.poly && e.poly.map(F) }));
+    return els.map((e) => ({ ...e, pts: e.pts && e.pts.map(F), poly: e.poly && e.poly.map(F), rings: e.rings && e.rings.map((r) => r.map(F)) }));
   }
   function pointInPoly(p, poly) {
     let inside = false;
@@ -1307,30 +1466,117 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     }
     return inside;
   }
-  function hatch(poly, sp, ang) {
-    const c = cos(ang), s = sin(ang);
-    const R = poly.map((p) => ({ x: p.u * c + p.v * s, y: -p.u * s + p.v * c }));
+  // Pasadas de relleno en zigzag dentro de uno o varios contornos (par-impar: los huecos de las letras se respetan)
+  function hatch(rings, sp, ang, cart) {
+    const c = cos(ang), s = sin(ang), mag = !cart || CARTS[cart].mag, inset = mag ? .3 : .18, minL = mag ? .7 : .25;
+    const R = rings.map((poly) => poly.map((p) => ({ x: p.u * c + p.v * s, y: -p.u * s + p.v * c })));
     const back = (x, y) => ({ u: x * c - y * s, v: x * s + y * c });
     let y0 = Infinity, y1 = -Infinity;
-    for (const p of R) { y0 = min(y0, p.y); y1 = max(y1, p.y); }
+    for (const ring of R) for (const p of ring) { y0 = min(y0, p.y); y1 = max(y1, p.y); }
     const paths = [];
     let curPath = null, prevEnd = null, dir = 1;
     for (let y = y0 + sp / 2; y < y1; y += sp) {
       const xs = [];
-      for (let i = 0; i < R.length; i++) {
-        const a = R[i], b = R[(i + 1) % R.length];
+      for (const ring of R) for (let i = 0; i < ring.length; i++) {
+        const a = ring[i], b = ring[(i + 1) % ring.length];
         if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) xs.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
       }
       xs.sort((p, q) => p - q);
       const segs = [];
-      for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > .7) segs.push([xs[i] + .3, xs[i + 1] - .3]);
-      if (segs.length !== 1) { curPath = null; prevEnd = null; for (const [a, b] of segs) paths.push([back(a, y), back(b, y)]); dir = -dir; continue; }
+      for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > minL) segs.push([xs[i] + inset, xs[i + 1] - inset]);
+      if (segs.length !== 1) { curPath = null; prevEnd = null; for (const [a, b] of segs) paths.push(dir > 0 ? [back(a, y), back(b, y)] : [back(b, y), back(a, y)]); dir = -dir; continue; }
       const [a, b] = segs[0], pa = dir > 0 ? a : b, pb = dir > 0 ? b : a;
       if (curPath && prevEnd && hypot(pa - prevEnd[0], y - prevEnd[1]) < sp * 3) curPath.push(back(pa, y), back(pb, y));
       else { curPath = [back(pa, y), back(pb, y)]; paths.push(curPath); }
       prevEnd = [pb, y]; dir = -dir;
     }
     return paths;
+  }
+  // Recorta un polígono con otro convexo (Sutherland-Hodgman)
+  function clipConvex(poly, clip) {
+    let area = 0; for (let i = 0; i < clip.length; i++) { const a = clip[i], b = clip[(i + 1) % clip.length]; area += a.u * b.v - b.u * a.v; }
+    const sg = area > 0 ? 1 : -1;
+    let out = poly;
+    for (let i = 0; i < clip.length && out.length; i++) {
+      const A = clip[i], B = clip[(i + 1) % clip.length], inp = out; out = [];
+      const side = (p) => sg * ((B.u - A.u) * (p.v - A.v) - (B.v - A.v) * (p.u - A.u));
+      for (let j = 0; j < inp.length; j++) {
+        const P = inp[j], Q = inp[(j + 1) % inp.length], sp = side(P), sq = side(Q);
+        if (sp >= 0) out.push(P);
+        if ((sp >= 0) !== (sq >= 0)) { const t = sp / (sp - sq); out.push({ u: P.u + (Q.u - P.u) * t, v: P.v + (Q.v - P.v) * t }); }
+      }
+    }
+    return out;
+  }
+  // Sombreado. Por presión: «medio péndulo», pasadas que salen de la zona oscura y se van levantando
+  // (menos profundidad, más rápido, menos tinta). Por dilución: capas de gris claro, medio y oscuro, cada una más pequeña.
+  function shadeJobs(el, jobs) {
+    const g = el.grad, poly = el.poly, cart = CARTS[el.cart], sp = cart.w * .5;
+    let P0 = 0, P1 = 1;
+    const ca = g.rad ? 1 : cos(g.ang), sa = g.rad ? 0 : sin(g.ang);
+    if (!g.rad) { P0 = Infinity; P1 = -Infinity; for (const p of poly) { const q = p.u * ca + p.v * sa; P0 = min(P0, q); P1 = max(P1, q); } }
+    const rA = g.rad ? g.r0 : P0, rB = g.rad ? g.r1 : P1;
+    if (params.shadeMode === 'dilucion') {
+      const hAng = g.rad ? .6 : g.ang + PI / 2;
+      for (const [ink, T] of [['gris1', 1], ['gris2', .6], ['gris3', .3]]) {
+        const cut = rA + T * (rB - rA);
+        let clip;
+        if (g.rad) { clip = []; for (let i = 0; i < 72; i++) { const t = TAU * i / 72; clip.push({ u: g.c.u + cut * cos(t), v: g.c.v + cut * sin(t) }); } }
+        else { const E = 1e3, px_ = -sa, py_ = ca; clip = [[rA - E, -E], [cut, -E], [cut, E], [rA - E, E]].map(([a, b]) => ({ u: ca * a + px_ * b, v: sa * a + py_ * b })); }
+        const piece = clipConvex(poly, clip);
+        if (piece.length < 3) continue;
+        for (const path of hatch([piece], cart.w * .55, hAng, el.cart)) { const j = makeLine(path, el.cart, ink, hAng + PI / 2); if (j) jobs.push(j); }
+      }
+      return;
+    }
+    const reach = [1, .62, .34];
+    const addStroke = (pts) => { const j = makeLine(pts, el.cart, 'negro', null); if (j) jobs.push(j); };
+    if (!g.rad) {
+      const px_ = -sa, py_ = ca;
+      let Q0 = Infinity, Q1 = -Infinity;
+      for (const p of poly) { const q = p.u * px_ + p.v * py_; Q0 = min(Q0, q); Q1 = max(Q1, q); }
+      reach.forEach((rc, k) => {
+        for (let q = Q0 + sp * (.5 + k / 3); q < Q1; q += sp) {
+          // tramos de la fila dentro del polígono
+          const xs = [];
+          for (let i = 0; i < poly.length; i++) {
+            const a = poly[i], b = poly[(i + 1) % poly.length], qa = a.u * px_ + a.v * py_, qb = b.u * px_ + b.v * py_;
+            if ((qa <= q && qb > q) || (qb <= q && qa > q)) { const t = (q - qa) / (qb - qa); xs.push((a.u + (b.u - a.u) * t) * ca + (a.v + (b.v - a.v) * t) * sa); }
+          }
+          xs.sort((m, n) => m - n);
+          for (let i = 0; i + 1 < xs.length; i += 2) {
+            const xa = xs[i] + .2, xe = min(xs[i + 1] - .2, P0 + rc * (P1 - P0));
+            if (xe - xa < .8) continue;
+            const pts = [], n = max(2, ceil((xe - xa) / .5)), w0 = 1 - .45 * (xa - P0) / (P1 - P0 || 1);
+            for (let j = 0; j <= n; j++) { const x = xa + (xe - xa) * j / n; pts.push({ u: ca * x + px_ * q, v: sa * x + py_ * q, w: max(.04, w0 * (1 - j / n) ** 1.3) }); }
+            addStroke(pts);
+          }
+        }
+      });
+    } else {
+      const rm = max(sp, (g.r0 + g.r1) / 2), nR = max(12, ceil(TAU * rm / sp));
+      reach.forEach((rc, k) => {
+        for (let i = 0; i < nR; i++) {
+          const t = TAU * (i + k / 3) / nR, dx = cos(t), dy = sin(t), rEnd = g.r0 + rc * (g.r1 - g.r0);
+          // los rayos se juntan hacia el centro: solo unos pocos llegan hasta dentro para no empastar
+          const rMin = g.r0 > .3 * g.r1 ? 0 : g.r0 + (g.r1 - g.r0) * (i % 8 === 0 ? 0 : i % 4 === 0 ? .1 : i % 2 === 0 ? .2 : .32);
+          let inside = false, ra = 0;
+          for (let r = max(0, g.r0 - 1); r <= g.r1 + 1; r += .3) {
+            const now = pointInPoly({ u: g.c.u + dx * r, v: g.c.v + dy * r }, poly);
+            if (now && !inside) ra = max(r + .2, rMin);
+            if ((!now || r + .3 > g.r1 + 1) && inside) {
+              const re = min(r - .2, rEnd);
+              if (re - ra > .8) {
+                const pts = [], n = max(2, ceil((re - ra) / .5)), w0 = 1 - .45 * clamp((ra - g.r0) / (g.r1 - g.r0), 0, 1);
+                for (let j = 0; j <= n; j++) { const r2 = ra + (re - ra) * j / n; pts.push({ u: g.c.u + dx * r2, v: g.c.v + dy * r2, w: max(.04, w0 * (1 - j / n) ** 1.3) }); }
+                addStroke(pts);
+              }
+            }
+            inside = now;
+          }
+        }
+      });
+    }
   }
   function dotPath(pts, sp) {
     const out = [{ u: pts[0].u, v: pts[0].v, hits: 1 }];
@@ -1396,17 +1642,18 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (clean.length < 2) return null;
     const cum = [0];
     for (let i = 1; i < clean.length; i++) cum.push(cum[i - 1] + hypot(clean[i].u - clean[i - 1].u, clean[i].v - clean[i - 1].v));
-    return { type: 'line', pts: clean, cum, len: cum[cum.length - 1], hint: 0, cart, ink, spin };
+    return { type: 'line', pts: clean, cum, len: cum[cum.length - 1], hint: 0, cart, ink, spin, hasW: clean.some((p) => p.w != null) };
   }
   function buildJobs(els) {
     const jobs = [], sten = [];
     for (const el of els) {
       if (el.kind === 'line') { sten.push({ pts: el.pts, closed: false }); const j = makeLine(el.pts, el.cart, el.ink, null); if (j) jobs.push(j); }
       else if (el.kind === 'fill') {
-        sten.push({ pts: el.poly, closed: true });
+        const rings = el.rings || [el.poly];
+        if (!el.rings) sten.push({ pts: el.poly, closed: true });
         const c = CARTS[el.cart], sp = c.mag ? c.w * .55 : c.w * .7, ang = el.angle || 0;
-        for (const path of hatch(el.poly, sp, ang)) { const j = makeLine(path, el.cart, el.ink, ang + PI / 2); if (j) jobs.push(j); }
-      } else if (el.kind === 'dots') {
+        for (const path of hatch(rings, sp, ang, el.cart)) { const j = makeLine(path, el.cart, el.ink, c.mag ? ang + PI / 2 : null); if (j) { j.fill = true; jobs.push(j); } }
+      } else if (el.kind === 'shade') { const n0 = jobs.length; shadeJobs(el, jobs); for (let i = n0; i < jobs.length; i++) jobs[i].shade = true; } else if (el.kind === 'dots') {
         let dots;
         if (el.pts) { sten.push({ pts: el.pts, closed: false }); dots = dotPath(el.pts, el.spacing || 1.2); }
         else { const region = el.poly ? polyRegion(el.poly) : ringRegion(el.ring); sten.push(...region.outline); dots = stipple(region, el.dens || (() => .6), el.rMin || .9, el.rMax || 2.4, 11); }
@@ -1430,11 +1677,12 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     st.hint = i;
     const seg = st.cum[i + 1] - st.cum[i], f = seg > 0 ? clamp((s - st.cum[i]) / seg, 0, 1) : 0;
     o.u = st.pts[i].u + (st.pts[i + 1].u - st.pts[i].u) * f; o.v = st.pts[i].v + (st.pts[i + 1].v - st.pts[i].v) * f;
+    o.w = st.hasW ? st.pts[i].w + (st.pts[i + 1].w - st.pts[i].w) * f : 1;
     return o;
   }
   function jobPoint(k, s, o) {
     const st = strokes[k];
-    if (st.type === 'dots') { const d = st.dots[min(st.dots.length - 1, floor(s))]; o.u = d.u; o.v = d.v; return o; }
+    if (st.type === 'dots') { const d = st.dots[min(st.dots.length - 1, floor(s))]; o.u = d.u; o.v = d.v; o.w = 1; return o; }
     return pointAt(st, s, o);
   }
   const cartFor = (k) => (params.cart !== 'auto' ? params.cart : strokes[min(k, strokes.length - 1)].cart);
@@ -1507,7 +1755,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   const SLOT_Z = -190, CUP_Z = -95;
   const SLOT = {};
   CART_KEYS.forEach((k, i) => { SLOT[k] = { x: 280 + i * 28, z: SLOT_Z }; });
-  const CUPS = { negro: { x: 262, z: CUP_Z }, rojo: { x: 288, z: CUP_Z }, amarillo: { x: 314, z: CUP_Z }, verde: { x: 340, z: CUP_Z } };
+  const CUPS = { negro: { x: 262, z: CUP_Z }, rojo: { x: 288, z: CUP_Z }, amarillo: { x: 314, z: CUP_Z }, verde: { x: 340, z: CUP_Z }, gris1: { x: 262, z: CUP_Z + 32 }, gris2: { x: 288, z: CUP_Z + 32 }, gris3: { x: 314, z: CUP_Z + 32 } };
   const RINSE = { x: 376, z: CUP_Z }, PAPER = { x: 418, z: CUP_Z };
 
   // =====================================================================
@@ -1516,7 +1764,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   const params = {
     move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, speed: 18,
     cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true,
-    shave: true, hydrate: true, numb: false, size: 70, rot: 0, poseMode: 'auto',
+    shave: true, hydrate: true, numb: false, size: 70, rot: 0, poseMode: 'auto', shadeMode: 'presion', showStencil: true,
     showGhost: true, showErrors: true, showLens: true, map: 'none', tone: 1
   };
   const BASE = { move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true, shave: true, hydrate: true, numb: false };
@@ -1559,7 +1807,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   let runNo = 0, zoneInfo = null;
   const tool = { cart: null, ink: null, level: 0, prevInk: null, contam: 0 };
   let svc = null, pendingSvc = null;
-  function resetStats() { stats = { n: 0, sumE: 0, maxE: 0, within: 0, depthOK: 0, inkOK: 0, colorOK: 0, holds: 0, flinches: 0, refills: 0, changes: 0, rinses: 0, time: 0 }; }
+  function resetStats() { stats = { lay: [0, 0, 0, 0, 0], n: 0, sumE: 0, maxE: 0, within: 0, depthOK: 0, inkOK: 0, colorOK: 0, holds: 0, flinches: 0, refills: 0, changes: 0, rinses: 0, time: 0 }; }
   resetStats();
 
   function pushHist(S) { hHead = (hHead + 1) % HN; const o = hHead * NK; for (let i = 0; i < NK; i++) hist[o + i] = S[KEYS[i]]; histPose[hHead] = S.pose; }
@@ -1677,8 +1925,10 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const hairy = !params.shave && sk.hair > .2 ? sk.hair : 0;
     const take = (1 - .45 * sk.dry * (params.hydrate ? .3 : 1)) * (1 - .5 * hairy);
     const e = hypot(u - ref.u, v - ref.v);
-    const h = { u, v, s: rob.spin, c: tool.cart, col: inkRGB(), f, take, spread: 1 + .6 * hairy, d: de, lo: sk.lo, hi: sk.hi, e };
+    const h = { u, v, s: rob.spin, c: tool.cart, col: inkRGB(), f, take, spread: 1 + .6 * hairy, d: de, lo: sk.lo, hi: sk.hi, e, w: ref.w == null ? 1 : ref.w, ink: tool.ink, wash: tool.ink && INKS[tool.ink].wash ? tool.ink : null };
     hits.push(h); stamp(h);
+    const L = skinLayers(sk);
+    stats.lay[de < L.epi ? 0 : de < sk.lo ? 1 : de <= sk.hi ? 2 : de <= L.derm ? 3 : 4]++;
     lastHit = { u: INV.u, v: INV.v };
     stats.n++; stats.sumE += e; stats.maxE = max(stats.maxE, e);
     if (e <= TOL) stats.within++;
@@ -1801,7 +2051,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       INV2.u = ref.u; INV2.v = ref.v;
       for (let i = 0; i < 3; i++) { inv(rob.x + rob.dx * t, rob.y + rob.dy * t, rob.z + rob.dz * t, Kn, INV2, ref.u, ref.v); if (INV2.far) break; t -= INV2.depth; }
       const sk = skinAt(ref.u, ref.v);
-      eT = clamp(t + (params.zoneDepth ? sk.dC : 1.2) + (params.force ? sk.soft * .6 : 0), 0, 12);
+      // sombreado por presión: con la mano ligera la aguja entra menos (parte alta de la franja buena)
+      const dGood = params.zoneDepth ? sk.dC : 1.2, w = ref.w == null ? 1 : ref.w, dT = w < 1 ? sk.lo + .06 + (dGood - sk.lo - .06) * w : dGood;
+      eT = clamp(t + dT + (params.force ? sk.soft * .6 : 0), 0, 12);
     }
     rob.e += (eT - rob.e) * min(1, DT / .008);
     tip.x = rob.x + rob.dx * rob.e; tip.y = rob.y + rob.dy * rob.e; tip.z = rob.z + rob.dz * rob.e;
@@ -1827,7 +2079,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (running) {
       stats.time += DT;
       if (mode === 'ink' && st.type === 'line' && inSkin && (!params.safety || tipErr < .8)) {
-        const ds = params.speed * DT;
+        const ds = params.speed * DT * (st.hasW ? 1 + 1.3 * (1 - (Dp.w == null ? 1 : Dp.w)) : 1);
         cur.s += ds;
         useInk(CARTS[tool.cart].use * ds);
         if (cur.s >= st.len) { pointAt(st, st.len, liftD); cur.k++; cur.s = 0; mode = 'lift'; }
@@ -1923,6 +2175,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (!strokes.length || !CH) return;
     for (const s of strokes) if (s.hint !== undefined) s.hint = 0;
     running = true; paused = false; cur = { k: 0, s: 0 }; svc = null; pendingSvc = null; dotPh = 'move'; pendingStart = false;
+    if (cleanView) setClean(false);
     copyS(cam.S, Sref);
     INV.far = true;
     if (tool.cart !== cartFor(0) || tool.ink !== inkFor(0) || (params.inkSensor && tool.level < .5)) startService();
@@ -1946,6 +2199,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     history.unshift({ n: runNo, design: designSrc.label, zone: zoneInfo ? zoneInfo.label : '–', cfg: describeCfg(), mean: stats.sumE / n, ...r, holds: stats.holds, flinches: stats.flinches, refills: stats.refills, changes: stats.changes, verdict });
     renderHistory();
     updateButtons();
+    showToast('Terminado · «Ver resultado sin plantilla» para verlo limpio');
   }
   function describeCfg() {
     const p = params, yes = (b) => (b ? 'sí' : 'no');
@@ -1961,37 +2215,56 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // TINTA SOBRE LA PIEL (textura en coordenadas del tatuaje)
   // =====================================================================
   const patchCanvas = document.createElement('canvas'), pc = patchCanvas.getContext('2d');
-  let PPM = 8;
+  // Capas: plantilla y pegatinas, grises diluidos (cada uno no oscurece más que su tono), tinta y marcas de error
+  const mkLayer = () => { const c = document.createElement('canvas'); return { c, x: c.getContext('2d') }; };
+  const LY = { sten: mkLayer(), ink: mkLayer(), err: mkLayer() };
+  WASH_KEYS.forEach((k) => { LY[k] = mkLayer(); });
+  let PPM = 8, cleanView = false;
+  const setPatchSize = (n) => { patchCanvas.width = patchCanvas.height = n; for (const k in LY) LY[k].c.width = LY[k].c.height = n; };
   const px = (u) => (u + CH.Rc) * PPM, py = (v) => (v + CH.Rc) * PPM;
   let patchDirty = true;
-  const dot = (x, y, r, col) => { pc.fillStyle = col; pc.beginPath(); pc.arc(x, y, r, 0, TAU); pc.fill(); };
+  const dotL = (x_, X, Y, r, col) => { x_.fillStyle = col; x_.beginPath(); x_.arc(X, Y, r, 0, TAU); x_.fill(); };
   const markerPos = () => { const a = params.size / 2 + 14, b = params.size / 2 + 10; return [[-a, -b], [a, -b], [-a, b], [a, b]]; };
+  // Capas de la piel en un punto: epidermis, franja buena de la dermis, fondo de la dermis (debajo, grasa)
+  const skinLayers = (sk) => ({ epi: .07 + .05 * sk.dC, derm: sk.hi + .45 + .25 * sk.dC });
   function stamp(h) {
     const L = LAYOUT[h.c], dia = CARTS[h.c].dia, cs = cos(h.s), sn = sin(h.s), r = dia * .58 * PPM * h.spread;
+    const X = h.wash ? LY[h.wash].x : LY.ink.x, wf = h.w >= 1 ? 1 : .06 + .94 * h.w ** 1.8;
     for (const p of L) {
       const x = px(h.u + cs * p.a - sn * p.b), y = py(h.v + sn * p.a + cs * p.b), dn = h.d - p.z;
-      if (h.f <= 0) { dot(x, y, r * 1.4, 'rgba(205,70,60,.08)'); continue; }
+      if (h.f <= 0) { dotL(LY.ink.x, x, y, r * 1.4, 'rgba(205,70,60,.08)'); continue; }
       if (dn < .15) continue;
       let a = .5;
       if (dn < h.lo) a = .12;
-      else if (dn > h.hi) dot(x, y, r * 2.8, 'rgba(38,64,140,.06)');
-      dot(x, y, r, `rgba(${h.col[0]},${h.col[1]},${h.col[2]},${(a * (.25 + .75 * h.f) * h.take / (h.spread * h.spread)).toFixed(3)})`);
+      else if (dn > h.hi) dotL(LY.ink.x, x, y, r * 2.8, 'rgba(38,64,140,.06)');
+      const al = a * (.25 + .75 * h.f) * h.take / (h.spread * h.spread) * wf;
+      if (h.wash) dotL(X, x, y, r, `rgba(0,0,0,${min(1, al * 1.8).toFixed(3)})`);
+      else dotL(X, x, y, r, `rgba(${h.col[0]},${h.col[1]},${h.col[2]},${al.toFixed(3)})`);
     }
-    if (params.showErrors && h.e > TOL) dot(px(h.u), py(h.v), .2 * PPM, 'rgba(227,38,29,.5)');
+    if (h.e > TOL) dotL(LY.err.x, px(h.u), py(h.v), .2 * PPM, 'rgba(227,38,29,.5)');
     patchDirty = true;
+  }
+  function composePatch() {
+    pc.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
+    if (params.showStencil && !cleanView) pc.drawImage(LY.sten.c, 0, 0);
+    for (const k of WASH_KEYS) { pc.globalAlpha = INKS[k].wash; pc.drawImage(LY[k].c, 0, 0); }
+    pc.globalAlpha = 1;
+    pc.drawImage(LY.ink.c, 0, 0);
+    if (params.showErrors && !cleanView) pc.drawImage(LY.err.c, 0, 0);
   }
   function redrawPatch() {
     if (!CH) return;
-    pc.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
-    pc.save();
-    pc.strokeStyle = params.tone >= 2 ? 'rgba(214,200,255,.85)' : 'rgba(90,63,192,.7)';
-    pc.lineWidth = .35 * PPM; pc.lineCap = 'round'; pc.lineJoin = 'round';
-    pc.setLineDash([2.2 * PPM, 1.6 * PPM]);
-    pc.beginPath();
-    for (const s of stencil) { s.pts.forEach((p, i) => (i ? pc.lineTo(px(p.u), py(p.v)) : pc.moveTo(px(p.u), py(p.v)))); if (s.closed) pc.closePath(); }
-    pc.stroke();
-    pc.restore();
-    for (const [mu, mv] of markerPos()) { dot(px(mu), py(mv), 3.4 * PPM, '#ffffff'); dot(px(mu), py(mv), 1.3 * PPM, '#111111'); }
+    for (const k in LY) LY[k].x.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
+    const x_ = LY.sten.x;
+    x_.save();
+    x_.strokeStyle = params.tone >= 2 ? 'rgba(214,200,255,.85)' : 'rgba(90,63,192,.7)';
+    x_.lineWidth = .35 * PPM; x_.lineCap = 'round'; x_.lineJoin = 'round';
+    x_.setLineDash([2.2 * PPM, 1.6 * PPM]);
+    x_.beginPath();
+    for (const st of stencil) { st.pts.forEach((p, i) => (i ? x_.lineTo(px(p.u), py(p.v)) : x_.moveTo(px(p.u), py(p.v)))); if (st.closed) x_.closePath(); }
+    x_.stroke();
+    x_.restore();
+    for (const [mu, mv] of markerPos()) { dotL(x_, px(mu), py(mv), 3.4 * PPM, '#ffffff'); dotL(x_, px(mu), py(mv), 1.3 * PPM, '#111111'); }
     for (const h of hits) stamp(h);
     patchDirty = true;
   }
@@ -2153,7 +2426,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const cupMat = new THREE.MeshStandardMaterial({ color: 0x2a2833, roughness: .45, side: THREE.DoubleSide });
     const cupGeo = new THREE.CylinderGeometry(11, 9, 16, 28, 1, true), surfGeo = new THREE.CircleGeometry(10.3, 28);
     const cupAt = (p, liquid) => { stMesh(cupGeo, cupMat, p.x, ST.top + 8, p.z); const s = new THREE.Mesh(surfGeo, liquid); s.rotation.x = -PI / 2; s.position.set(p.x, ST.top + 13, p.z); robotRoot.add(s); };
-    for (const k of INK_KEYS) cupAt(CUPS[k], new THREE.MeshStandardMaterial({ color: rgbStr(INKS[k].rgb), roughness: .12, metalness: .1 }));
+    for (const k of INK_KEYS) { const w = INKS[k].wash, c = w ? [0, 1, 2].map((i) => round(215 + (INKS[k].rgb[i] - 215) * w)) : INKS[k].rgb; cupAt(CUPS[k], new THREE.MeshStandardMaterial({ color: rgbStr(c), roughness: .12, metalness: .1 })); }
     cupAt(RINSE, new THREE.MeshStandardMaterial({ color: 0x9fd3f0, roughness: .05, transparent: true, opacity: .6 }));
     stMesh(new THREE.BoxGeometry(30, 3, 30), new THREE.MeshStandardMaterial({ color: 0xf6f5f1, roughness: .95 }), PAPER.x, ST.top + 1.5, PAPER.z);
 
@@ -2365,11 +2638,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     }
     updateBedProps();
     updateRobot();
-    ghost.visible = params.showGhost && !!CH;
+    ghost.visible = params.showGhost && !!CH && !cleanView;
     if (ghost.visible) updateGhost(bones(Sest));
-    targetDot.visible = running && aim.ok;
+    targetDot.visible = running && aim.ok && !cleanView;
     targetDot.position.set(aim.x, aim.y, aim.z);
-    if (patchDirty && now - lastUpload > 80) { patchTex.needsUpdate = true; patchDirty = false; lastUpload = now; }
+    if (patchDirty && now - lastUpload > 80) { composePatch(); patchTex.needsUpdate = true; patchDirty = false; lastUpload = now; }
     if (follow) {
       const k = .12, ddx = (tip.x - controls.target.x) * k, ddy = (tip.y - controls.target.y) * k, ddz = (tip.z - controls.target.z) * k;
       camMain.position.x += ddx; camMain.position.y += ddy; camMain.position.z += ddz;
@@ -2407,7 +2680,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     renderer.render(scene, camLens);
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, SW_, SH_);
-    robotRoot.visible = true; ghost.visible = params.showGhost; lensGroup.visible = false;
+    robotRoot.visible = true; ghost.visible = params.showGhost && !cleanView; lensGroup.visible = false;
   }
 
   // =====================================================================
@@ -2551,10 +2824,15 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       showToast('El robot va justo para llegar a esta zona');
     }
     const psi = atan2(wc.x - best.x, wc.z - best.z);
-    RFfrom.O = { ...RF.O }; RFfrom.psi = RF.psi; RFto.O = best; RFto.psi = RF.psi + wrapA(psi - RF.psi); cartT = 0;
+    RFfrom.O = { ...RF.O }; RFfrom.psi = RF.psi; RFto.O = best; RFto.psi = RF.psi + wrapA(psi - RF.psi);
+    // si apenas cambia, el carro se queda donde está
+    if (hypot(best.x - RF.O.x, best.y - RF.O.y, best.z - RF.O.z) < 40 && abs(wrapA(psi - RF.psi)) < .12) { RFto.O = { ...RF.O }; RFto.psi = RF.psi; cartT = 1; } else cartT = 0;
   }
-  function selectAnchor(anchor, label) {
-    const ch = choosePose(anchor);
+  function selectAnchor(anchor, label, autoStart = false, keepPose = false) {
+    // al arrastrar el tatuaje el cliente no cambia de postura mientras el sitio siga mirando más o menos hacia arriba
+    let ch = null;
+    if (keepPose && params.poseMode === 'auto') { const o = anchorWorld(anchor, { R: pose.R, t: pose.t, ang: pose.base }, {}); if (o.ny > .45) ch = { name: pose.name, ang: pose.base.slice() }; }
+    if (!ch) ch = choosePose(anchor);
     pose.name = ch.name; pose.R = POSES[ch.name].R.slice(); pose.t = POSES[ch.name].t.slice();
     pose.base = ch.ang; pose.user.fill(0);
     if (!poseSnap || poseSnap.R.join() !== pose.R.join()) { pose.cur = ch.ang.slice(); }
@@ -2570,7 +2848,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const Rc = params.size * .71 + 28;
     CH = buildChart(anchor, Rc);
     PPM = min(8, 1600 / (2 * Rc));
-    patchCanvas.width = patchCanvas.height = ceil(2 * Rc * PPM);
+    setPatchSize(ceil(2 * Rc * PPM));
     const Aw = anchorWorld(anchor, { R: pose.R, t: pose.t, ang: pose.base }, {});
     zoneInfo = { label: label || anchor.name, anchor, world: Aw };
     // el cuerpo se coloca antes de calcular dónde va el robot (apoyabrazos incluidos)
@@ -2581,19 +2859,30 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     buildDesign();
     buildPatchMesh();
     resetRun();
-    pendingStart = true;
+    pendingStart = autoStart;
     INV.far = true;
     renderZoneCard();
     syncControls();
   }
-  function selectZone(key) {
+  function selectZone(key, autoStart = false) {
     const z = ZONES[key];
     const hit = raycastBind(vadd(z.p, vmul(z.dir, 260)), vmul(z.dir, -1), z.k);
     if (!hit) return;
     currentZoneKey = key;
-    selectAnchor(anchorFromHit(hit.tri, hit.l0, hit.l1, hit.l2), z.label);
+    selectAnchor(anchorFromHit(hit.tri, hit.l0, hit.l1, hit.l2), z.label, autoStart);
   }
   let currentZoneKey = 'antebrazo';
+  // Vista previa mientras se arrastra el tatuaje o sus tiradores: rehace el mapa y el diseño sin mover al cliente ni al robot
+  function previewAnchor(anchor, label) {
+    const Rc = params.size * .71 + 28;
+    CH = buildChart(anchor, Rc);
+    PPM = min(8, 1600 / (2 * Rc));
+    setPatchSize(ceil(2 * Rc * PPM));
+    zoneInfo = { ...zoneInfo, label: label || anchor.name, anchor };
+    buildDesign(); buildPatchMesh(); resetRun();
+    pendingStart = false; INV.far = true;
+    $('#zone-pill-txt').textContent = zoneInfo.label;
+  }
   function reanchor() { if (zoneInfo) { const a = zoneInfo.anchor; selectAnchor(anchorFromHit(a.tri, a.l[0], a.l[1], a.l[2]), zoneInfo.label); } }
 
   // =====================================================================
@@ -2610,7 +2899,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     else if (mode === 'svc') text = svc.steps[svc.i].label;
     else {
       text = { idle: 'Preparado', approach: 'Acercándose a la piel', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Retirando la aguja', svclift: 'Retirando la aguja para ir a la estación', hold: 'Parada de seguridad', dry: 'Sin tinta · dale a «Recargar tinta»', done: 'Terminado' }[mode];
-      if (mode === 'ink' && strokes[cur.k]) text = strokes[cur.k].type === 'dots' ? 'Puntillismo' : strokes[cur.k].spin != null ? 'Relleno sólido' : 'Tatuando línea';
+      if (mode === 'ink' && strokes[cur.k]) { const q = strokes[cur.k]; text = q.type === 'dots' ? 'Puntillismo' : q.shade ? (INKS[q.ink].wash ? `Sombreado con ${INKS[q.ink].name}` : 'Sombreado a medio péndulo') : q.fill ? 'Relleno sólido' : 'Tatuando línea'; }
     }
     if (!params.tracking && running && !paused) text += ' · a ciegas';
     const key = kind + text;
@@ -2699,7 +2988,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     size: ['#rng-size', '#out-size', (v) => v, (p) => p, (p) => `${fmt(p / 10, 1)} cm`],
     rot: ['#rng-rot', '#out-rot', (v) => v, (p) => p, (p) => `${p}°`]
   };
-  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', zoneDepth: '#sw-zonedepth', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', rinse: '#sw-rinse', shave: '#sw-shave', hydrate: '#sw-hydrate', numb: '#sw-numb', showGhost: '#sw-ghost', showErrors: '#sw-errors', showLens: '#sw-lens' };
+  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', zoneDepth: '#sw-zonedepth', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', rinse: '#sw-rinse', shave: '#sw-shave', hydrate: '#sw-hydrate', numb: '#sw-numb', showGhost: '#sw-ghost', showStencil: '#sw-stencil', showErrors: '#sw-errors', showLens: '#sw-lens' };
   let jointSel = 'foreL';
   function syncControls() {
     for (const [k, [rid, oid, , toUI, label]] of Object.entries(RANGES)) { $(rid).value = toUI(params[k]); $(oid).textContent = label(params[k]); }
@@ -2729,8 +3018,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
 
   $('#cart-chips').innerHTML = ['<button class="chip cartc" data-cart="auto" aria-pressed="true">Según el diseño</button>']
     .concat(CART_KEYS.map((k) => `<button class="chip cartc" data-cart="${k}" aria-pressed="false"><i class="dot" style="background:${CARTS[k].color}"></i>${k}</button>`)).join('');
-  $('#ink-list').innerHTML = INK_KEYS.map((k) => `<span><i style="background:${rgbStr(INKS[k].rgb)}"></i>${INKS[k].label}</span>`).join('') + '<span><i style="background:#9fd3f0"></i>Agua</span><span><i style="background:#f6f5f1"></i>Papel</span>';
-  $('#pad-inks').innerHTML = INK_KEYS.map((k, i) => `<button class="chip pink" data-ink="${k}" aria-pressed="${i === 0}"><i class="dot" style="background:${rgbStr(INKS[k].rgb)}"></i>${INKS[k].label}</button>`).join('');
+  $('#ink-list').innerHTML = INK_KEYS.map((k) => `<span><i style="background:${inkSwatch(k)}"></i>${INKS[k].label}</span>`).join('') + '<span><i style="background:#9fd3f0"></i>Agua</span><span><i style="background:#f6f5f1"></i>Papel</span>';
+  $('#pad-inks').innerHTML = INK_KEYS.map((k, i) => `<button class="chip pink" data-ink="${k}" aria-pressed="${i === 0}"><i class="dot" style="background:${inkSwatch(k)}"></i>${INKS[k].label}</button>`).join('');
   $('#zone-chips').innerHTML = Object.entries(ZONES).map(([k, z]) => `<button class="chip zone" data-zone="${k}" aria-pressed="false">${z.label}</button>`).join('');
   $('#joint-chips').innerHTML = JOINT_UI.map(([b, lab]) => `<button class="chip jointc" data-j="${b}" aria-pressed="false">${lab}</button>`).join('');
   $('#map-chips').innerHTML = ['<button class="chip mapc" data-map="none" aria-pressed="true">Sin mapa</button>'].concat(Object.entries(MAPS).map(([k, m]) => `<button class="chip mapc" data-map="${k}" aria-pressed="false">${m.label}</button>`)).join('');
@@ -2748,7 +3037,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       const was = params[k];
       params[k] = e.target.checked;
       if (k === 'tracking' && was && !params.tracking) copyS(cam.S, Sref);
-      if (k === 'showErrors') redrawPatch();
+      if (k === 'showErrors' || k === 'showStencil') patchDirty = true;
       if (!k.startsWith('show')) clearScenario();
       syncControls();
     });
@@ -2757,7 +3046,36 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     designSrc = { ...DESIGNS[key], key };
     $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.design === key)));
     $('#pad-wrap').hidden = true;
+    const tk = designSrc.text;
+    $('#f-text').hidden = !tk;
+    if (tk) {
+      $('#txt-design').value = designText[tk];
+      // las letras necesitan su fuente cargada; si tarda, se rehace el diseño cuando llega
+      if (document.fonts && document.fonts.load) document.fonts.load(`170px ${FONTS[tk]}`, designText[tk]).then(() => { if (designSrc.key === key && !running) { buildDesign(); resetRun(); } }).catch(() => {});
+    }
     buildDesign();
+    syncShadeNote();
+  }
+  function syncShadeNote() {
+    $$('.shadec').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shade === params.shadeMode)));
+    const t = params.shadeMode === 'presion'
+      ? 'Solo tinta negra. La máquina entra por lo oscuro y sale en abanico levantando la mano: al final de cada pasada pincha menos hondo, va más rápida y deja menos tinta. Tres tandas de pasadas, cada una más corta.'
+      : 'Negro rebajado con agua en tres vasos. Primero gris claro en toda la sombra, luego el medio y al final el oscuro solo en lo más oscuro. Cada gris nunca oscurece más que su tono.';
+    $('#shade-note').textContent = t + (designSrc && designSrc.shade ? '' : ' (El diseño elegido no lleva sombra: prueba la rosa o la luna.)');
+  }
+  $$('.shadec').forEach((b) => b.addEventListener('click', () => { params.shadeMode = b.dataset.shade; syncShadeNote(); if (designSrc && designSrc.shade) { buildDesign(); resetRun(); } }));
+  let textTimer = 0;
+  $('#txt-design').addEventListener('input', (e) => {
+    const tk = designSrc && designSrc.text; if (!tk) return;
+    designText[tk] = e.target.value.trim() || ' ';
+    clearTimeout(textTimer); textTimer = setTimeout(() => { buildDesign(); resetRun(); }, 350);
+  });
+  $('#btn-clean').addEventListener('click', () => setClean(!cleanView));
+  function setClean(on) {
+    cleanView = on; patchDirty = true;
+    $('#btn-clean').setAttribute('aria-pressed', String(on));
+    $('#btn-clean').textContent = on ? 'Volver a poner la plantilla' : 'Ver resultado sin plantilla';
+    if (on) { $$('.view').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.view === 'zona'))); setView('zona'); }
   }
   $$('.scn').forEach((b) => b.addEventListener('click', () => {
     if (!NV) return;
@@ -2766,7 +3084,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (sc.design) setDesign(sc.design);
     params.poseMode = 'auto';
     $$('.scn').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-    selectZone(sc.zone);
+    selectZone(sc.zone, true);
   }));
   $$('.view').forEach((b) => b.addEventListener('click', () => { $$('.view').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); setView(b.dataset.view); }));
   $$('.tspeed').forEach((b) => b.addEventListener('click', () => { timeScale = +b.dataset.t; $$('.tspeed').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
@@ -2774,7 +3092,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   $$('.design').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.design;
     if (id === 'propio') { $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); $('#pad-wrap').hidden = false; sizePad(); return; }
-    setDesign(id); syncControls(); resetRun(); if (CH) startRun();
+    setDesign(id); syncControls(); resetRun();
   }));
   $$('.zone').forEach((b) => b.addEventListener('click', () => { if (!NV) return; clearScenario(); selectZone(b.dataset.zone); }));
   $$('.pose').forEach((b) => b.addEventListener('click', () => { params.poseMode = b.dataset.pose; syncControls(); reanchor(); }));
@@ -2796,6 +3114,149 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   $('#btn-restart').addEventListener('click', () => { if (!CH) return; resetRun(); startRun(); });
   $('#btn-jerk').addEventListener('click', triggerJerk);
   $('#btn-refill').addEventListener('click', () => requestService('svc'));
+  // Tiradores sobre el tatuaje: mover (centro), tamaño (esquina) y girar (arriba)
+  const HND = { move: $('#h-move'), size: $('#h-size'), rot: $('#h-rot') };
+  let hDrag = null, hVec = null;
+  const hScreen = {};
+  function handleSpots() {
+    const r = params.size * .5 + 6;
+    return { move: [0, 0], size: [r * .72, r * .72], rot: [0, -r - 8] };
+  }
+  function updateHandles() {
+    const show = !!(renderer && CH && !running && !cleanView && NV);
+    for (const k in HND) HND[k].hidden = !show;
+    if (!show) return;
+    if (!hVec) hVec = new THREE.Vector3();
+    const sp = handleSpots();
+    for (const k in HND) {
+      surfB(sp[k][0], sp[k][1], Krender, SQ, 1);
+      hVec.set(SQ.x, SQ.y, SQ.z).project(camMain);
+      const x = (hVec.x + 1) / 2 * SW_, y = (1 - hVec.y) / 2 * SH_;
+      hScreen[k] = [x, y];
+      const off = hVec.z > 1 || x < 0 || y < 0 || x > SW_ || y > SH_;
+      HND[k].hidden = off;
+      HND[k].style.left = x + 'px'; HND[k].style.top = y + 'px';
+    }
+  }
+  function stagePt(e) { const r = stageEl.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  for (const [k, el] of Object.entries(HND)) {
+    el.addEventListener('pointerdown', (e) => {
+      if (!zoneInfo) return;
+      e.preventDefault(); e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      controls.enabled = false;
+      const c = hScreen.move, p = stagePt(e);
+      hDrag = { k, id: e.pointerId, t: 0, anchor: zoneInfo.anchor, label: zoneInfo.label, size0: params.size, rot0: params.rot, d0: hypot(p[0] - c[0], p[1] - c[1]) || 1, a0: atan2(p[1] - c[1], p[0] - c[0]), c: c.slice() };
+      if (k === 'rot') {
+        // sentido de giro en pantalla: hacia dónde va el eje v del diseño visto desde la cámara
+        const R = params.size * .4, pr = (u, v) => { surfB(u, v, Krender, SQ); hVec.set(SQ.x, SQ.y, SQ.z).project(camMain); return [(hVec.x + 1) / 2 * SW_, (1 - hVec.y) / 2 * SH_]; };
+        const a = pr(R, 0), b = pr(0, R);
+        hDrag.sg = ((a[0] - c[0]) * (b[1] - c[1]) - (a[1] - c[1]) * (b[0] - c[0])) >= 0 ? 1 : -1;
+      }
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!hDrag || hDrag.id !== e.pointerId) return;
+      const now = performance.now();
+      if (now - hDrag.t < 70) return;
+      hDrag.t = now;
+      const p = stagePt(e), c = hDrag.c;
+      if (hDrag.k === 'move') {
+        const [o, d] = rayFrom(e), hit = raycastPosed(o, d);
+        if (!hit) return;
+        hDrag.anchor = anchorFromHit(hit.tri, hit.l0, hit.l1, hit.l2); hDrag.label = null;
+        previewAnchor(hDrag.anchor);
+      } else if (hDrag.k === 'size') {
+        const sz = clamp(round(hDrag.size0 * hypot(p[0] - c[0], p[1] - c[1]) / hDrag.d0 / 5) * 5, 40, 150);
+        if (sz === params.size) return;
+        params.size = sz; syncControls();
+        const a = hDrag.anchor; previewAnchor(anchorFromHit(a.tri, a.l[0], a.l[1], a.l[2]), hDrag.label);
+      } else {
+        let r = hDrag.rot0 + hDrag.sg * (atan2(p[1] - c[1], p[0] - c[0]) - hDrag.a0) / D2R;
+        r = round(((r + 540) % 360) - 180);
+        if (r === params.rot) return;
+        params.rot = r; syncControls();
+        const a = hDrag.anchor; previewAnchor(anchorFromHit(a.tri, a.l[0], a.l[1], a.l[2]), hDrag.label);
+      }
+    });
+    const end = (e) => {
+      if (!hDrag || hDrag.id !== e.pointerId) return;
+      const a = hDrag.anchor, lab = hDrag.label;
+      if (hDrag.k === 'move') { clearScenario(); currentZoneKey = null; }
+      hDrag = null; controls.enabled = true;
+      selectAnchor(anchorFromHit(a.tri, a.l[0], a.l[1], a.l[2]), lab, false, true);
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+
+  // Corte de la piel: la tinta de cada pinchazo a su profundidad, sobre las capas de la piel
+  const scv = $('#section'), sctx = scv.getContext('2d');
+  let SCW = 0, secV = 0;
+  const SCH = 170, SK2 = {};
+  function sizeSection() { const w = scv.clientWidth; if (!w) return; SCW = w; scv.width = round(w * dpr); scv.height = round(SCH * dpr); }
+  $('#rng-sec').addEventListener('input', () => { $('#sw-secfollow').checked = false; drawSection(); });
+  function drawSection() {
+    if (!SCW || !CH) return;
+    const c = sctx, w = SCW, h = SCH, half = params.size / 2 + 6, D = 3.4;
+    if ($('#sw-secfollow').checked) { if (running && !INV.far) secV += (clamp(INV.v, -half, half) - secV) * .6; }
+    else secV = +$('#rng-sec').value / 100 * half;
+    $('#out-sec').textContent = abs(secV) < .5 ? 'centro' : `${fmt(abs(secV), 0)} mm ${secV < 0 ? 'arriba' : 'abajo'}`;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, h);
+    const pl = 44, pr = 70, pt = 14, pb = 6, pw = w - pl - pr, ph = h - pt - pb;
+    const X = (u) => pl + (u + half) / (2 * half) * pw, Y = (d) => pt + d / D * ph;
+    // capas
+    const N = 80, bw = pw / N + .6;
+    let last = null;
+    for (let i = 0; i < N; i++) {
+      const u = -half + 2 * half * (i + .5) / N, sk = skinAt(u, secV, SK2), Ly = skinLayers(sk), x = pl + pw * i / N;
+      c.fillStyle = '#f3dcc4'; c.fillRect(x, Y(0), bw, Y(Ly.epi) - Y(0));
+      c.fillStyle = '#e7aaa2'; c.fillRect(x, Y(Ly.epi), bw, Y(Ly.derm) - Y(Ly.epi));
+      c.fillStyle = 'rgba(255,255,255,.28)'; c.fillRect(x, Y(sk.lo), bw, Y(sk.hi) - Y(sk.lo));
+      c.fillStyle = '#f5e2a0'; c.fillRect(x, Y(Ly.derm), bw, Y(D) - Y(Ly.derm));
+      last = { sk: { lo: sk.lo, hi: sk.hi }, Ly };
+    }
+    // bordes de la franja buena
+    c.save(); c.setLineDash([5, 4]); c.strokeStyle = C.ok || '#1d7447'; c.lineWidth = 1.2;
+    for (const key of ['lo', 'hi']) { c.beginPath(); for (let i = 0; i <= N; i++) { const u = -half + 2 * half * i / N, sk = skinAt(u, secV, SK2), x = pl + pw * i / N; i ? c.lineTo(x, Y(sk[key])) : c.moveTo(x, Y(sk[key])); } c.stroke(); }
+    c.restore();
+    // tinta: cada aguja de cada pinchazo que cae cerca del corte
+    for (const hh of hits) {
+      if (hh.f <= 0 || abs(hh.v - secV) > 2.5) continue;
+      const L = LAYOUT[hh.c], cs = cos(hh.s), sn = sin(hh.s), rr = max(1.1, CARTS[hh.c].dia / 2 * pw / (2 * half));
+      c.fillStyle = hh.wash ? `rgba(20,18,26,${(INKS[hh.wash].wash * .8).toFixed(2)})` : `rgba(${hh.col[0]},${hh.col[1]},${hh.col[2]},${(.35 + .5 * hh.w).toFixed(2)})`;
+      for (const q of L) {
+        const nu = hh.u + cs * q.a - sn * q.b, nv = hh.v + sn * q.a + cs * q.b;
+        if (abs(nv - secV) > .3) continue;
+        const dn = hh.d - q.z;
+        if (dn < .05) continue;
+        c.beginPath(); c.arc(X(nu), Y(min(D, dn)), rr, 0, TAU); c.fill();
+      }
+    }
+    // aguja ahora
+    if (inSkin && abs(INV.v - secV) < 1.5) {
+      c.strokeStyle = '#3a3845'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(X(INV.u), 0); c.lineTo(X(INV.u), Y(max(0, depthEff))); c.stroke();
+    }
+    c.strokeStyle = 'rgba(60,40,30,.55)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(pl, Y(0) + .5); c.lineTo(pl + pw, Y(0) + .5); c.stroke();
+    c.font = '500 10.5px "IBM Plex Mono", ui-monospace, monospace';
+    c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillStyle = C.muted || '#777';
+    for (const d of [0, 1, 2, 3]) c.fillText(d === 0 ? 'piel' : d + ' mm', pl - 6, Y(d));
+    if (last) {
+      c.textAlign = 'left'; c.fillStyle = C.fg || '#222';
+      c.fillText('epidermis', pl + pw + 6, Y(last.Ly.epi / 2) - 4);
+      c.fillText('dermis', pl + pw + 6, Y((last.Ly.epi + last.sk.lo) / 2) + 2);
+      c.fillStyle = C.ok || '#1d7447'; c.fillText('buena', pl + pw + 6, Y((last.sk.lo + last.sk.hi) / 2));
+      c.fillStyle = C.fg || '#222'; c.fillText('grasa', pl + pw + 6, Y((last.Ly.derm + D) / 2));
+    }
+    const n = stats.lay.reduce((a, b) => a + b, 0);
+    if (n) {
+      const q = (i) => round(stats.lay[i] / n * 100);
+      $('#sec-info').textContent = `Epidermis ${q(0)} % · dermis alta ${q(1)} % · franja buena ${q(2)} % · dermis honda ${q(3)} % · grasa ${q(4)} %`;
+    } else $('#sec-info').textContent = 'Hasta dónde ha llegado la tinta en cada capa';
+  }
+
   let placing = false;
   const setPlacing = (on) => { placing = on; $('#btn-place').setAttribute('aria-pressed', String(on)); $('#place-hint').hidden = !on; stageEl.classList.toggle('placing', on); };
   $('#btn-place').addEventListener('click', () => setPlacing(!placing));
@@ -2923,7 +3384,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // =====================================================================
   // BUCLE Y ARRANQUE
   // =====================================================================
-  let lastTs = null, acc = 0, statTimer = 0;
+  let lastTs = null, acc = 0, statTimer = 0, secTick = false;
   function frame(ts) {
     if (lastTs === null) lastTs = ts;
     const el = min(.05, (ts - lastTs) / 1000);
@@ -2945,11 +3406,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       while (depthBuf.length && depthBuf[0].t < simT - 6.2) depthBuf.shift();
     }
     if (pendingStart && !running && cartT >= 1 && poseSettled()) startRun();
-    try { renderGL(ts); } catch (err) { console.error(err); }
+    try { renderGL(ts); updateHandles(); } catch (err) { console.error(err); }
     drawDepth();
     updateStatus();
     statTimer += el;
-    if (statTimer > .1) { statTimer = 0; updateStats(); }
+    if (statTimer > .1) { statTimer = 0; updateStats(); secTick = !secTick; if (secTick) drawSection(); }
     requestAnimationFrame(frame);
   }
   function boot() {
@@ -2964,11 +3425,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     copyS(skin, cam.S); copyS(skin, Sest); copyS(skin, Sref);
     setDesign('estrella');
     if (initGL()) { initPointer(); $('#loader').hidden = true; }
-    SW_ = 0; sizeStage(); sizeDepth();
-    selectZone('antebrazo');
+    SW_ = 0; sizeStage(); sizeDepth(); sizeSection();
+    selectZone('antebrazo', true);
     setRF(RFto.O, RFto.psi); cartT = 1;
     toWorldL(HOME_L.x, HOME_L.y, HOME_L.z, rob); rob.ptx = rob.x; rob.pty = rob.y; rob.ptz = rob.z;
-    new ResizeObserver(() => { sizeStage(); sizeDepth(); sizePad(); }).observe(document.body);
+    new ResizeObserver(() => { sizeStage(); sizeDepth(); sizePad(); sizeSection(); }).observe(document.body);
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
     new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     syncControls(); renderHistory(); applyMap(); setView('general');
