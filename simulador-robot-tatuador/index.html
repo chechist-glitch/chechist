@@ -193,6 +193,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
 .zone-card .row { display: grid; grid-template-columns: 100px 1fr 48px; gap: 6px; align-items: center; }
 .zone-card .row b { height: 5px; border-radius: 3px; background: var(--surface); overflow: hidden; display: block; }
 .zone-card .row b i { display: block; height: 100%; background: var(--accent); }
+.zone-card .row b i.over { background: var(--bad); }
+.zone-card .st-ok { color: var(--ok); font-weight: 600; } .zone-card .st-bad { color: var(--bad); font-weight: 600; }
 .zone-card .row em { font-style: normal; font-family: var(--font-mono); font-size: 11.5px; text-align: right; color: var(--fg); }
 .ramp { height: 10px; border-radius: 5px; }
 .ramp-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
@@ -417,6 +419,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
 
       <div class="group">
         <h2>Robot</h2>
+        <div class="zone-card" id="arm-card" aria-live="polite"></div>
         <label class="toggle"><span><b>Seguimiento en tiempo real</b><small>Una cámara sigue las pegatinas de la piel y el robot corrige sobre la marcha.</small></span><input type="checkbox" class="sw" id="sw-tracking" checked></label>
         <div class="field" id="f-latency">
           <div class="field-head"><label for="rng-latency">Retraso de la cámara</label><output id="out-latency"></output></div>
@@ -495,7 +498,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <li><b>Abdomen sin sensor de fuerza.</b> La tripa es blanda: la aguja la hunde y se queda corta.</li>
         <li><b>Espinilla seca.</b> Quita la hidratación: sobre el hueso, la piel seca coge peor la tinta.</li>
       </ul>
-      <p class="note">Modelo simplificado: cuerpo liso tipo maniquí generado con formas redondeadas, esqueleto de 21 huesos, mapa de piel y grosores de epidermis, dermis y grasa aproximados por zonas, sombreado y diluciones simplificados, brazo robot de tres ejes con muñeca esférica sobre un carro con columna. Las cifras son orientativas.</p>
+      <p class="note">Modelo simplificado: cuerpo liso tipo maniquí generado con formas redondeadas, esqueleto de 21 huesos, mapa de piel y grosores de epidermis, dermis y grasa aproximados por zonas, sombreado y diluciones simplificados, brazo FAIRINO FR5 con sus medidas y topes reales (modelo del fabricante) sobre un carro con columna; la herramienta mide 165 mm de la brida a la punta. Las cifras son orientativas.</p>
     </section>
   </div>
 </div>
@@ -1770,7 +1773,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   };
 
   // Carro del robot: se coloca junto a la zona. Coordenadas locales: origen en el hombro del robot, +Z hacia el cliente, +X a su derecha.
-  const A2 = 450, A3 = 410, LT = 112, GRIP = 27;
+  // Brazo real: FAIRINO FR5 (medidas del modelo oficial del fabricante). Tipo UR: 6 ejes, muñeca desplazada.
+  const FR5 = { d1: 152, a2: 425, a3: 395, d4: 102.1, d5: 102, d6: 100, vmax: 180,
+    lim: [[-175, 175], [-265, 85], [-162, 162], [-265, 85], [-175, 175], [-175, 175]] };
+  const TOOL = 165;                     // de la brida del robot a la punta de la máquina (soporte + máquina pen + cartucho)
+  const A2 = FR5.a2, A3 = FR5.a3, LT = TOOL, GRIP = 27;
   const RF = { O: { x: 0, y: 1200, z: -800 }, psi: 0, f: { x: 0, z: 1 }, r: { x: 1, z: 0 } };
   const RFfrom = { O: { x: 0, y: 1200, z: -800 }, psi: 0 }, RFto = { O: { x: 0, y: 1200, z: -800 }, psi: 0 };
   let cartT = 1;
@@ -2021,7 +2028,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       }
       let dsp = wrapA(target - rob.spin);
       if (dsp > PI / 2) dsp -= PI; else if (dsp < -PI / 2) dsp += PI;
-      rob.spin += dsp * min(1, DT / .06);
+      // la máquina gira con la sexta articulación del FR5: como mucho ~160°/s
+      rob.spin += clamp(dsp * min(1, DT / .06), -2.8 * DT, 2.8 * DT);
     }
 
     let rvx = (tgt.x - rob.ptx) / DT, rvy = (tgt.y - rob.pty) / DT, rvz = (tgt.z - rob.ptz) / DT;
@@ -2040,8 +2048,13 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const vmax = mode === 'ink' || mode === 'travel' || mode === 'hold' || mode === 'lift' || mode === 'svclift' ? 600 : 380;
     if (vm > vmax) { const f = vmax / vm; rob.vx *= f; rob.vy *= f; rob.vz *= f; }
     rob.x += rob.vx * DT; rob.y += rob.vy * DT; rob.z += rob.vz * DT;
+    // la aguja se reorienta suave y sin pasar de lo que da la muñeca del FR5 (~120°/s)
     const ko = min(1, DT / .04);
-    rob.dx += (dtx - rob.dx) * ko; rob.dy += (dty - rob.dy) * ko; rob.dz += (dtz - rob.dz) * ko;
+    let ndx = rob.dx + (dtx - rob.dx) * ko, ndy = rob.dy + (dty - rob.dy) * ko, ndz = rob.dz + (dtz - rob.dz) * ko;
+    const nl = hypot(ndx, ndy, ndz) || 1; ndx /= nl; ndy /= nl; ndz /= nl;
+    const turn = acos(clamp(ndx * rob.dx + ndy * rob.dy + ndz * rob.dz, -1, 1)), tmax = 2.1 * DT;
+    if (turn > tmax) { const f = tmax / turn; ndx = rob.dx + (ndx - rob.dx) * f; ndy = rob.dy + (ndy - rob.dy) * f; ndz = rob.dz + (ndz - rob.dz) * f; }
+    rob.dx = ndx; rob.dy = ndy; rob.dz = ndz;
     const dl = hypot(rob.dx, rob.dy, rob.dz) || 1;
     rob.dx /= dl; rob.dy /= dl; rob.dz /= dl;
     const tipErr = hypot(tgt.x - rob.x, tgt.y - rob.y, tgt.z - rob.z);
@@ -2148,7 +2161,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const Wd = (x, y, z, o) => S.push({ x, y, z, v: 300, wait: 0, ...o });
     Wd(rob.x - rob.dx * 40, rob.y - rob.dy * 40, rob.z - rob.dz * 40, { label: 'Saliendo de la piel' });
     const up = toLocalW(rob.x - rob.dx * 40, rob.y - rob.dy * 40, rob.z - rob.dz * 40, {});
-    W(up.x * .5, max(up.y, ST.safeY + 60), up.z * .5, { label: 'Yendo a la estación' });
+    // punto de paso por el lateral: el camino recto pasaría pegado a la base y el codo del FR5 no se dobla tanto
+    W(330, max(up.y, ST.safeY + 90), 170, { label: 'Yendo a la estación' });
     let ink = tool.ink;
     if (tool.cart !== wantC) {
       if (tool.cart) {
@@ -2179,7 +2193,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     W(c.x, ST.safeY, c.z, { label: `Yendo a la tinta ${INKS[wantI].name}` });
     W(c.x, ST.top + 9, c.z, { v: 150, wait: .8, fill: wantI, label: `Cargando tinta ${INKS[wantI].name}` });
     W(c.x, ST.safeY, c.z, { label: 'Volviendo al cliente' });
-    W(0, ST.safeY + 120, 250, { label: 'Volviendo al cliente' });
+    W(330, ST.safeY + 90, 170, { label: 'Volviendo al cliente' });
+    W(200, ST.safeY + 140, 330, { label: 'Volviendo al cliente' });
     const f = S[0];
     svc = { steps: S, i: 0, t: 0, wait: 0, filled: false, fx: rob.x, fy: rob.y, fz: rob.z, dur: max(.1, hypot(f.x - rob.x, f.y - rob.y, f.z - rob.z) / f.v) };
     pendingSvc = null;
@@ -2220,7 +2235,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   function resetRun() {
     running = false; paused = false; mode = 'idle'; svc = null; pendingSvc = null;
     hits = []; lastHit = null; cur = { k: 0, s: 0 };
-    resetStats(); depthBuf.length = 0;
+    resetStats(); depthBuf.length = 0; arm.peak = 0; arm.over = 0;
     redrawPatch();
     updateButtons();
   }
@@ -2238,7 +2253,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   }
   function describeCfg() {
     const p = params, yes = (b) => (b ? 'sí' : 'no');
-    const parts = [POSES[pose.name].label, `movimiento ${round(p.move * 100)} %`, `respiración ${round(p.breath * 100)} %`, `respingos ${yes(p.jerks)}`];
+    const parts = ['brazo FAIRINO FR5', POSES[pose.name].label, `movimiento ${round(p.move * 100)} %`, `respiración ${round(p.breath * 100)} %`, `respingos ${yes(p.jerks)}`];
     if (p.tracking) parts.push(`cámara con ${p.latency} ms`, `predicción ${yes(p.predict)}`); else parts.push('sin seguimiento');
     parts.push(`sensor de fuerza ${yes(p.force)}`, `profundidad según zona ${yes(p.zoneDepth)}`, `parada de seguridad ${yes(p.safety)}`);
     parts.push(`rasurado ${yes(p.shave)}`, `hidratado ${yes(p.hydrate)}`, `crema anestésica ${yes(p.numb)}`, `tamaño ${p.size} mm`);
@@ -2431,16 +2446,16 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     column = mk(unitCyl(62, 62, 32), M.edge);
     parts.wheels = [];
     for (const x of [-220, 220]) for (const z of [-240, 240]) { const w = mk(new THREE.CylinderGeometry(35, 35, 30, 20), M.joint); w.rotation.z = PI / 2; parts.wheels.push([w, x, z]); }
-    parts.turret = mk(new THREE.CylinderGeometry(70, 76, 90, 40), M.robot);
-    parts.shoulder = mk(new THREE.CylinderGeometry(58, 58, 120, 36), M.robot);
-    parts.shoulderCap = mk(new THREE.CylinderGeometry(48, 48, 132, 36), M.joint);
-    parts.upper = mk(unitCyl(36, 40), M.robot);
-    parts.elbow = mk(new THREE.CylinderGeometry(44, 44, 96, 32), M.robot);
-    parts.elbowCap = mk(new THREE.CylinderGeometry(36, 36, 106, 32), M.joint);
-    parts.fore = mk(unitCyl(28, 33), M.robot);
-    parts.wrist = mk(new THREE.SphereGeometry(28, 28, 20), M.joint);
-    parts.wristRing = mk(new THREE.TorusGeometry(26, 3.5, 10, 32), M.edge);
-    parts.pen = mk(unitCyl(12, 12), M.pen);
+    // FAIRINO FR5: base, carcasas de las 6 articulaciones (con su tapa oscura) y los dos tubos del brazo
+    parts.base = mk(new THREE.CylinderGeometry(74, 80, 70, 40), M.robot);
+    parts.j1 = mk(unitCyl(64, 64, 36), M.robot);
+    parts.hous = [[66, 150], [58, 130], [46, 104], [44, 98], [42, 92]].map(([r, h]) => ({ body: mk(new THREE.CylinderGeometry(r, r, h, 36), M.robot), cap: mk(new THREE.CylinderGeometry(r * .82, r * .82, h + 6, 36), M.joint), h }));
+    parts.upper = mk(unitCyl(44, 46), M.robot);
+    parts.fore = mk(unitCyl(36, 38), M.robot);
+    parts.wlink = [mk(unitCyl(40, 40), M.robot), mk(unitCyl(38, 38), M.robot)];
+    parts.flange = mk(unitCyl(32, 32), M.edge);
+    parts.holder = mk(unitCyl(24, 24), M.grip);
+    parts.pen = mk(unitCyl(13, 13), M.pen);
     parts.grip = mk(unitCyl(12.8, 12.8), M.grip);
     parts.latch = mk(unitCyl(13.4, 13.4), M.metal);
     parts.needle = mk(unitCyl(.3, .3, 8), M.needle, false);
@@ -2527,12 +2542,90 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (m) { $('#map-ramp').style.background = `linear-gradient(90deg, ${rgbStr(m.c0)}, ${rgbStr(m.c1)})`; $('#map-lo').textContent = m.lo; $('#map-hi').textContent = m.hi; }
   }
 
-  function solveIK(wx, wy, wz) {
-    const q1 = atan2(wx, wz), hx = sin(q1), hz = cos(q1), rho = hypot(wx, wz);
-    const D = clamp(hypot(rho, wy), abs(A2 - A3) + 1, A2 + A3 - 1);
-    const q3 = -acos(clamp((D * D - A2 * A2 - A3 * A3) / (2 * A2 * A3), -1, 1));
-    const q2 = atan2(wy, rho) - atan2(A3 * sin(q3), A2 + A3 * cos(q3));
-    return { hx, hz, q1, ex: A2 * cos(q2) * hx, ey: A2 * sin(q2), ez: A2 * cos(q2) * hz, reach: hypot(rho, wy) };
+  // ---------- Cinemática del FR5 (Denavit-Hartenberg tipo UR) ----------
+  // Base del robot: eje Z hacia arriba, X hacia el cliente. Las cuentas se hacen ahí y luego se pasan al carro.
+  const DH_A = [0, -FR5.a2, -FR5.a3, 0, 0, 0], DH_D = [FR5.d1, 0, 0, FR5.d4, FR5.d5, FR5.d6], DH_AL = [PI / 2, 0, 0, PI / 2, -PI / 2, 0];
+  const FKO = Array.from({ length: 7 }, () => [0, 0, 0]), FKZ = Array.from({ length: 7 }, () => [0, 0, 1]), FKR = new Float64Array(9);
+  function fk(q) {
+    let R = [1, 0, 0, 0, 1, 0, 0, 0, 1], o = [0, 0, 0];
+    FKO[0] = [0, 0, 0]; FKZ[0] = [0, 0, 1];
+    for (let i = 0; i < 6; i++) {
+      const ct = cos(q[i]), st = sin(q[i]), ca = cos(DH_AL[i]), sa = sin(DH_AL[i]);
+      // A_i = Rz(q) Tz(d) Tx(a) Rx(alpha)
+      const A = [ct, -st * ca, st * sa, st, ct * ca, -ct * sa, 0, sa, ca], t = [DH_A[i] * ct, DH_A[i] * st, DH_D[i]];
+      o = [o[0] + R[0] * t[0] + R[1] * t[1] + R[2] * t[2], o[1] + R[3] * t[0] + R[4] * t[1] + R[5] * t[2], o[2] + R[6] * t[0] + R[7] * t[1] + R[8] * t[2]];
+      const N = new Array(9);
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) N[3 * r + c] = R[3 * r] * A[c] + R[3 * r + 1] * A[3 + c] + R[3 * r + 2] * A[6 + c];
+      R = N; FKO[i + 1] = o; FKZ[i + 1] = [R[2], R[5], R[8]];
+    }
+    for (let i = 0; i < 9; i++) FKR[i] = R[i];
+  }
+  // Busca las articulaciones que ponen la brida en (P, ejes X y Z), empezando desde las de ahora (mínimos cuadrados amortiguados)
+  function ikFR5(P, X, Z, q) {
+    // sin X: el giro alrededor de la aguja queda libre (máquina redonda)
+    const Y = X ? vcross(Z, X) : null;
+    let ep = 0, eo = 0;
+    for (let it = 0; it < 40; it++) {
+      fk(q);
+      const p = FKO[6], cx = [FKR[0], FKR[3], FKR[6]], cy = [FKR[1], FKR[4], FKR[7]], cz = [FKR[2], FKR[5], FKR[8]];
+      const e = [P[0] - p[0], P[1] - p[1], P[2] - p[2]];
+      const w = X ? vmul(vadd(vadd(vcross(cx, X), vcross(cy, Y)), vcross(cz, Z)), .5) : vcross(cz, Z);
+      ep = vlen(e); eo = vlen(w);
+      if (ep < .02 && eo < 3e-4) break;
+      const Wr = 250;   // una décima de radián pesa como 25 mm
+      const err = [e[0], e[1], e[2], w[0] * Wr, w[1] * Wr, w[2] * Wr];
+      const J = [];
+      for (let j = 0; j < 6; j++) { const z = FKZ[j], v = vcross(z, vsub(p, FKO[j])); J.push([v[0], v[1], v[2], z[0] * Wr, z[1] * Wr, z[2] * Wr]); }
+      // (J Jt + l2 I) y = err ; dq = Jt y
+      const M_ = [], lam = 4;
+      for (let r = 0; r < 6; r++) { M_.push([]); for (let c = 0; c < 6; c++) { let sum = r === c ? lam * lam : 0; for (let j = 0; j < 6; j++) sum += J[j][r] * J[j][c]; M_[r].push(sum); } M_[r].push(err[r]); }
+      for (let c = 0; c < 6; c++) {
+        let pv = c; for (let r = c + 1; r < 6; r++) if (abs(M_[r][c]) > abs(M_[pv][c])) pv = r;
+        [M_[c], M_[pv]] = [M_[pv], M_[c]];
+        for (let r = 0; r < 6; r++) if (r !== c) { const f = M_[r][c] / M_[c][c]; for (let k = c; k < 7; k++) M_[r][k] -= f * M_[c][k]; }
+      }
+      const y = M_.map((row, r) => row[6] / row[r]);
+      for (let j = 0; j < 6; j++) {
+        let dq = 0; for (let r = 0; r < 6; r++) dq += J[j][r] * y[r];
+        q[j] = clamp(q[j] + clamp(dq, -.3, .3), FR5.lim[j][0] * D2R, FR5.lim[j][1] * D2R);
+      }
+    }
+    return { ep, eo };
+  }
+  // Local del carro <-> base del robot
+  const L2B = (v, isPt) => [v.z, v.x, v.y + (isPt ? FR5.d1 : 0)];
+  const B2L = (b, isPt) => ({ x: b[1], y: b[2] - (isPt ? FR5.d1 : 0), z: b[0] });
+  const arm = { q: [0, -1.9, -1.9, -.9, 1.5708, 0], qPrev: null, tPrev: 0, qd: [0, 0, 0, 0, 0, 0], peak: 0, over: 0, ep: 0, eo: 0, seeded: false, atLim: -1 };
+  // Busca una buena postura de partida (codo arriba) probando varias
+  function seedFR5(P, X, Z) {
+    let best = null, bs = Infinity;
+    for (const q2 of [-.6, -1.2, -1.8]) for (const q3 of [-1.2, -2, 1.2]) for (const q4 of [-1.5, -.5, .5]) for (const q5 of [1.5708, -1.5708]) {
+      const q = [atan2(P[1], P[0]), q2, q3, q4, q5, 0], r = ikFR5(P, X, Z, q);
+      fk(q);
+      const sc = r.ep + r.eo * 300 - FKO[2][2] * .01;
+      if (sc < bs) { bs = sc; best = q; }
+    }
+    return best;
+  }
+  function solveArm(PLp, dL, xL) {
+    const Zb = L2B(dL), Xb = xL ? L2B(xL) : null, Fl = L2B({ x: PLp.x - dL.x * TOOL, y: PLp.y - dL.y * TOOL, z: PLp.z - dL.z * TOOL }, true);
+    if (!arm.seeded) { arm.q = seedFR5(Fl, Xb, Zb); arm.seeded = true; }
+    let r = ikFR5(Fl, Xb, Zb, arm.q);
+    // si no converge, insiste desde donde está antes de cambiar de postura (un robot real no puede saltar)
+    for (let k = 0; k < 3 && (r.ep > 2 || r.eo > .02); k++) r = ikFR5(Fl, Xb, Zb, arm.q);
+    if (r.ep > 5 || r.eo > .05) { const qOld = arm.q.slice(), rOld = r; const q2 = seedFR5(Fl, Xb, Zb), r2 = ikFR5(Fl, Xb, Zb, q2); if (r2.ep + r2.eo * 300 < r.ep + r.eo * 300) { arm.q = q2; r = r2; arm.reseeds = (arm.reseeds || 0) + 1; arm.dbg = { qOld: qOld.map((x) => round(x / D2R)), rOld, qNew: q2.map((x) => round(x / D2R)), Fl: Fl.map(round), Zb: Zb.map((x) => +x.toFixed(2)), X: !!Xb }; } }
+    arm.ep = r.ep; arm.eo = r.eo;
+    arm.atLim = -1;
+    for (let j = 0; j < 6; j++) if (arm.q[j] <= FR5.lim[j][0] * D2R + .01 || arm.q[j] >= FR5.lim[j][1] * D2R - .01) arm.atLim = j;
+    // velocidad de cada articulación (en tiempo simulado) frente a su máximo
+    if (arm.qPrev && simT > arm.tPrev + 1e-4) {
+      const dt = simT - arm.tPrev;
+      let pk = 0;
+      for (let j = 0; j < 6; j++) { const v = abs(wrapA(arm.q[j] - arm.qPrev[j])) / dt / D2R / FR5.vmax; arm.qd[j] += (v - arm.qd[j]) * .3; pk = max(pk, arm.qd[j]); }
+      if (running) { arm.peak = max(arm.peak, pk); if (pk > 1) arm.over += dt; }
+    }
+    arm.qPrev = arm.q.slice(); arm.tPrev = simT;
+    fk(arm.q);
   }
   function place(m, ax, ay, az, bx, by, bz) {
     vD.set(bx - ax, by - ay, bz - az);
@@ -2555,23 +2648,49 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const yf = -RF.O.y;
     cartBase.position.set(0, yf + 95, -60);
     for (const [w, x, z] of parts.wheels) w.position.set(x, yf + 35, z - 60);
-    place(column, 0, yf + 170, -20, 0, -150, -20);
-    parts.turret.position.set(0, -105, 0);
+    place(column, 0, yf + 170, 0, 0, -FR5.d1 - 70, 0);
     const d = { x: rob.dx * RF.r.x + rob.dz * RF.r.z, y: rob.dy, z: rob.dx * RF.f.x + rob.dz * RF.f.z };
     toLocalW(rob.x, rob.y, rob.z, PL);
-    const wx = PL.x - d.x * LT, wy = PL.y - d.y * LT, wz = PL.z - d.z * LT;
-    const k = solveIK(wx, wy, wz), axx = -k.hz, axz = k.hx;
-    parts.turret.rotation.y = k.q1;
-    orient(parts.shoulder, 0, 0, 0, axx, 0, axz); orient(parts.shoulderCap, 0, 0, 0, axx, 0, axz);
-    place(parts.upper, 0, 0, 0, k.ex, k.ey, k.ez);
-    orient(parts.elbow, k.ex, k.ey, k.ez, axx, 0, axz); orient(parts.elbowCap, k.ex, k.ey, k.ez, axx, 0, axz);
-    place(parts.fore, k.ex, k.ey, k.ez, wx, wy, wz);
-    parts.wrist.position.set(wx, wy, wz);
-    orient(parts.wristRing, wx + d.x * 18, wy + d.y * 18, wz + d.z * 18, d.x, d.y, d.z, Zax);
-    const g0 = LT - GRIP - 22, g1 = LT - GRIP;
-    place(parts.pen, wx + d.x * 20, wy + d.y * 20, wz + d.z * 20, wx + d.x * g0, wy + d.y * g0, wz + d.z * g0);
-    place(parts.grip, wx + d.x * g0, wy + d.y * g0, wz + d.z * g0, wx + d.x * (g1 - 4), wy + d.y * (g1 - 4), wz + d.z * (g1 - 4));
-    place(parts.latch, wx + d.x * (g1 - 4), wy + d.y * (g1 - 4), wz + d.z * (g1 - 4), wx + d.x * g1, wy + d.y * g1, wz + d.z * g1);
+    // eje X de la brida: la fila de agujas en los magnum (la máquina gira con la sexta articulación); si no, el que menos gire
+    let xL = null;
+    fk(arm.q);
+    const cur = B2L([FKR[0], FKR[3], FKR[6]]), dtS = max(0, simT - (arm.tX == null ? simT : arm.tX));
+    arm.tX = simT;
+    if (tool.cart && CARTS[tool.cart].mag && running && ['approach', 'ink', 'travel', 'hold', 'lift'].includes(mode)) {
+      // la fila del magnum manda en el giro de la sexta articulación, pero girando como mucho a su velocidad
+      rowDir(Krender, vX);
+      let xT = [vX.x * RF.r.x + vX.z * RF.r.z, vX.y, vX.x * RF.f.x + vX.z * RF.f.z];
+      const dv = [d.x, d.y, d.z], proj = (v) => { const k = vdot(v, dv); return vnorm(vsub(v, vmul(dv, k))); };
+      let xc = proj([cur.x, cur.y, cur.z]); xT = proj(xT);
+      if (vdot(xT, xc) < 0) xT = vmul(xT, -1);
+      const ang = acos(clamp(vdot(xc, xT), -1, 1)), step_ = min(ang, 2.8 * dtS), side = vcross(dv, xc), sg = vdot(side, xT) < 0 ? -1 : 1;
+      const xn = vnorm(vadd(vmul(xc, cos(step_)), vmul(side, sg * sin(step_))));
+      if (!isNaN(xn[0])) xL = { x: xn[0], y: xn[1], z: xn[2] };
+    }
+    solveArm(PL, d, xL);
+    const O = FKO.map((o) => B2L(o, true)), Zs = FKZ.map((z) => B2L(z));
+    // base y primera articulación
+    parts.base.position.set(0, -FR5.d1 - 35, 0);
+    place(parts.j1, 0, -FR5.d1, 0, 0, -30, 0);
+    parts.j1.rotation.y = arm.q[0];
+    // carcasas de las articulaciones 2 a 6 (cada una a lo largo de su eje de giro)
+    for (let i = 0; i < 5; i++) {
+      const o = O[i + 1], z = Zs[i + 1], H = parts.hous[i];
+      orient(H.body, o.x, o.y, o.z, z.x, z.y, z.z); orient(H.cap, o.x, o.y, o.z, z.x, z.y, z.z);
+    }
+    place(parts.upper, O[1].x, O[1].y, O[1].z, O[2].x, O[2].y, O[2].z);
+    place(parts.fore, O[2].x, O[2].y, O[2].z, O[3].x, O[3].y, O[3].z);
+    place(parts.wlink[0], O[3].x, O[3].y, O[3].z, O[4].x, O[4].y, O[4].z);
+    place(parts.wlink[1], O[4].x, O[4].y, O[4].z, O[5].x, O[5].y, O[5].z);
+    // herramienta: brida, soporte, máquina pen y pestillo, siguiendo la brida real (si no llega, se nota)
+    const F = O[6], z6 = Zs[6];
+    const at = (t) => [F.x + z6.x * t, F.y + z6.y * t, F.z + z6.z * t];
+    place(parts.flange, ...at(-8), ...at(6));
+    place(parts.holder, ...at(6), ...at(46));
+    const g0 = TOOL - GRIP - 22, g1 = TOOL - GRIP;
+    place(parts.pen, ...at(46), ...at(g0));
+    place(parts.grip, ...at(g0), ...at(g1 - 4));
+    place(parts.latch, ...at(g1 - 4), ...at(g1));
     const has = !!tool.cart;
     penCart.g.visible = has;
     if (has) {
@@ -2594,7 +2713,6 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (parts.needle.visible) { toLocalW(tip.x, tip.y, tip.z, WL); place(parts.needle, PL.x, PL.y, PL.z, WL.x, WL.y, WL.z); }
     holdRing.visible = mode === 'hold';
     if (holdRing.visible) orient(holdRing, PL.x - d.x * 10, PL.y - d.y * 10, PL.z - d.z * 10, d.x, d.y, d.z, Zax);
-    return k.reach;
   }
   // Camilla: almohada bajo la cabeza y apoyabrazos bajo los antebrazos que salen de la camilla
   const JW = (b, K) => [TW[3 * b], TW[3 * b + 1], TW[3 * b + 2]];
@@ -2638,7 +2756,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     return {
       // Desde los pies de la camilla, en alto y del lado contrario al robot, para ver al cliente y al robot a la vez
       general: (() => { const tx = 150 + (RF.O.x - 150) * .3, tz = RF.O.z * .3, sz = RF.O.z > 0 ? -1 : 1; return { pos: [tx + 2300, 2700, tz + sz * 1500], tgt: [tx, 850, tz] }; })(),
-      zona: { pos: [Aw.x + Aw.nx * 420 + 200, Aw.y + Aw.ny * 420 + 150, Aw.z + Aw.nz * 420 + 180], tgt: [Aw.x, Aw.y, Aw.z] },
+      // en diagonal y del lado contrario al robot, para que la muñeca no tape el tatuaje
+      zona: (() => { let ax = Aw.x - RF.O.x, az = Aw.z - RF.O.z; const l = hypot(ax, az) || 1; ax /= l; az /= l; return { pos: [Aw.x + Aw.nx * 330 + ax * 330, Aw.y + Aw.ny * 330 + 140, Aw.z + Aw.nz * 330 + az * 330], tgt: [Aw.x, Aw.y, Aw.z] }; })(),
       arriba: { pos: [Aw.x + 1, Aw.y + 700, Aw.z + 60], tgt: [Aw.x, Aw.y, Aw.z] },
       estacion: (() => { const a = toWorldL(340, ST.top + 250, 200, {}), b = toWorldL(340, ST.top, -140, {}); return { pos: [a.x, a.y, a.z], tgt: [b.x, b.y, b.z] }; })()
     };
@@ -2831,34 +2950,61 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // Coloca el carro al lado del sitio: la columna fuera de la camilla y de los apoyabrazos (la base sí cabe por debajo)
   // y a distancia de alcance. Prueba todas las direcciones y se queda con la más corta y más de frente.
   function placeCart(Aw) {
-    const off = LT + 60, wc = { x: Aw.x + Aw.nx * off, y: Aw.y + Aw.ny * off, z: Aw.z + Aw.nz * off };
+    const off = TOOL + FR5.d6 + 20, wc = { x: Aw.x + Aw.nx * off, y: Aw.y + Aw.ny * off, z: Aw.z + Aw.nz * off };
     let hx = Aw.nx, hz = Aw.nz;
     const hl = hypot(hx, hz);
     if (hl < .35) { hx = 0; hz = Aw.z >= 0 ? 1 : -1; } else { hx /= hl; hz /= hl; }
     const rects = [[BED.x0, BED.x1, -BED.hw, BED.hw]];
     boards.forEach((b) => { if (b.visible) rects.push([b.position.x - b.scale.x / 2, b.position.x + b.scale.x / 2, b.position.z - b.scale.z / 2, b.position.z + b.scale.z / 2]); });
     const gap = (x, z) => min(...rects.map(([x0, x1, z0, z1]) => hypot(x - clamp(x, x0, x1), z - clamp(z, z0, z1))));
-    const y = clamp(wc.y + 120, 800, 1750), maxR = A2 + A3 - 50;
-    let best = null, bs = Infinity;
-    for (let i = 0; i < 48; i++) {
-      const da = wrapA(i * TAU / 48), c = cos(da), s = sin(da), dx = hx * c - hz * s, dz = hx * s + hz * c;
-      for (let dist = 280; dist <= 900; dist += 20) {
+    // puntos a los que tiene que llegar: centro y bordes del diseño, con la aguja recta sobre la piel
+    const Kp = bones(probe), pts = [], o = {}, R = params.size / 2 + 4;
+    for (const [u, v] of [[0, 0], [R, 0], [-R, 0], [0, R], [0, -R], [R * .7, R * .7], [-R * .7, -R * .7]]) { surfB(u, v, Kp, o); pts.push({ x: o.x + o.nx * 3, y: o.y + o.ny * 3, z: o.z + o.nz * 3, nx: o.nx, ny: o.ny, nz: o.nz }); }
+    // ¿llega el FR5 desde aquí? devuelve lo que le falta (mm) y cuánto margen deja a los topes
+    const fits = (Ox, Oy, Oz, psi) => {
+      const cp = cos(psi), sp = sin(psi);
+      const loc = (x, y, z) => { const dx = x - Ox, dz = z - Oz; return { x: dx * cp - dz * sp, y: y - Oy, z: dx * sp + dz * cp }; };
+      const vl = (x, y, z) => ({ x: x * cp - z * sp, y, z: x * sp + z * cp });
+      let q = null, worst = 0, margin = PI;
+      for (const pt of pts) {
+        const P = loc(pt.x, pt.y, pt.z), dL = vl(-pt.nx, -pt.ny, -pt.nz);
+        const Fl = L2B({ x: P.x - dL.x * TOOL, y: P.y - dL.y * TOOL, z: P.z - dL.z * TOOL }, true), Zb = L2B(dL);
+        if (!q) q = seedFR5(Fl, null, Zb);
+        const r = ikFR5(Fl, null, Zb, q);
+        worst = max(worst, r.ep + r.eo * 400);
+        for (let j = 0; j < 6; j++) margin = min(margin, q[j] - FR5.lim[j][0] * D2R, FR5.lim[j][1] * D2R - q[j]);
+        if (worst > 3) break;
+      }
+      return { worst, margin };
+    };
+    const y = clamp(wc.y + 100, 800, 1750), cands = [];
+    for (let i = 0; i < 36; i++) {
+      const da = wrapA(i * TAU / 36), c = cos(da), s = sin(da), dx = hx * c - hz * s, dz = hx * s + hz * c;
+      for (let dist = 250; dist <= 850; dist += 25) {
         const x = wc.x + dx * dist, z = wc.z + dz * dist;
         if (gap(x, z) < 170) continue;
-        const reach = hypot(dist, y - wc.y);
-        if (reach <= maxR) { const sc = reach + 110 * abs(da); if (sc < bs) { bs = sc; best = { x, y, z }; } }
+        cands.push({ x, y, z, sc: dist + 110 * abs(da) });
         break;
       }
     }
-    if (!best) {
-      // si no llega desde fuera, se pone lo más cerca posible sin chocar
-      for (let i = 0; i < 48 && !best; i++) {
-        const da = wrapA(i * TAU / 48), dx = hx * cos(da) - hz * sin(da), dz = hx * sin(da) + hz * cos(da);
-        for (let dist = 280; dist <= 1400; dist += 20) { const x = wc.x + dx * dist, z = wc.z + dz * dist; if (gap(x, z) >= 170) { const sc = dist; if (sc < bs) { bs = sc; best = { x, y, z }; } break; } }
+    cands.sort((a, b) => a.sc - b.sc);
+    let best = null, bs = Infinity, tries = 0;
+    for (const cd of cands) {
+      // con cada dirección prueba a acercarse o alejarse un poco
+      for (const k of [0, 60, 120, -40]) {
+        const L = hypot(cd.x - wc.x, cd.z - wc.z), ux = (cd.x - wc.x) / L, uz = (cd.z - wc.z) / L, x = cd.x + ux * k, z = cd.z + uz * k;
+        if (gap(x, z) < 170) continue;
+        const psi = atan2(wc.x - x, wc.z - z), f = fits(x, y, z, psi);
+        tries++;
+        const sc = f.worst * 100 + (f.margin < .15 ? 50 : 0) + cd.sc * .01;
+        if (sc < bs) { bs = sc; best = { x, y, z }; }
+        if (f.worst < .5 && f.margin >= .15) break;
       }
-      showToast('El robot va justo para llegar a esta zona');
+      if ((best && bs < 20) || tries > 90) break;
     }
+    if (!best || bs >= 100) showToast('El FR5 va justo para llegar a esta zona');
     const psi = atan2(wc.x - best.x, wc.z - best.z);
+    arm.seeded = false;
     RFfrom.O = { ...RF.O }; RFfrom.psi = RF.psi; RFto.O = best; RFto.psi = RF.psi + wrapA(psi - RF.psi);
     // si apenas cambia, el carro se queda donde está
     if (hypot(best.x - RF.O.x, best.y - RF.O.y, best.z - RF.O.z) < 40 && abs(wrapA(psi - RF.psi)) < .12) { RFto.O = { ...RF.O }; RFto.psi = RF.psi; cartT = 1; } else cartT = 0;
@@ -2986,6 +3132,17 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       const v = sk[k], t = k === 'dC' ? (v - .55) / 1.25 : v, txt = k === 'dC' ? `${fmt(v, 1)} mm` : `${round(v * 100)}`;
       return `<div class="row"><span>${lab}</span><b><i style="width:${round(clamp(t, 0, 1) * 100)}%"></i></b><em>${txt}</em></div>`;
     }).join('');
+  }
+  // Estado del FAIRINO FR5: si llega, topes y velocidad de cada articulación
+  function renderArmCard() {
+    const el = $('#arm-card'); if (!el) return;
+    let st;
+    if (arm.ep > 1.5) st = `<span class="st-bad">No llega: se queda a ${fmt(arm.ep, 0)} mm</span>`;
+    else if (arm.eo > .02) st = `<span class="st-bad">No puede poner la aguja recta aquí</span>`;
+    else if (arm.atLim >= 0) st = `<span class="st-bad">J${arm.atLim + 1} en su tope</span>`;
+    else st = '<span class="st-ok">Llega bien</span>';
+    const rows = arm.q.map((q, j) => { const v = arm.qd[j] * 100; return `<div class="row"><span>J${j + 1} · ${round(q / D2R)}°</span><b><i class="${v > 100 ? 'over' : ''}" style="width:${round(clamp(v, 0, 100))}%"></i></b><em>${round(v)} %</em></div>`; }).join('');
+    el.innerHTML = `<strong>FAIRINO FR5</strong><span>6 ejes · alcance 922 mm · repetibilidad ±0,02 mm · máx. ${FR5.vmax}°/s por articulación</span>${st}${rows}<span>Barras: velocidad de cada articulación frente a su máximo. Pico en esta prueba: ${round(arm.peak * 100)} %${arm.over > .05 ? ` · ${fmt(arm.over, 1)} s por encima del máximo` : ''}.</span>`;
   }
   function renderZoneCard() {
     if (!zoneInfo || !CH) return;
@@ -3445,7 +3602,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     drawDepth();
     updateStatus();
     statTimer += el;
-    if (statTimer > .1) { statTimer = 0; updateStats(); secTick = !secTick; if (secTick) drawSection(); }
+    if (statTimer > .1) { statTimer = 0; updateStats(); renderArmCard(); secTick = !secTick; if (secTick) drawSection(); }
     requestAnimationFrame(frame);
   }
   function boot() {
