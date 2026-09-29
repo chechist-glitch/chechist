@@ -1,0 +1,2120 @@
+<title>Simulador Robot Tatuador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: banco de pruebas en 3D. Escena grande a la izquierda, panel de mandos a la derecha, historial debajo. En móvil, una columna. */
+:root {
+  --bg: #edecf1;
+  --surface: #fafafc;
+  --surface-2: #e3e1ea;
+  --fg: #1c1a25;
+  --muted: #5f5b6e;
+  --line: #d2cfdb;
+  --accent: #5a3fcf;
+  --accent-soft: #e7e1ff;
+  --on-accent: #ffffff;
+  --safety: #9a6700;
+  --safety-soft: #fff0c7;
+  --ok: #1d7447;
+  --ok-soft: #d8efe1;
+  --bad: #bf2f28;
+  --bad-soft: #fbe1df;
+  --stage: #e4e2ea;
+  --table: #d6d3de;
+  --table-line: #bdb9c9;
+  --armrest: #3d3a48;
+  --sleeve: #3b4a63;
+  --robot: #f4f4f8;
+  --robot-edge: #9a97ab;
+  --robot-joint: #34313f;
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121117; --surface: #1b1a22; --surface-2: #272530; --fg: #ecebf3; --muted: #a4a0b4; --line: #34313f;
+    --accent: #a794ff; --accent-soft: #2a2346; --on-accent: #15102b;
+    --safety: #f2b632; --safety-soft: #3a2c0a; --ok: #52c48d; --ok-soft: #14301f; --bad: #ff6d63; --bad-soft: #3d1715;
+    --stage: #17161d; --table: #25232d; --table-line: #353241; --armrest: #0d0c11; --sleeve: #2c3a52;
+    --robot: #dedce7; --robot-edge: #77738a; --robot-joint: #121118;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121117; --surface: #1b1a22; --surface-2: #272530; --fg: #ecebf3; --muted: #a4a0b4; --line: #34313f;
+  --accent: #a794ff; --accent-soft: #2a2346; --on-accent: #15102b;
+  --safety: #f2b632; --safety-soft: #3a2c0a; --ok: #52c48d; --ok-soft: #14301f; --bad: #ff6d63; --bad-soft: #3d1715;
+  --stage: #17161d; --table: #25232d; --table-line: #353241; --armrest: #0d0c11; --sleeve: #2c3a52;
+  --robot: #dedce7; --robot-edge: #77738a; --robot-joint: #121118;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font-body); }
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); padding-block: 24px 56px; display: grid; gap: 20px; }
+
+header { display: grid; gap: 8px; }
+.eyebrow { font: 500 12px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h1 { font: 800 clamp(2.4rem, 6vw, 3.6rem)/.92 var(--font-display); letter-spacing: .01em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { max-width: 72ch; color: var(--muted); margin: 0; }
+
+.chiprow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chiprow > span { font: 500 12px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.chip { font: 500 13.5px/1 var(--font-body); padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.chip.sm { padding: 7px 11px; font-size: 13px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.chip[aria-pressed="true"] .dot { box-shadow: 0 0 0 2px var(--on-accent); }
+
+.lab { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .lab { grid-template-columns: minmax(0, 1fr); } }
+
+.stage-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 12px; min-width: 0; }
+.stage { position: relative; border-radius: 8px; overflow: hidden; background: var(--stage); height: 520px; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+.pill { position: absolute; left: 10px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 500 12.5px/1 var(--font-mono); font-variant-numeric: tabular-nums; pointer-events: none; max-width: calc(100% - 20px); }
+.status { top: 10px; }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.status span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status[data-kind="ink"] i { background: var(--accent); }
+.status[data-kind="hold"] { background: var(--safety-soft); border-color: var(--safety); }
+.status[data-kind="hold"] i { background: var(--safety); }
+.status[data-kind="done"] i, .status[data-kind="svc"] i { background: var(--ok); }
+.tool-pill { top: 44px; }
+.tool-pill small { color: var(--muted); font-size: 11px; }
+.ink-mini { width: 46px; height: 7px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.ink-mini b, .bar.ink b { display: block; height: 100%; width: 0; background: var(--fg); }
+.tool-pill.low .ink-mini b, .bar.ink.low b { background: var(--bad) !important; }
+.toast { position: absolute; top: 10px; right: 10px; padding: 6px 11px; border-radius: 999px; font: 600 12.5px/1 var(--font-mono); background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); pointer-events: none; }
+.lens-frame { position: absolute; right: 12px; bottom: 12px; border: 2px solid var(--fg); border-radius: 10px; pointer-events: none; }
+.lens-label { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 500 10.5px/1 var(--font-mono); white-space: nowrap; }
+.lens-label b { display: block; height: 0; border-top: 1.5px solid var(--fg); }
+.gl-error { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); background: var(--stage); }
+.gl-error p { max-width: 42ch; margin: 0; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { font: 600 14px/1 var(--font-body); padding: 11px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); min-width: 150px; }
+.btn.warn { background: var(--safety-soft); border-color: var(--safety); }
+.btn.small { padding: 8px 12px; font-size: 13px; }
+button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+@media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); padding: 10px 12px; display: grid; gap: 4px; min-width: 0; align-content: start; }
+.stat .k { font: 500 11px/1.25 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font: 500 20px/1.15 var(--font-mono); font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 12px; color: var(--muted); margin-left: 2px; }
+.stat .v.good { color: var(--ok); } .stat .v.meh { color: var(--safety); } .stat .v.bad { color: var(--bad); }
+.bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.bar b { display: block; height: 100%; width: 0; background: var(--accent); }
+
+.depth { display: grid; gap: 6px; }
+.depth-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.depth-head strong { font-weight: 600; }
+.depth-head span { color: var(--muted); }
+.depth canvas { display: block; width: 100%; height: 96px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw-skin { width: 30px; height: 14px; border-radius: 3px; background: #d6a078; display: inline-grid; place-items: center; }
+.sw-skin i { display: block; width: 22px; height: 0; }
+.l-stencil i { border-top: 2px dashed #5a3fc0; }
+.l-ink i { border-top: 2.5px solid #16141c; }
+.l-shallow i { border-top: 2.5px solid rgba(22, 20, 28, .3); }
+.l-deep i { border-top: 2.5px solid #16141c; box-shadow: 0 0 0 2.5px rgba(38, 64, 140, .35); }
+.l-err i { border-top: 2.5px dotted #e3261d; }
+.l-dry i { border-top: 3px solid rgba(205, 70, 60, .55); }
+.l-dirty i { border-top: 3px solid #7a4a2a; }
+.l-ghost i { border-top: 1.5px solid var(--accent); width: 26px; }
+.l-dot i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 20px; min-width: 0; }
+.group { display: grid; gap: 12px; }
+.group + .group { border-top: 1px solid var(--line); padding-top: 18px; }
+.group h2 { font: 800 1.25rem/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase; margin: 0; }
+.group h3 { font: 500 11.5px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 2px 0 0; }
+.field { display: grid; gap: 4px; }
+.field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+.field-head output { font: 500 13px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--accent); text-align: right; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+.field small, .toggle small { display: block; font-size: 12.5px; line-height: 1.35; color: var(--muted); }
+.toggle { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; font-size: 14px; }
+.toggle b { font-weight: 500; }
+.sw { appearance: none; -webkit-appearance: none; flex: none; width: 40px; height: 23px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); position: relative; cursor: pointer; margin: 0; transition: background .15s; }
+.sw::before { content: ""; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.sw:checked { background: var(--accent); border-color: var(--accent); }
+.sw:checked::before { transform: translateX(17px); background: var(--on-accent); }
+.dim { opacity: .45; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips .chip { padding: 8px 11px; font-size: 13px; }
+.tones { display: flex; gap: 8px; align-items: center; }
+.tones span { font-size: 14px; margin-right: auto; }
+.tone { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.tone[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.pad-wrap { display: grid; gap: 8px; }
+.pad { display: block; width: 100%; aspect-ratio: 140 / 54; max-width: 100%; border-radius: 6px; border: 1.5px dashed var(--line); background: var(--surface-2); touch-action: none; cursor: crosshair; }
+.pad-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pad-msg { font-size: 12.5px; color: var(--bad); }
+.tip-box { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: center; }
+.tip-box canvas { width: 112px; height: 112px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); }
+.tip-box p { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.tip-box p b { color: var(--fg); font-weight: 600; font-family: var(--font-mono); }
+.inks { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; }
+.inks span { display: inline-flex; align-items: center; gap: 6px; }
+.inks i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); }
+.map-legend { font-size: 12.5px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend i { width: 14px; height: 14px; border-radius: 3px; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.card h2 { font: 800 1.35rem/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase; margin: 0; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; font: 500 11px/1.2 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 6px 10px 8px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
+.verdict { display: inline-block; padding: 3px 9px; border-radius: 999px; font: 600 12px/1.3 var(--font-mono); white-space: nowrap; }
+.verdict.good { background: var(--ok-soft); color: var(--ok); }
+.verdict.meh { background: var(--safety-soft); color: var(--safety); }
+.verdict.bad { background: var(--bad-soft); color: var(--bad); }
+.empty { color: var(--muted); font-size: 14px; margin: 0; }
+.tips { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
+.tips b { font-weight: 600; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+@media (prefers-reduced-motion: reduce) { .sw, .sw::before { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Banco de pruebas virtual · 3D</p>
+    <h1>Robot tatuador</h1>
+    <p class="lede">Un brazo robot tatúa sobre un antebrazo que se mueve, gira la muñeca, respira y da respingos. Cambia de cartucho en su estación con un enganche de horquilla, carga tintas de colores, se enjuaga entre colores, hace líneas, rellenos sólidos y puntillismo, y ajusta la profundidad según la zona de la piel. Todo es simulado: los números son orientativos y sirven para entender los problemas, no para calibrar una máquina real.</p>
+  </header>
+
+  <div class="chiprow" role="group" aria-label="Escenarios de prueba">
+    <span>Escenarios</span>
+    <button class="chip scn" data-scn="tranquilo" aria-pressed="true">Cliente tranquilo</button>
+    <button class="chip scn" data-scn="nervioso" aria-pressed="false">Cliente nervioso</button>
+    <button class="chip scn" data-scn="gira" aria-pressed="false">Gira la muñeca</button>
+    <button class="chip scn" data-scn="lenta" aria-pressed="false">Cámara lenta</button>
+    <button class="chip scn" data-scn="ciegas" aria-pressed="false">Robot a ciegas</button>
+    <button class="chip scn" data-scn="sinfrenos" aria-pressed="false">Sin frenos</button>
+    <button class="chip scn" data-scn="seco" aria-pressed="false">Tinta a ciegas</button>
+    <button class="chip scn" data-scn="sucio" aria-pressed="false">Sin enjuagar</button>
+    <button class="chip scn" data-scn="blanda" aria-pressed="false">Piel blanda sin sensor</button>
+    <button class="chip scn" data-scn="fina" aria-pressed="false">Piel fina, profundidad fija</button>
+  </div>
+
+  <div class="lab">
+    <section class="stage-card" aria-label="Simulación">
+      <div class="stage" id="stage">
+        <div class="pill status" id="status" data-kind="idle"><i></i><span id="status-text">Preparado</span></div>
+        <div class="pill tool-pill" id="tool-pill"><i class="dot" id="tool-dot"></i><span id="tool-cart">Sin cartucho</span><i class="dot" id="tool-inkdot"></i><span class="ink-mini"><b id="tool-ink"></b></span><span id="tool-ink-txt">–</span><small id="tool-sensor" hidden>el robot no lo ve</small></div>
+        <div class="toast" id="toast" hidden></div>
+        <div class="lens-frame" id="lens-frame"><span class="lens-label"><b id="lens-bar"></b>1 mm · lupa</span></div>
+        <div class="gl-error" id="gl-error" hidden><p id="gl-error-text"></p></div>
+      </div>
+      <div class="chiprow" role="group" aria-label="Cámara">
+        <span>Cámara</span>
+        <button class="chip sm view" data-view="general" aria-pressed="true">General</button>
+        <button class="chip sm view" data-view="arriba" aria-pressed="false">Desde arriba</button>
+        <button class="chip sm view" data-view="lado" aria-pressed="false">De lado</button>
+        <button class="chip sm view" data-view="estacion" aria-pressed="false">Estación</button>
+        <button class="chip sm view" data-view="seguir" aria-pressed="false">Seguir la aguja</button>
+        <span style="margin-left:8px">Tiempo</span>
+        <button class="chip sm tspeed" data-t="1" aria-pressed="true">×1</button>
+        <button class="chip sm tspeed" data-t="2" aria-pressed="false">×2</button>
+        <button class="chip sm tspeed" data-t="4" aria-pressed="false">×4</button>
+      </div>
+      <p class="hint">Arrastra el fondo para girar la cámara y usa la rueda o pellizca para acercarte. Si agarras el antebrazo, lo mueves por la mesa. La lupa mira desde la máquina: los puntitos son las agujas del cartucho puesto.</p>
+      <div class="actions">
+        <button class="btn primary" id="btn-main">Pausar</button>
+        <button class="btn" id="btn-restart">Borrar y empezar</button>
+        <button class="btn warn" id="btn-jerk">¡Respingo!</button>
+        <button class="btn" id="btn-refill">Recargar tinta</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="k">Progreso</span><span class="v" id="st-prog">0 %</span><div class="bar"><b id="st-bar"></b></div></div>
+        <div class="stat"><span class="k">Error medio</span><span class="v" id="st-mean">–</span></div>
+        <div class="stat"><span class="k">Error máximo</span><span class="v" id="st-max">–</span></div>
+        <div class="stat"><span class="k">Dentro de ±0,5 mm</span><span class="v" id="st-within">–</span></div>
+        <div class="stat"><span class="k">Profundidad buena</span><span class="v" id="st-depth">–</span></div>
+        <div class="stat"><span class="k">Pinchazos con tinta</span><span class="v" id="st-ink">–</span></div>
+        <div class="stat"><span class="k">Color limpio</span><span class="v" id="st-color">–</span></div>
+        <div class="stat"><span class="k">Paradas de seguridad</span><span class="v" id="st-holds">0</span></div>
+        <div class="stat"><span class="k">Tinta en el cartucho</span><span class="v" id="st-level">–</span><div class="bar ink" id="st-level-wrap"><b id="st-level-bar"></b></div></div>
+        <div class="stat"><span class="k">Cartucho puesto</span><span class="v" id="st-cart">–</span></div>
+        <div class="stat"><span class="k">Recargas · cambios · enjuagues</span><span class="v" id="st-svc">0 · 0 · 0</span></div>
+        <div class="stat"><span class="k">Tiempo</span><span class="v" id="st-time">0,0<small>s</small></span></div>
+      </div>
+      <div class="depth">
+        <div class="depth-head"><strong>Profundidad de la aguja</strong><span>Últimos 6 s · la franja verde es la profundidad buena de la zona que pisa</span></div>
+        <canvas id="depth" aria-label="Gráfica de profundidad de la aguja en milímetros"></canvas>
+      </div>
+      <div class="legend" aria-label="Leyenda">
+        <span class="l-stencil"><span class="sw-skin"><i></i></span>Plantilla</span>
+        <span class="l-ink"><span class="sw-skin"><i></i></span>Tinta bien puesta</span>
+        <span class="l-shallow"><span class="sw-skin"><i></i></span>Muy superficial, no agarra</span>
+        <span class="l-deep"><span class="sw-skin"><i></i></span>Muy profunda, se corre</span>
+        <span class="l-err"><span class="sw-skin"><i></i></span>Fuera de sitio (más de 0,5 mm)</span>
+        <span class="l-dry"><span class="sw-skin"><i></i></span>Aguja seca: pica sin tinta</span>
+        <span class="l-dirty"><span class="sw-skin"><i></i></span>Color sucio por no enjuagar</span>
+        <span class="l-ghost"><i></i>Dónde cree el robot que está el brazo</span>
+        <span class="l-dot"><i></i>Dónde apunta el robot</span>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Ajustes">
+      <div class="group">
+        <h2>Diseño</h2>
+        <div class="chips" role="group" aria-label="Diseño">
+          <button class="chip design" data-design="estrella" aria-pressed="true">Estrella náutica</button>
+          <button class="chip design" data-design="corazon" aria-pressed="false">Corazón</button>
+          <button class="chip design" data-design="flor" aria-pressed="false">Flor con puntos</button>
+          <button class="chip design" data-design="mandala" aria-pressed="false">Mandala de puntos</button>
+          <button class="chip design" data-design="ola" aria-pressed="false">Olas</button>
+          <button class="chip design" data-design="prueba" aria-pressed="false">Prueba de agujas</button>
+          <button class="chip design" data-design="propio" aria-pressed="false">Dibujar el mío</button>
+        </div>
+        <small class="note" id="design-note"></small>
+        <div class="pad-wrap" id="pad-wrap" hidden>
+          <div class="chips" role="group" aria-label="Técnica del dibujo">
+            <button class="chip tech" data-tech="linea" aria-pressed="true">Línea</button>
+            <button class="chip tech" data-tech="relleno" aria-pressed="false">Relleno sólido</button>
+            <button class="chip tech" data-tech="puntos" aria-pressed="false">Puntillismo</button>
+          </div>
+          <div class="chips" role="group" aria-label="Tinta del dibujo" id="pad-inks"></div>
+          <canvas class="pad" id="pad" aria-label="Zona de dibujo del diseño, 14 por 5,4 centímetros"></canvas>
+          <div class="pad-row">
+            <button class="btn small" id="pad-clear">Borrar</button>
+            <button class="btn small primary" id="pad-use">Tatuar este diseño</button>
+            <span class="pad-msg" id="pad-msg"></span>
+          </div>
+          <small class="note">La zona mide 14 × 5,4 cm sobre la piel. Con relleno o puntillismo, cada trazo se cierra solo y se rellena por dentro.</small>
+        </div>
+        <h3>Zona del brazo</h3>
+        <div class="chips" role="group" aria-label="Zona del brazo">
+          <button class="chip zone" data-zone="externa" aria-pressed="true">Cara externa</button>
+          <button class="chip zone" data-zone="interna" aria-pressed="false">Cara interna</button>
+          <button class="chip zone" data-zone="muneca" aria-pressed="false">Muñeca</button>
+          <button class="chip zone" data-zone="codo" aria-pressed="false">Cerca del codo</button>
+          <button class="chip zone" data-zone="hueso" aria-pressed="false">Sobre el hueso</button>
+        </div>
+        <small class="note" id="zone-note"></small>
+        <div class="field">
+          <div class="field-head"><label for="rng-speed">Velocidad del trazo</label><output id="out-speed"></output></div>
+          <input type="range" id="rng-speed" min="5" max="45" step="1" value="18">
+        </div>
+        <div class="tones" role="group" aria-label="Tono de piel">
+          <span>Tono de piel</span>
+          <button class="tone" data-tone="0" aria-pressed="false" aria-label="Piel muy clara" style="background:#f0c8a4"></button>
+          <button class="tone" data-tone="1" aria-pressed="true" aria-label="Piel clara" style="background:#d6a078"></button>
+          <button class="tone" data-tone="2" aria-pressed="false" aria-label="Piel morena" style="background:#a56a44"></button>
+          <button class="tone" data-tone="3" aria-pressed="false" aria-label="Piel oscura" style="background:#6a4029"></button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h2>Cliente</h2>
+        <div class="field">
+          <div class="field-head"><label for="rng-move">Cuánto se mueve</label><output id="out-move"></output></div>
+          <input type="range" id="rng-move" min="0" max="100" step="1" value="25">
+          <small>Deriva por la mesa, giro de muñeca y un pelín de temblor.</small>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-breath">Respiración y músculo</label><output id="out-breath"></output></div>
+          <input type="range" id="rng-breath" min="0" max="100" step="1" value="35">
+          <small>La piel se estira, se hincha y sube y baja.</small>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-roll">Girar el antebrazo</label><output id="out-roll"></output></div>
+          <input type="range" id="rng-roll" min="-45" max="45" step="1" value="0">
+          <small>Giro extra sobre la postura de la zona. Muévelo mientras tatúa.</small>
+        </div>
+        <label class="toggle"><span><b>Respingos por sorpresa</b><small>De vez en cuando pega un tirón.</small></span><input type="checkbox" class="sw" id="sw-jerks"></label>
+      </div>
+
+      <div class="group">
+        <h2>Robot</h2>
+        <label class="toggle"><span><b>Seguimiento en tiempo real</b><small>Una cámara sigue las pegatinas del brazo y el robot corrige sobre la marcha.</small></span><input type="checkbox" class="sw" id="sw-tracking" checked></label>
+        <div class="field" id="f-latency">
+          <div class="field-head"><label for="rng-latency">Retraso de la cámara</label><output id="out-latency"></output></div>
+          <input type="range" id="rng-latency" min="0" max="300" step="10" value="40">
+        </div>
+        <div class="field" id="f-noise">
+          <div class="field-head"><label for="rng-noise">Ruido del sensor</label><output id="out-noise"></output></div>
+          <input type="range" id="rng-noise" min="0" max="100" step="1" value="12">
+        </div>
+        <label class="toggle" id="f-predict"><span><b>Predecir el movimiento</b><small>Adivina dónde estará el brazo para compensar el retraso.</small></span><input type="checkbox" class="sw" id="sw-predict" checked></label>
+        <label class="toggle"><span><b>Sensor de fuerza en la aguja</b><small>Nota cuánto se hunde la piel y lo compensa. También detecta tirones.</small></span><input type="checkbox" class="sw" id="sw-force" checked></label>
+        <label class="toggle"><span><b>Profundidad según la zona</b><small>Usa el mapa de la piel: menos profundo en piel fina, más en piel gruesa.</small></span><input type="checkbox" class="sw" id="sw-zonedepth" checked></label>
+        <label class="toggle"><span><b>Parada de seguridad</b><small>Retira la aguja si algo se mueve demasiado rápido.</small></span><input type="checkbox" class="sw" id="sw-safety" checked></label>
+      </div>
+
+      <div class="group">
+        <h2>Cartuchos y tinta</h2>
+        <div class="chips" role="group" aria-label="Cartucho" id="cart-chips"></div>
+        <div class="tip-box">
+          <canvas id="tip" width="224" height="224" aria-label="Punta del cartucho vista desde abajo"></canvas>
+          <p id="tip-note"></p>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-freq">Velocidad de la máquina</label><output id="out-freq"></output></div>
+          <input type="range" id="rng-freq" min="50" max="150" step="5" value="110">
+          <small>Pinchazos por segundo. Si es baja y el trazo va rápido, la línea sale punteada.</small>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-cap">Tinta que carga el cartucho</label><output id="out-cap"></output></div>
+          <input type="range" id="rng-cap" min="100" max="1200" step="20" value="500">
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-refill">Recargar cuando quede</label><output id="out-refill"></output></div>
+          <input type="range" id="rng-refill" min="5" max="50" step="1" value="15">
+        </div>
+        <label class="toggle"><span><b>Sensor de tinta</b><small>El robot sabe cuánta tinta le queda en el cartucho.</small></span><input type="checkbox" class="sw" id="sw-inksensor" checked></label>
+        <label class="toggle"><span><b>Recarga automática</b><small>Va solo al vaso cuando baja del límite. Si no, se para y espera a «Recargar tinta».</small></span><input type="checkbox" class="sw" id="sw-autorefill" checked></label>
+        <label class="toggle"><span><b>Enjuagar al cambiar de color</b><small>Agua y papel antes de cargar otro color. Si no, el color nuevo sale sucio.</small></span><input type="checkbox" class="sw" id="sw-rinse" checked></label>
+        <div class="inks" id="ink-list" aria-label="Tintas de la estación"></div>
+      </div>
+
+      <div class="group">
+        <h2>Vista</h2>
+        <label class="toggle"><span><b>Ver lo que ve el robot</b></span><input type="checkbox" class="sw" id="sw-ghost" checked></label>
+        <label class="toggle"><span><b>Marcar la tinta fuera de sitio</b></span><input type="checkbox" class="sw" id="sw-errors" checked></label>
+        <label class="toggle"><span><b>Lupa en la aguja</b></span><input type="checkbox" class="sw" id="sw-lens" checked></label>
+        <label class="toggle"><span><b>Ver mapa de la piel</b><small>Colorea el antebrazo según lo blanda o dura que es la piel.</small></span><input type="checkbox" class="sw" id="sw-map"></label>
+        <div class="map-legend"><span><i style="background:rgba(40,110,230,.55)"></i>Blanda</span><span><i style="background:rgba(235,120,30,.6)"></i>Dura, hueso cerca</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="lower">
+    <section class="card" aria-label="Historial de pruebas">
+      <h2>Historial de pruebas</h2>
+      <p class="empty" id="hist-empty">Todavía no ha terminado ninguna prueba. Cada vez que el robot acabe un diseño, sale aquí con sus números para que compares ajustes.</p>
+      <div class="table-scroll" id="hist-wrap" hidden>
+        <table>
+          <thead><tr><th>#</th><th>Diseño</th><th>Zona</th><th>Condiciones</th><th>Error medio</th><th>En ±0,5 mm</th><th>Profundidad</th><th>Con tinta</th><th>Color limpio</th><th>Paradas</th><th>Recargas</th><th>Cambios</th><th>Enjuagues</th><th>Resultado</th></tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" aria-label="Cosas para probar">
+      <h2>Cosas para probar</h2>
+      <ul class="tips">
+        <li><b>Prueba de agujas.</b> Cada fila es un cartucho: la RL sale sólida, la RS suave, la M1 hace banda ancha y la RM difumina el borde. A la derecha, rellenos y un degradado de puntos.</li>
+        <li><b>El enganche.</b> Pon la cámara «Estación» y mira cómo encaja el cartucho desde arriba, lo saca por la boca de la horquilla y, al dejarlo, suelta el pestillo.</li>
+        <li><b>Sin enjuagar.</b> La estrella lleva negro y rojo: sin agua de por medio, el rojo sale sucio al principio.</li>
+        <li><b>Cara interna con profundidad fija.</b> La piel es fina: a 1,2 mm se corre la tinta.</li>
+        <li><b>Piel blanda sin sensor de fuerza.</b> Cerca del codo la piel se hunde y la aguja se queda corta.</li>
+        <li><b>Máquina lenta.</b> Baja la velocidad de la máquina a 50 y sube el trazo a 40: verás los pinchazos separados.</li>
+      </ul>
+      <p class="note">Modelo simplificado: antebrazo de sección redonda, brazo robot de tres ejes con muñeca esférica que también gira la máquina, cámara a 60 imágenes por segundo, agujas del #10 (0,30 mm) y #12 (0,35 mm) y un mapa de piel aproximado. Las cifras de la piel son orientativas.</p>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const { sin, cos, exp, hypot, atan2, acos, min, max, abs, round, sqrt, log, tan, floor, ceil, PI } = Math;
+  const TAU = PI * 2;
+  const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+  const wrapA = (a) => { while (a > PI) a -= TAU; while (a < -PI) a += TAU; return a; };
+
+  // ---------- Modelo (mm, s, rad). Y hacia arriba, el antebrazo a lo largo de X, el robot detrás (Z negativa) ----------
+  const DT = .002, CAM_DT = 1 / 60;
+  const TOL = .5;
+  const AXIS_H = 66, U_END = 260, U_CAP = 290;
+  const PATCH_HU = 110, PATCH_HV = 55, PPM = 8;
+  const MARKERS = [[-100, -24], [-100, 24], [100, -24], [100, 24]];
+  const TONES = ['#f0c8a4', '#d6a078', '#a56a44', '#6a4029'];
+  const KEYS = ['x', 'y', 'z', 'yaw', 'pitch', 'roll', 'twist', 's', 'b'];
+  const NOISE = { x: .6, y: .6, z: .6, yaw: .004, pitch: .002, roll: .006, twist: .004, s: .002, b: .004 };
+  const JK = ['x', 'y', 'z', 'yaw', 'roll'];
+  const RB = { x: 0, z: -220 }, SH_H = 130, A2 = 230, A3 = 210, LT = 112;
+  const HOME = { x: 0, y: 250, z: -60 };
+  const STANDOFF = 3, HOP = 9, APPROACH = 14;
+  const LENS_D = 46, LENS_FOV = 24;
+  const GRIP = 27;   // de la punta del cartucho al borde de la empuñadura
+
+  // Cartuchos: calibre (#10 = 0,30 mm, #12 = 0,35 mm), número de agujas y configuración
+  const CARTS = {
+    '1003RL': { cfg: 'RL', n: 3, gauge: 10, dia: .30, color: '#e0463a', uso: 'Líneas muy finas y puntillismo' },
+    '1205RL': { cfg: 'RL', n: 5, gauge: 12, dia: .35, color: '#2f7de1', uso: 'Líneas medias' },
+    '1209RL': { cfg: 'RL', n: 9, gauge: 12, dia: .35, color: '#1f9d6a', uso: 'Contornos gruesos' },
+    '1207RS': { cfg: 'RS', n: 7, gauge: 12, dia: .35, color: '#e39b1b', uso: 'Líneas suaves y sombra' },
+    '1207M1': { cfg: 'M1', n: 7, gauge: 12, dia: .35, color: '#8a4fd8', uso: 'Rellenos y sombras' },
+    '1211RM': { cfg: 'RM', n: 11, gauge: 12, dia: .35, color: '#d6457f', uso: 'Rellenos con el borde suave' }
+  };
+  const CART_KEYS = Object.keys(CARTS);
+  const CFG_NAME = { RL: 'liner redondo (RL): agujas pegadas en círculo', RS: 'shader redondo (RS): círculo más abierto, con hueco entre agujas', M1: 'magnum (M1): dos filas intercaladas', RM: 'magnum curvo (RM): dos filas en arco, las de los lados más cortas' };
+  // Posición de cada aguja en la punta (a: a lo largo de la fila, b: de través, z: lo que se queda corta)
+  function needleLayout(c) {
+    const d = c.dia, pts = [];
+    const ring = (m, R, rot = 0) => { for (let i = 0; i < m; i++) { const t = rot + TAU * i / m; pts.push({ a: R * cos(t), b: R * sin(t), z: 0 }); } };
+    const tight = (m) => (m <= 1 ? 0 : d / (2 * sin(PI / m)));
+    if (c.cfg === 'RL' || c.cfg === 'RS') {
+      const sp = c.cfg === 'RS' ? 1.45 : 1.0;
+      if (c.n <= 5) ring(c.n, tight(c.n) * sp, -PI / 2);
+      else if (c.n <= 9) { pts.push({ a: 0, b: 0, z: 0 }); ring(c.n - 1, tight(c.n - 1) * sp); }
+      else { ring(3, tight(3) * sp, .5); ring(c.n - 3, tight(c.n - 3) * sp); }
+    } else {
+      const top = ceil(c.n / 2), bot = c.n - top, pitch = d * 1.55, off = d * .45;
+      for (let i = 0; i < top; i++) pts.push({ a: (i - (top - 1) / 2) * pitch, b: -off, z: 0 });
+      for (let i = 0; i < bot; i++) pts.push({ a: (i - (bot - 1) / 2) * pitch, b: off, z: 0 });
+      if (c.cfg === 'RM') { const half = (top - 1) / 2 * pitch; for (const p of pts) { const k = p.a / half; p.z = .45 * k * k; } }
+    }
+    return pts;
+  }
+  const LAYOUT = {};
+  for (const k of CART_KEYS) {
+    const c = CARTS[k], L = needleLayout(c);
+    LAYOUT[k] = L;
+    c.w = 2 * max(...L.map((p) => abs(p.a))) + c.dia;   // ancho de la huella a lo largo de la fila
+    c.t = 2 * max(...L.map((p) => abs(p.b))) + c.dia;   // grosor de través
+    c.use = c.n * c.dia;                                 // tinta que gasta por mm de trazo
+    c.mag = c.cfg === 'M1' || c.cfg === 'RM';
+  }
+
+  // Tintas de la estación
+  const INKS = {
+    negro: { label: 'Negro', name: 'negra', rgb: [22, 20, 28] },
+    rojo: { label: 'Rojo', name: 'roja', rgb: [178, 32, 36] },
+    amarillo: { label: 'Amarillo', name: 'amarilla', rgb: [232, 176, 24] },
+    verde: { label: 'Verde', name: 'verde', rgb: [30, 122, 62] }
+  };
+  const INK_KEYS = Object.keys(INKS);
+  const rgbStr = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+  // Estación: horquillas de cartuchos al fondo y vasos delante
+  const ST_TOP = 60, FORK_Y = ST_TOP + 40, TIP_Y = FORK_Y + 1.5 - 24, SLOT_Z = -175, SAFE_Y = 185, CUP_Z = -108;
+  const SLOT = {};
+  CART_KEYS.forEach((k, i) => { SLOT[k] = { x: 160 + i * 28, z: SLOT_Z }; });
+  const CUPS = { negro: { x: 140, z: CUP_Z }, rojo: { x: 166, z: CUP_Z }, amarillo: { x: 192, z: CUP_Z }, verde: { x: 218, z: CUP_Z } };
+  const RINSE = { x: 252, z: CUP_Z }, PAPER = { x: 292, z: CUP_Z };
+
+  // Zonas del antebrazo: dónde va el tatuaje y cómo gira el cliente el brazo para ponerla arriba
+  const ZONES = {
+    externa: { label: 'Cara externa', u: 0, phi: 0, note: 'Cara externa del antebrazo: piel de grosor medio.' },
+    interna: { label: 'Cara interna', u: 0, phi: PI, note: 'Cara interna: el cliente pone la palma hacia arriba. Piel fina y blanda, se corre con facilidad.' },
+    muneca: { label: 'Muñeca', u: -150, phi: 0, note: 'Cerca de la muñeca: brazo más estrecho, piel más fina y dura, tendones cerca.' },
+    codo: { label: 'Cerca del codo', u: 90, phi: .5, note: 'Sobre el músculo, cerca del codo: piel gruesa y blanda, se hunde al pinchar.' },
+    hueso: { label: 'Sobre el hueso', u: -40, phi: -1.45, note: 'Encima del borde del cúbito: el hueso está casi a flor de piel. Piel fina y dura.' }
+  };
+  let zone = ZONES.externa;
+  const box = () => ({ u0: zone.u - 70, u1: zone.u + 70, v0: -27, v1: 27 });
+
+  const R0 = (u) => 36 + 8.5 * clamp(u, -U_END, U_END) / U_END;
+  const gB = (u) => exp(-(((u - 60) / 70) ** 2));
+  const tw = (u) => (U_END - clamp(u, -U_END, U_END)) / (2 * U_END);
+
+  // Mapa de piel aproximado: profundidad buena (dC) y blandura (0 dura a 1 blanda)
+  function skinAtAbs(u, phi) {
+    const volar = (1 - cos(phi)) / 2;
+    const wrist = clamp((-u - 40) / 200, 0, 1), elbow = clamp((u - 60) / 160, 0, 1);
+    const ulna = exp(-(((wrapA(phi + 1.45)) / .38) ** 2));
+    const belly = gB(u) * (1 - volar * .5);
+    const dC = 1.25 - .45 * volar - .25 * wrist + .25 * elbow - .15 * ulna;
+    const soft = clamp(.4 + .35 * belly + .2 * volar - .45 * ulna - .2 * wrist, .05, .95);
+    return { dC, lo: dC - .3, hi: dC + .3, soft };
+  }
+  const skinAt = (u, v) => skinAtAbs(u, v / R0(u) + zone.phi);
+
+  const params = {
+    move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12,
+    predict: true, safety: true, force: true, zoneDepth: true, speed: 18,
+    cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true,
+    showGhost: true, showErrors: true, showLens: true, showMap: false, tone: 1
+  };
+  const BASE = { move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true };
+  const SCENARIOS = {
+    tranquilo: { ...BASE, zone: 'externa' },
+    nervioso: { ...BASE, move: .8, breath: .7, jerks: true, latency: 50, noise: .2 },
+    gira: { ...BASE, move: .3, roll: 35 * PI / 180 },
+    lenta: { ...BASE, move: .55, breath: .5, latency: 220, predict: false, force: false },
+    ciegas: { ...BASE, move: .5, breath: .6, tracking: false, force: false },
+    sinfrenos: { ...BASE, move: .5, breath: .5, jerks: true, latency: 50, safety: false, force: false },
+    seco: { ...BASE, capacity: 240, inkSensor: false },
+    sucio: { ...BASE, rinse: false, design: 'estrella' },
+    blanda: { ...BASE, force: false, zone: 'codo' },
+    fina: { ...BASE, zoneDepth: false, zone: 'interna' }
+  };
+
+  // ---------- Utilidades ----------
+  const mkS = () => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, twist: 0, s: 0, b: 0 });
+  const copyS = (a, b) => { for (const k of KEYS) b[k] = a[k]; return b; };
+  let spare = null;
+  function gauss() {
+    if (spare !== null) { const v = spare; spare = null; return v; }
+    let u = 0;
+    while (u === 0) u = Math.random();
+    const v = Math.random(), r = sqrt(-2 * log(u));
+    spare = r * sin(TAU * v);
+    return r * cos(TAU * v);
+  }
+  function seeded(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const fmt = (x, d) => x.toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  // Piel (u a lo largo, v alrededor desde el centro de la zona, en mm) -> mundo: punto, normal y eje
+  function surf(u, v, S, o, lift) {
+    const r0 = R0(u), r = r0 * (1 + S.b * gB(u)) + (lift || 0);
+    const ang = v / r0 + zone.phi + S.roll + S.twist * tw(u);
+    const ca = cos(ang), sa = sin(ang);
+    const lx = u * (1 + S.s), ly = r * ca, lz = r * sa;
+    const cp = cos(S.pitch), sp = sin(S.pitch), cy = cos(S.yaw), sy = sin(S.yaw);
+    let x1 = lx * cp - ly * sp, y1 = lx * sp + ly * cp, z1 = lz;
+    o.x = x1 * cy + z1 * sy + S.x; o.y = y1 + AXIS_H + S.y; o.z = -x1 * sy + z1 * cy + S.z;
+    x1 = -ca * sp; y1 = ca * cp; z1 = sa;
+    o.nx = x1 * cy + z1 * sy; o.ny = y1; o.nz = -x1 * sy + z1 * cy;
+    o.ax = cp * cy; o.ay = sp; o.az = -cp * sy;
+    return o;
+  }
+  // Mundo -> piel, con la profundidad geométrica (positiva por dentro)
+  function inv(px, py, pz, S, o) {
+    const X = px - S.x, Y = py - AXIS_H - S.y, Z = pz - S.z;
+    const cp = cos(S.pitch), sp = sin(S.pitch), cy = cos(S.yaw), sy = sin(S.yaw);
+    const x1 = X * cy - Z * sy, z1 = X * sy + Z * cy, y1 = Y;
+    const lx = x1 * cp + y1 * sp, ly = -x1 * sp + y1 * cp, lz = z1;
+    const u = lx / (1 + S.s), r0 = R0(u);
+    o.u = u;
+    o.v = r0 * wrapA(atan2(lz, ly) - zone.phi - S.roll - S.twist * tw(u));
+    o.depth = r0 * (1 + S.b * gB(u)) - hypot(ly, lz);
+    return o;
+  }
+
+  // ---------- Diseños: elementos de línea, relleno y puntos en coordenadas de diseño (y hacia abajo) ----------
+  const circle = (r, n = 120, cx = 0, cy = 0) => { const p = []; for (let i = 0; i <= n; i++) { const t = i / n * TAU; p.push([cx + r * cos(t), cy + r * sin(t)]); } return p; };
+  const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  const DESIGNS = {
+    estrella: { label: 'Estrella náutica', note: 'Contorno 1209RL, líneas 1205RL, mitades en negro y en rojo con relleno sólido de 1207M1.', make() {
+      const O = (i) => [cos(-PI / 2 + i * 2 * PI / 5), sin(-PI / 2 + i * 2 * PI / 5)];
+      const I = (i) => [.4 * cos(-PI / 2 + PI / 5 + i * 2 * PI / 5), .4 * sin(-PI / 2 + PI / 5 + i * 2 * PI / 5)];
+      const ring = [];
+      for (let i = 0; i <= 5; i++) { ring.push(O(i % 5)); if (i < 5) ring.push(I(i)); }
+      const els = [{ kind: 'line', pts: ring, cart: '1209RL', ink: 'negro' }];
+      for (let i = 0; i < 5; i++) els.push({ kind: 'line', pts: [[0, 0], O(i)], cart: '1205RL', ink: 'negro' });
+      for (let i = 0; i < 5; i++) els.push({ kind: 'fill', poly: [[0, 0], O(i), I((i + 4) % 5)], cart: '1207M1', ink: 'negro' });
+      for (let i = 0; i < 5; i++) els.push({ kind: 'fill', poly: [[0, 0], O(i), I(i)], cart: '1207M1', ink: 'rojo' });
+      return els;
+    } },
+    corazon: { label: 'Corazón', note: 'Contorno 1209RL en negro y relleno rojo con magnum curvo 1211RM.', make() {
+      const p = [];
+      for (let i = 0; i <= 160; i++) { const t = i / 160 * TAU; p.push([16 * sin(t) ** 3, -(13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t))]); }
+      return [{ kind: 'line', pts: p, cart: '1209RL', ink: 'negro' }, { kind: 'fill', poly: p.slice(0, -1), cart: '1211RM', ink: 'rojo', angle: .35 }];
+    } },
+    flor: { label: 'Flor con puntos', note: 'Pétalos con 1205RL y sombra de puntillismo con 1003RL, más densa en el centro.', make() {
+      const p = [];
+      for (let i = 0; i <= 480; i++) { const t = i / 480 * TAU, r = cos(4 * t); p.push([r * cos(t), r * sin(t)]); }
+      return [
+        { kind: 'line', pts: p, cart: '1205RL', ink: 'negro' },
+        { kind: 'dots', ring: { cx: 0, cy: 0, r0: .05, r1: .45 }, dens: (q) => 1 - q.nr, rMin: .8, rMax: 2.3, cart: '1003RL', ink: 'negro' },
+        { kind: 'dots', pts: circle(1.08), spacing: 1.3, cart: '1003RL', ink: 'verde' }
+      ];
+    } },
+    mandala: { label: 'Mandala de puntos', note: 'Todo con 1003RL, punto a punto: círculos punteados, rayos y un anillo con degradado.', make() {
+      const els = [
+        { kind: 'dots', pts: circle(1), spacing: 1.25, cart: '1003RL', ink: 'negro' },
+        { kind: 'dots', pts: circle(.62), spacing: 1.15, cart: '1003RL', ink: 'negro' },
+        { kind: 'dots', ring: { cx: 0, cy: 0, r0: .27, r1: .56 }, dens: (q) => 1 - q.nr * .9, rMin: .85, rMax: 2.4, cart: '1003RL', ink: 'negro' },
+        { kind: 'dots', pts: circle(.18, 40), spacing: 1.0, cart: '1003RL', ink: 'negro' }
+      ];
+      for (let i = 0; i < 12; i++) { const t = i / 12 * TAU; els.push({ kind: 'dots', pts: [[.67 * cos(t), .67 * sin(t)], [.95 * cos(t), .95 * sin(t)]], spacing: 1.2, cart: '1003RL', ink: 'negro' }); }
+      return els;
+    } },
+    ola: { label: 'Olas', note: 'Tres olas: 1209RL negra, 1205RL verde y 1207RS negra para ver la línea suave.', make() {
+      const out = [], carts = ['1209RL', '1205RL', '1207RS'], inks = ['negro', 'verde', 'negro'];
+      for (let j = 0; j < 3; j++) {
+        const p = [];
+        for (let i = 0; i <= 200; i++) { const x = -1 + 2 * i / 200; p.push([x, j * .42 + .14 * sin(x * PI * 3 + j * 1.1)]); }
+        out.push({ kind: 'line', pts: p, cart: carts[j], ink: inks[j] });
+      }
+      return out;
+    } },
+    prueba: { label: 'Prueba de agujas', note: 'Una fila por cartucho: 1003RL, 1205RL, 1209RL, 1207RS, 1207M1 y 1211RM. A la derecha, rellenos con M1 y RM y un degradado de puntos.', make() {
+      const els = CART_KEYS.map((k, i) => {
+        const p = [];
+        for (let s = 0; s <= 60; s++) { const x = s / 60 * 1.1; p.push([x, i * .19 + .05 + .025 * sin(x * TAU * 1.2)]); }
+        return { kind: 'line', pts: p, cart: k, ink: 'negro' };
+      });
+      els.push({ kind: 'fill', poly: rect(1.3, 0, 1.62, .42), cart: '1207M1', ink: 'negro' });
+      els.push({ kind: 'fill', poly: rect(1.3, .56, 1.62, 1.0), cart: '1211RM', ink: 'negro' });
+      els.push({ kind: 'dots', poly: rect(1.75, 0, 2.05, 1.0), dens: (q) => 1 - q.ny, rMin: 1.0, rMax: 2.8, cart: '1003RL', ink: 'negro' });
+      return els;
+    } }
+  };
+
+  // Ajusta el diseño a la zona (14 × 5,4 cm como mucho, centrado en la zona)
+  function fitElements(els) {
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    const acc = ([x, y]) => { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y); };
+    for (const e of els) {
+      (e.pts || []).forEach(acc); (e.poly || []).forEach(acc);
+      if (e.ring) { acc([e.ring.cx - e.ring.r1, e.ring.cy - e.ring.r1]); acc([e.ring.cx + e.ring.r1, e.ring.cy + e.ring.r1]); }
+    }
+    const B = box();
+    const sc = min((B.u1 - B.u0) / (x1 - x0 || 1), (B.v1 - B.v0) / (y1 - y0 || 1));
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, bu = (B.u0 + B.u1) / 2, bv = (B.v0 + B.v1) / 2;
+    const F = ([x, y]) => ({ u: bu + (x - cx) * sc, v: bv + (y - cy) * sc });
+    return els.map((e) => ({
+      ...e,
+      pts: e.pts && e.pts.map(F), poly: e.poly && e.poly.map(F),
+      ring: e.ring && { c: F([e.ring.cx, e.ring.cy]), r0: e.ring.r0 * sc, r1: e.ring.r1 * sc }
+    }));
+  }
+  // Los dibujos propios vienen en coordenadas 0..1 de la zona de dibujo
+  function mapPadElements(els) {
+    const B = box();
+    const F = ([x, y]) => ({ u: B.u0 + x * (B.u1 - B.u0), v: B.v0 + y * (B.v1 - B.v0) });
+    return els.map((e) => ({ ...e, pts: e.pts && e.pts.map(F), poly: e.poly && e.poly.map(F) }));
+  }
+
+  function pointInPoly(p, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i], b = poly[j];
+      if ((a.v > p.v) !== (b.v > p.v) && p.u < (b.u - a.u) * (p.v - a.v) / (b.v - a.v) + a.u) inside = !inside;
+    }
+    return inside;
+  }
+  // Pasadas de relleno en zigzag dentro de un polígono. Devuelve caminos en coordenadas de piel.
+  function hatch(poly, sp, ang) {
+    const c = cos(ang), s = sin(ang);
+    const R = poly.map((p) => ({ x: p.u * c + p.v * s, y: -p.u * s + p.v * c }));
+    const back = (x, y) => ({ u: x * c - y * s, v: x * s + y * c });
+    let y0 = Infinity, y1 = -Infinity;
+    for (const p of R) { y0 = min(y0, p.y); y1 = max(y1, p.y); }
+    const paths = [];
+    let curPath = null, prevEnd = null, dir = 1;
+    for (let y = y0 + sp / 2; y < y1; y += sp) {
+      const xs = [];
+      for (let i = 0; i < R.length; i++) {
+        const a = R[i], b = R[(i + 1) % R.length];
+        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) xs.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
+      }
+      xs.sort((p, q) => p - q);
+      const segs = [];
+      for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > .7) segs.push([xs[i] + .3, xs[i + 1] - .3]);
+      if (segs.length !== 1) {
+        curPath = null; prevEnd = null;
+        for (const [a, b] of segs) paths.push([back(a, y), back(b, y)]);
+        dir = -dir;
+        continue;
+      }
+      const [a, b] = segs[0], pa = dir > 0 ? a : b, pb = dir > 0 ? b : a;
+      if (curPath && prevEnd && hypot(pa - prevEnd[0], y - prevEnd[1]) < sp * 3) curPath.push(back(pa, y), back(pb, y));
+      else { curPath = [back(pa, y), back(pb, y)]; paths.push(curPath); }
+      prevEnd = [pb, y]; dir = -dir;
+    }
+    return paths;
+  }
+  // Puntos a lo largo de un camino, cada `sp` mm
+  function dotPath(pts, sp) {
+    const out = [{ u: pts[0].u, v: pts[0].v, hits: 1 }];
+    let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], L = hypot(b.u - a.u, b.v - a.v);
+      let t = sp - acc;
+      while (t <= L) { out.push({ u: a.u + (b.u - a.u) * t / L, v: a.v + (b.v - a.v) * t / L, hits: 1 }); t += sp; }
+      acc = (acc + L) % sp;
+    }
+    return out;
+  }
+  // Puntillismo: puntos al azar con separación mínima que depende de lo oscuro que tenga que quedar
+  function stipple(region, dens, rMin, rMax, seed) {
+    const rnd = seeded(seed), { x0, y0, x1, y1 } = region.bbox;
+    const cell = rMin / Math.SQRT2, gw = ceil((x1 - x0) / cell) + 1, gh = ceil((y1 - y0) / cell) + 1;
+    const grid = new Int32Array(gw * gh).fill(-1), pts = [];
+    const tries = round((x1 - x0) * (y1 - y0) / (rMin * rMin) * 5), reach = ceil(rMax / cell) + 1;
+    for (let t = 0; t < tries; t++) {
+      const p = { u: x0 + rnd() * (x1 - x0), v: y0 + rnd() * (y1 - y0) };
+      if (!region.test(p)) continue;
+      const dn = clamp(dens(region.norm(p)), 0, 1), r = rMin + (rMax - rMin) * (1 - dn);
+      const gx = floor((p.u - x0) / cell), gy = floor((p.v - y0) / cell);
+      let ok = true;
+      for (let yy = max(0, gy - reach); yy <= min(gh - 1, gy + reach) && ok; yy++) {
+        for (let xx = max(0, gx - reach); xx <= min(gw - 1, gx + reach); xx++) {
+          const id = grid[yy * gw + xx];
+          if (id >= 0) { const q = pts[id]; if (hypot(q.u - p.u, q.v - p.v) < (r + q.r) / 2) { ok = false; break; } }
+        }
+      }
+      if (!ok || grid[gy * gw + gx] >= 0) continue;
+      grid[gy * gw + gx] = pts.length;
+      pts.push({ u: p.u, v: p.v, r, hits: dn > .65 ? 2 : 1 });
+    }
+    // orden por vecino más cercano para no ir de un lado a otro
+    const out = [], used = new Uint8Array(pts.length);
+    let cur = pts.reduce((best, p, i) => (p.u < pts[best].u ? i : best), 0);
+    for (let n = 0; n < pts.length; n++) {
+      used[cur] = 1; out.push(pts[cur]);
+      let bi = -1, bd = Infinity;
+      for (let i = 0; i < pts.length; i++) if (!used[i]) { const d = hypot(pts[i].u - pts[cur].u, pts[i].v - pts[cur].v); if (d < bd) { bd = d; bi = i; } }
+      if (bi < 0) break;
+      cur = bi;
+    }
+    return out;
+  }
+  function polyRegion(poly) {
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const p of poly) { x0 = min(x0, p.u); x1 = max(x1, p.u); y0 = min(y0, p.v); y1 = max(y1, p.v); }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = hypot(x1 - x0, y1 - y0) / 2 || 1;
+    return {
+      bbox: { x0, y0, x1, y1 }, test: (p) => pointInPoly(p, poly),
+      norm: (p) => ({ nx: (p.u - x0) / (x1 - x0 || 1), ny: (p.v - y0) / (y1 - y0 || 1), nr: hypot(p.u - cx, p.v - cy) / R }),
+      outline: [{ pts: poly, closed: true }]
+    };
+  }
+  function ringRegion(r) {
+    const { c, r0, r1 } = r;
+    const circ = (rr) => { const p = []; for (let i = 0; i <= 90; i++) { const t = i / 90 * TAU; p.push({ u: c.u + rr * cos(t), v: c.v + rr * sin(t) }); } return p; };
+    return {
+      bbox: { x0: c.u - r1, y0: c.v - r1, x1: c.u + r1, y1: c.v + r1 },
+      test: (p) => { const d = hypot(p.u - c.u, p.v - c.v); return d >= r0 && d <= r1; },
+      norm: (p) => ({ nx: (p.u - c.u + r1) / (2 * r1), ny: (p.v - c.v + r1) / (2 * r1), nr: (hypot(p.u - c.u, p.v - c.v) - r0) / (r1 - r0 || 1) }),
+      outline: [{ pts: circ(r1), closed: true }].concat(r0 > .5 ? [{ pts: circ(r0), closed: true }] : [])
+    };
+  }
+  function makeLine(pts, cart, ink, spin) {
+    const clean = [pts[0]];
+    for (let i = 1; i < pts.length; i++) { const l = clean[clean.length - 1]; if (hypot(pts[i].u - l.u, pts[i].v - l.v) > .05) clean.push(pts[i]); }
+    if (clean.length < 2) return null;
+    const cum = [0];
+    for (let i = 1; i < clean.length; i++) cum.push(cum[i - 1] + hypot(clean[i].u - clean[i - 1].u, clean[i].v - clean[i - 1].v));
+    return { type: 'line', pts: clean, cum, len: cum[cum.length - 1], hint: 0, cart, ink, spin };
+  }
+  // Convierte los elementos en trabajos para el robot: líneas (también las pasadas de relleno) y tandas de puntos
+  function buildJobs(els) {
+    const jobs = [], sten = [];
+    for (const el of els) {
+      if (el.kind === 'line') {
+        sten.push({ pts: el.pts, closed: false });
+        const j = makeLine(el.pts, el.cart, el.ink, null); if (j) jobs.push(j);
+      } else if (el.kind === 'fill') {
+        sten.push({ pts: el.poly, closed: true });
+        const c = CARTS[el.cart], sp = c.mag ? c.w * .55 : c.w * .7, ang = el.angle || 0;
+        for (const path of hatch(el.poly, sp, ang)) { const j = makeLine(path, el.cart, el.ink, ang + PI / 2); if (j) jobs.push(j); }
+      } else if (el.kind === 'dots') {
+        let dots;
+        if (el.pts) { sten.push({ pts: el.pts, closed: false }); dots = dotPath(el.pts, el.spacing || 1.2); }
+        else {
+          const region = el.poly ? polyRegion(el.poly) : ringRegion(el.ring);
+          sten.push(...region.outline);
+          dots = stipple(region, el.dens || (() => .6), el.rMin || .9, el.rMax || 2.4, 11);
+        }
+        if (dots.length) jobs.push({ type: 'dots', dots, len: dots.length, cart: el.cart, ink: el.ink });
+      }
+    }
+    return { jobs, sten };
+  }
+
+  let designSrc = null, strokes = [], stencil = [], totalLen = 0;
+  function buildDesign() {
+    const els = designSrc.pad ? mapPadElements(designSrc.els) : fitElements(designSrc.make());
+    const { jobs, sten } = buildJobs(els);
+    strokes = jobs; stencil = sten;
+    totalLen = strokes.reduce((a, s) => a + (s.type === 'dots' ? s.len * 1.5 : s.len), 0);
+  }
+  const doneLen = () => strokes.slice(0, cur.k).reduce((a, s) => a + (s.type === 'dots' ? s.len * 1.5 : s.len), 0) + (cur.k < strokes.length ? (strokes[cur.k].type === 'dots' ? cur.s * 1.5 : cur.s) : 0);
+
+  function pointAt(st, s, o) {
+    let i = st.hint;
+    if (i >= st.cum.length - 1 || s < st.cum[i]) i = 0;
+    while (i < st.cum.length - 2 && st.cum[i + 1] < s) i++;
+    st.hint = i;
+    const seg = st.cum[i + 1] - st.cum[i], f = seg > 0 ? clamp((s - st.cum[i]) / seg, 0, 1) : 0;
+    o.u = st.pts[i].u + (st.pts[i + 1].u - st.pts[i].u) * f;
+    o.v = st.pts[i].v + (st.pts[i + 1].v - st.pts[i].v) * f;
+    return o;
+  }
+  function jobPoint(k, s, o) {
+    const st = strokes[k];
+    if (st.type === 'dots') { const d = st.dots[min(st.dots.length - 1, floor(s))]; o.u = d.u; o.v = d.v; return o; }
+    return pointAt(st, s, o);
+  }
+  const cartFor = (k) => (params.cart !== 'auto' ? params.cart : strokes[min(k, strokes.length - 1)].cart);
+  const inkFor = (k) => strokes[min(k, strokes.length - 1)].ink;
+
+  // ---------- Estado ----------
+  const skin = mkS(), Sest = mkS(), Sref = mkS(), Sfor = mkS(), tmpS = mkS();
+  const jerk = { p: { x: 0, y: 0, z: 0, yaw: 0, roll: 0 }, v: { x: 0, y: 0, z: 0, yaw: 0, roll: 0 } };
+  const drag = { x: 0, z: 0, roll: 0, tx: 0, tz: 0 };
+  const env = { A: params.move, D: params.breath };
+  const cam = { S: mkS(), vel: mkS(), age: 0, timer: 0 };
+  const NK = KEYS.length, HN = 256, hist = new Float64Array(HN * NK);
+  let hHead = 0, simT = 0, timeScale = 1;
+
+  const rob = { x: HOME.x, y: HOME.y, z: HOME.z, vx: 0, vy: 0, vz: 0, dx: 0, dy: -1, dz: 0, e: 0, spin: 0, tfx: 0, tfy: 0, tfz: 0, ptx: HOME.x, pty: HOME.y, ptz: HOME.z };
+  const tgt = { x: HOME.x, y: HOME.y, z: HOME.z }, aim = { x: 0, y: 0, z: 0, ok: false }, tip = { x: HOME.x, y: HOME.y, z: HOME.z };
+  const trav = { fu: 0, fv: 0, tu: 0, tv: 0, h0: STANDOFF, amp: 0, dur: .15, p: 0 };
+  const Dp = { u: 0, v: 0 }, liftD = { u: 0, v: 0 }, refP = { u: 0, v: 0 }, tanA = { u: 0, v: 0 }, tanB = { u: 0, v: 0 };
+  const SP = {}, SQ = {}, SR = {}, INV = {}, INV2 = {};
+  let mode = 'idle', running = false, paused = false, holdOk = 0;
+  let cur = { k: 0, s: 0 }, dotPh = 'move', dotHits = 0, dotT = 0, hitClock = 0;
+  let depthEff = -5, inSkin = false, curWin = null;
+  let hits = [], lastHit = null, stats = null;
+  const depthBuf = [], history = [];
+  let runNo = 0;
+  // La máquina: cartucho puesto, tinta cargada, cuánta queda y si arrastra color de antes
+  const tool = { cart: null, ink: null, level: 0, prevInk: null, contam: 0 };
+  let svc = null, pendingSvc = null;
+
+  function resetStats() { stats = { n: 0, sumE: 0, maxE: 0, within: 0, depthOK: 0, inkOK: 0, colorOK: 0, holds: 0, refills: 0, changes: 0, rinses: 0, time: 0 }; }
+  resetStats();
+
+  function pushHist(S) { hHead = (hHead + 1) % HN; const o = hHead * NK; for (let i = 0; i < NK; i++) hist[o + i] = S[KEYS[i]]; }
+  function getHist(ago, out) { const o = ((((hHead - ago) % HN) + HN) % HN) * NK; for (let i = 0; i < NK; i++) out[KEYS[i]] = hist[o + i]; return out; }
+
+  function updateSkin() {
+    const t = simT;
+    env.A += (params.move - env.A) * (DT / .8);
+    env.D += (params.breath - env.D) * (DT / .8);
+    const A = env.A, D = env.D, w = 11, zt = .45;
+    for (const k of JK) { jerk.v[k] += (-w * w * jerk.p[k] - 2 * zt * w * jerk.v[k]) * DT; jerk.p[k] += jerk.v[k] * DT; }
+    const kd = DT / .035, kr = DT / .3;
+    drag.x += (drag.tx - drag.x) * kd; drag.z += (drag.tz - drag.z) * kd;
+    drag.roll += (-zone.phi + params.roll - drag.roll) * kr;
+    const br = sin(TAU * .25 * t);
+    skin.x = A * (12 * sin(TAU * .061 * t) + 6 * sin(TAU * .17 * t + 1.3) + .35 * sin(TAU * 1.7 * t) + .25 * sin(TAU * 2.9 * t + .4)) + jerk.p.x + drag.x;
+    skin.z = A * (7 * sin(TAU * .083 * t + .7) + 4 * sin(TAU * .21 * t + 2.1) + .3 * sin(TAU * 2.3 * t + 1.1)) + jerk.p.z + drag.z;
+    skin.y = D * (1.0 * sin(TAU * .25 * t + .5) + .12 * sin(TAU * 1.15 * t)) + A * .8 * sin(TAU * .13 * t + .4) + jerk.p.y;
+    skin.yaw = A * (.05 * sin(TAU * .052 * t + .3) + .02 * sin(TAU * .23 * t + 1.7)) + jerk.p.yaw;
+    skin.pitch = A * .015 * sin(TAU * .071 * t + 2.2);
+    skin.roll = A * (.12 * sin(TAU * .045 * t + .8) + .04 * sin(TAU * .19 * t + .2)) + jerk.p.roll + drag.roll;
+    skin.twist = A * .06 * sin(TAU * .09 * t + 1.9);
+    skin.s = D * .025 * br;
+    skin.b = D * (.05 + .05 * sin(TAU * .11 * t + .9) + .03 * br);
+  }
+  function triggerJerk() {
+    const a = Math.random() * TAU, sp = 300 + Math.random() * 150;
+    jerk.v.x += sp * cos(a); jerk.v.z += sp * sin(a) * .7;
+    jerk.v.y += (Math.random() < .5 ? -1 : 1) * (40 + Math.random() * 30);
+    jerk.v.yaw += (Math.random() - .5) * 1.0; jerk.v.roll += (Math.random() - .5) * 3.0;
+    showToast('¡Respingo!');
+  }
+  function camSample() {
+    getHist(min(HN - 1, round(params.latency / 1000 / DT)), tmpS);
+    const n = params.noise;
+    for (const k of KEYS) {
+      tmpS[k] += gauss() * NOISE[k] * n;
+      const raw = (tmpS[k] - cam.S[k]) / CAM_DT;
+      cam.vel[k] += (raw - cam.vel[k]) * .35;
+      cam.S[k] = tmpS[k];
+    }
+    cam.age = 0;
+  }
+  function estimate(out) {
+    if (!params.tracking) copyS(Sref, out);
+    else if (params.predict) { const h = params.latency / 1000 + cam.age; for (const k of KEYS) out[k] = cam.S[k] + cam.vel[k] * h; }
+    else copyS(cam.S, out);
+    return out;
+  }
+  function skinSpeedSeen(D) {
+    if (params.force) {
+      getHist(2, tmpS); surf(D.u, D.v, tmpS, SQ);
+      const x = SQ.x, y = SQ.y, z = SQ.z;
+      getHist(4, tmpS); surf(D.u, D.v, tmpS, SQ);
+      return hypot(x - SQ.x, y - SQ.y, z - SQ.z) / (2 * DT);
+    }
+    if (!params.tracking) return 0;
+    surf(D.u, D.v, cam.S, SQ);
+    const x = SQ.x, y = SQ.y, z = SQ.z;
+    for (const k of KEYS) tmpS[k] = cam.S[k] + cam.vel[k] * .01;
+    surf(D.u, D.v, tmpS, SQ);
+    return hypot(SQ.x - x, SQ.y - y, SQ.z - z) / .01;
+  }
+  function startTravel(fu, fv, tu, tv, h0) {
+    const dist = hypot(tu - fu, tv - fv);
+    trav.fu = fu; trav.fv = fv; trav.tu = tu; trav.tv = tv; trav.h0 = h0;
+    trav.amp = min(HOP, dist * .4); trav.dur = max(.12, .08 + dist / 90); trav.p = 0;
+    mode = 'travel';
+  }
+  const inkRGB = () => {
+    const a = INKS[tool.ink || 'negro'].rgb, b = tool.prevInk ? INKS[tool.prevInk].rgb : a, k = tool.contam;
+    return [round(a[0] + (b[0] - a[0]) * k), round(a[1] + (b[1] - a[1]) * k), round(a[2] + (b[2] - a[2]) * k)];
+  };
+  function useInk(amount) {
+    if (!tool.cart) return;
+    tool.level = max(0, tool.level - amount / params.capacity);
+    tool.contam = max(0, tool.contam - amount / (params.capacity * .3));
+  }
+
+  // Un pinchazo: todas las agujas del cartucho entran a la vez y dejan su punto de tinta
+  function doHit(ref, isDots) {
+    const sk = skinAt(INV.u, INV.v), sink = sk.soft * .6, de = INV.depth - sink;
+    if (de <= .1) return false;
+    const c = CARTS[tool.cart];
+    let u = INV.u, v = INV.v;
+    // la piel blanda se arrastra con la aguja: la tinta queda un poco por detrás
+    if (!isDots && lastHit && hypot(u - lastHit.u, v - lastHit.v) > .02) {
+      const dx = u - lastHit.u, dy = v - lastHit.v, L = hypot(dx, dy), m = sk.soft * .3 * clamp(params.speed / 18, 0, 2);
+      u -= dx / L * m; v -= dy / L * m;
+    }
+    const f = clamp(tool.level / .06, 0, 1);
+    const e = hypot(u - ref.u, v - ref.v);
+    const h = { u, v, s: rob.spin, c: tool.cart, col: inkRGB(), f, d: de, lo: sk.lo, hi: sk.hi, e };
+    hits.push(h); stamp(h);
+    lastHit = { u: INV.u, v: INV.v };
+    stats.n++; stats.sumE += e; stats.maxE = max(stats.maxE, e);
+    if (e <= TOL) stats.within++;
+    if (de >= sk.lo && de <= sk.hi) stats.depthOK++;
+    if (f >= .5) stats.inkOK++;
+    if (tool.contam < .1) stats.colorOK++;
+    if (isDots) useInk(c.use * .15);
+    return true;
+  }
+
+  function step() {
+    simT += DT;
+    if (params.jerks && Math.random() < .2 * DT) triggerJerk();
+    updateSkin();
+    pushHist(skin);
+    cam.age += DT; cam.timer += DT;
+    if (cam.timer >= CAM_DT) { cam.timer -= CAM_DT; camSample(); }
+    estimate(Sest);
+
+    const st = running && cur.k < strokes.length ? strokes[cur.k] : null;
+    // 1) Punto de la piel al que apunta y altura de la máquina sobre la piel
+    let ref = null, h = STANDOFF;
+    if (mode === 'svc') {
+      const w = svc.steps[svc.i];
+      svc.t += DT;
+      const q = clamp(svc.t / svc.dur, 0, 1), sq = q * q * (3 - 2 * q);
+      tgt.x = svc.fx + (w.x - svc.fx) * sq; tgt.y = svc.fy + (w.y - svc.fy) * sq; tgt.z = svc.fz + (w.z - svc.fz) * sq;
+    } else if (running) {
+      if (mode === 'approach') { ref = jobPoint(cur.k, cur.s, refP); h = APPROACH; }
+      else if (mode === 'travel') {
+        const p = trav.p;
+        refP.u = trav.fu + (trav.tu - trav.fu) * p; refP.v = trav.fv + (trav.tv - trav.fv) * p;
+        ref = refP; h = trav.h0 * (1 - p) + STANDOFF * p + trav.amp * sin(PI * p);
+      } else if (mode === 'lift' || mode === 'svclift') ref = liftD;
+      else if (mode === 'dry') { ref = liftD; h = STANDOFF + 6; }
+      else ref = jobPoint(cur.k, cur.s, Dp);
+    }
+    let dtx = 0, dty = -1, dtz = 0;
+    aim.ok = false;
+    if (mode === 'svc') { /* ruta de la estación */ }
+    else if (ref) {
+      surf(ref.u, ref.v, Sest, SP);
+      aim.x = SP.x; aim.y = SP.y; aim.z = SP.z; aim.ok = true;
+      tgt.x = SP.x + SP.nx * h; tgt.y = SP.y + SP.ny * h; tgt.z = SP.z + SP.nz * h;
+      dtx = -SP.nx; dty = -SP.ny; dtz = -SP.nz;
+    } else { tgt.x = HOME.x; tgt.y = HOME.y; tgt.z = HOME.z; }
+
+    // Giro de la máquina sobre su eje: los magnum ponen la fila de agujas de través al trazo
+    if (st && tool.cart && CARTS[tool.cart].mag && mode !== 'svc') {
+      let target = rob.spin;
+      if (st.spin != null) target = st.spin;
+      else if (st.type === 'line') {
+        pointAt(st, max(0, cur.s - .5), tanA); pointAt(st, min(st.len, cur.s + .5), tanB);
+        if (hypot(tanB.u - tanA.u, tanB.v - tanA.v) > .05) target = atan2(tanB.v - tanA.v, tanB.u - tanA.u) + PI / 2;
+      }
+      let dsp = wrapA(target - rob.spin);
+      if (dsp > PI / 2) dsp -= PI; else if (dsp < -PI / 2) dsp += PI;
+      rob.spin += dsp * min(1, DT / .06);
+    }
+
+    // 2) Servo de posición de la máquina, con anticipación
+    let rvx = (tgt.x - rob.ptx) / DT, rvy = (tgt.y - rob.pty) / DT, rvz = (tgt.z - rob.ptz) / DT;
+    if (hypot(tgt.x - rob.ptx, tgt.y - rob.pty, tgt.z - rob.ptz) > 3) rvx = rvy = rvz = 0;
+    rob.ptx = tgt.x; rob.pty = tgt.y; rob.ptz = tgt.z;
+    const kf = DT / .025;
+    rob.tfx += (rvx - rob.tfx) * kf; rob.tfy += (rvy - rob.tfy) * kf; rob.tfz += (rvz - rob.tfz) * kf;
+    const wn = TAU * 14;
+    let ax = wn * wn * (tgt.x - rob.x) + 2 * wn * (rob.tfx - rob.vx);
+    let ay = wn * wn * (tgt.y - rob.y) + 2 * wn * (rob.tfy - rob.vy);
+    let az = wn * wn * (tgt.z - rob.z) + 2 * wn * (rob.tfz - rob.vz);
+    const am = hypot(ax, ay, az);
+    if (am > 30000) { const f = 30000 / am; ax *= f; ay *= f; az *= f; }
+    rob.vx += ax * DT; rob.vy += ay * DT; rob.vz += az * DT;
+    const vm = hypot(rob.vx, rob.vy, rob.vz);
+    const vmax = mode === 'ink' || mode === 'travel' || mode === 'hold' || mode === 'lift' || mode === 'svclift' ? 600 : 320;
+    if (vm > vmax) { const f = vmax / vm; rob.vx *= f; rob.vy *= f; rob.vz *= f; }
+    rob.x += rob.vx * DT; rob.y += rob.vy * DT; rob.z += rob.vz * DT;
+    const ko = min(1, DT / .04);
+    rob.dx += (dtx - rob.dx) * ko; rob.dy += (dty - rob.dy) * ko; rob.dz += (dtz - rob.dz) * ko;
+    const dl = hypot(rob.dx, rob.dy, rob.dz) || 1;
+    rob.dx /= dl; rob.dy /= dl; rob.dz /= dl;
+
+    const tipErr = hypot(tgt.x - rob.x, tgt.y - rob.y, tgt.z - rob.z);
+    const relV = hypot(rob.vx - rob.tfx, rob.vy - rob.tfy, rob.vz - rob.tfz);
+
+    // 3) Estados
+    let needle = false;
+    if (mode === 'svc') serviceTick(tipErr);
+    else if (running) {
+      if (mode === 'approach') { if (tipErr < 1.2 && relV < 80) startTravel(refP.u, refP.v, refP.u, refP.v, APPROACH); }
+      else if (mode === 'travel') {
+        trav.p = min(1, trav.p + DT / trav.dur);
+        if (trav.p >= 1 && tipErr < .6 && relV < 60) { mode = 'ink'; dotPh = 'move'; lastHit = null; }
+      } else if (mode === 'dry' && params.autoRefill) startService();
+      if (mode === 'ink') {
+        needle = !!tool.cart;
+        if (st.type === 'dots') {
+          dotT += DT;
+          if (dotPh === 'move') { needle = false; if (tipErr < .25 && relV < 40) { dotPh = 'hit'; dotHits = 0; dotT = 0; } }
+          else if (dotPh === 'hit') { if (dotHits >= st.dots[floor(cur.s)].hits || dotT > .3) { dotPh = 'up'; needle = false; } }
+          else needle = false;
+        }
+        if (params.safety) {
+          // entre punto y punto el robot salta a propósito: eso no es desviarse
+          const sp = skinSpeedSeen(ref), off = tipErr > 2 && !(st.type === 'dots' && dotPh === 'move');
+          if (off || sp > 80) { mode = 'hold'; holdOk = 0; stats.holds++; needle = false; }
+        }
+        if (mode === 'ink' && params.inkSensor) {
+          if (params.autoRefill && tool.level <= params.refillAt) { requestService('svc'); needle = false; }
+          else if (!params.autoRefill && tool.level <= 0) { requestService('dry'); needle = false; }
+        }
+      } else if (mode === 'hold') {
+        const sp = skinSpeedSeen(ref);
+        if (tipErr < 1 && sp < 40) { holdOk += DT; if (holdOk > .25) startTravel(ref.u, ref.v, ref.u, ref.v, STANDOFF); } else holdOk = 0;
+      }
+    }
+
+    // 4) La aguja sale hasta la piel más la profundidad objetivo. Con sensor de fuerza nota
+    //    la piel real y lo que se hunde; sin él, se fía de la cámara.
+    let eT = 0;
+    if (needle && ref) {
+      const S = params.force ? getHist(2, Sfor) : Sest;
+      let t = STANDOFF;
+      for (let i = 0; i < 3; i++) { inv(rob.x + rob.dx * t, rob.y + rob.dy * t, rob.z + rob.dz * t, S, INV2); t -= INV2.depth; }
+      const sk = skinAt(ref.u, ref.v);
+      eT = clamp(t + (params.zoneDepth ? sk.dC : 1.2) + (params.force ? sk.soft * .6 : 0), 0, 12);
+    }
+    rob.e += (eT - rob.e) * min(1, DT / .008);
+    tip.x = rob.x + rob.dx * rob.e; tip.y = rob.y + rob.dy * rob.e; tip.z = rob.z + rob.dz * rob.e;
+    inv(tip.x, tip.y, tip.z, skin, INV);
+    const skT = skinAt(INV.u, INV.v);
+    depthEff = INV.depth - skT.soft * .6;
+    inSkin = INV.depth > .3;
+    curWin = running && ref ? skinAt(ref.u, ref.v) : null;
+
+    // 5) Pinchazos a la frecuencia de la máquina
+    const isDots = !!(st && st.type === 'dots');
+    if (running && ref && tool.cart && rob.e > .3 && (!isDots || dotPh === 'hit')) {
+      hitClock += DT * params.freq;
+      while (hitClock >= 1) { hitClock -= 1; if (inSkin && doHit(ref, isDots) && isDots) dotHits++; }
+    } else { hitClock = 0; if (!inSkin) lastHit = null; }
+
+    // 6) Avance por el diseño
+    if (running) {
+      stats.time += DT;
+      if (mode === 'ink' && st.type === 'line' && inSkin && (!params.safety || tipErr < .8)) {
+        const ds = params.speed * DT;
+        cur.s += ds;
+        useInk(CARTS[tool.cart].use * ds);
+        if (cur.s >= st.len) { pointAt(st, st.len, liftD); cur.k++; cur.s = 0; mode = 'lift'; }
+      } else if (mode === 'ink' && st.type === 'dots' && dotPh === 'up' && INV.depth < -.6) {
+        cur.s = floor(cur.s) + 1; dotPh = 'move'; lastHit = null;
+        if (cur.s >= st.dots.length) { jobPoint(cur.k, st.dots.length - 1, liftD); cur.k++; cur.s = 0; mode = 'lift'; }
+      } else if (mode === 'lift' && rob.e < .5) {
+        if (cur.k >= strokes.length) finishRun();
+        else if (tool.cart !== cartFor(cur.k) || tool.ink !== inkFor(cur.k)) startService();
+        else if (params.inkSensor && params.autoRefill && tool.level <= params.refillAt) startService();
+        else { jobPoint(cur.k, 0, refP); startTravel(liftD.u, liftD.v, refP.u, refP.v, STANDOFF); }
+      } else if (mode === 'svclift' && rob.e < .5) {
+        if (pendingSvc === 'dry') { mode = 'dry'; pendingSvc = null; }
+        else startService();
+      }
+    }
+  }
+
+  // ---------- Estación: cambio de cartucho, enjuague y carga de tinta ----------
+  function requestService(kind) {
+    if (svc || mode === 'svclift' || (running && cur.k >= strokes.length)) return;
+    if (mode === 'ink' || mode === 'hold') { jobPoint(cur.k, cur.s, liftD); pendingSvc = kind; mode = 'svclift'; }
+    else if (mode === 'lift') { pendingSvc = kind; mode = 'svclift'; }
+    else if (kind === 'dry') return;
+    else startService();
+  }
+  function startService() {
+    const k = running ? min(cur.k, strokes.length - 1) : 0;
+    const wantC = cartFor(k), wantI = inkFor(k);
+    const S = [];
+    const W = (x, y, z, o) => S.push({ x, y, z, v: 260, wait: 0, ...o });
+    W(rob.x - rob.dx * 30, rob.y - rob.dy * 30, rob.z - rob.dz * 30, { label: 'Saliendo de la piel' });
+    let ink = tool.ink;
+    if (tool.cart !== wantC) {
+      if (tool.cart) {
+        const c = tool.cart, s = SLOT[c];
+        W(s.x, SAFE_Y, s.z + 40, { label: `Llevando el ${c} a su horquilla` });
+        W(s.x, TIP_Y, s.z + 40, { v: 150, label: `Llevando el ${c} a su horquilla` });
+        W(s.x, TIP_Y, s.z, { v: 60, wait: .25, label: `Metiendo el ${c} en la horquilla`, act: () => { tool.cart = null; tool.ink = null; tool.level = 0; tool.contam = 0; tool.prevInk = null; } });
+        W(s.x, TIP_Y + 60, s.z, { v: 100, label: 'Pestillo suelto: la horquilla se queda el cartucho' });
+        W(s.x, SAFE_Y, s.z, { label: 'Pestillo suelto: la horquilla se queda el cartucho' });
+      }
+      const s = SLOT[wantC];
+      W(s.x, SAFE_Y, s.z, { label: `Yendo a por el ${wantC}` });
+      W(s.x, TIP_Y + 25, s.z, { v: 150, label: `Bajando sobre el ${wantC}` });
+      W(s.x, TIP_Y, s.z, { v: 40, wait: .3, label: `Encajando el ${wantC} (clic)`, act: () => { tool.cart = wantC; tool.ink = null; tool.level = 0; tool.contam = 0; tool.prevInk = null; stats.changes++; } });
+      W(s.x, TIP_Y, s.z + 40, { v: 80, label: 'Sacándolo por la boca de la horquilla' });
+      W(s.x, SAFE_Y, s.z + 40, { label: 'Sacándolo por la boca de la horquilla' });
+      ink = null;
+    }
+    if (ink && ink !== wantI && params.rinse) {
+      W(RINSE.x, SAFE_Y, RINSE.z, { label: 'Yendo al vaso de agua' });
+      W(RINSE.x, ST_TOP + 6, RINSE.z, { v: 150, wait: 1.1, rinse: true, label: 'Enjuagando la aguja en agua' });
+      W(RINSE.x, SAFE_Y, RINSE.z, { label: 'Yendo al papel' });
+      W(PAPER.x, SAFE_Y, PAPER.z, { label: 'Yendo al papel' });
+      W(PAPER.x, ST_TOP + 3.5, PAPER.z, { v: 120, wait: .35, label: 'Secando la punta en el papel', act: () => { tool.ink = null; tool.level = 0; tool.contam = 0; tool.prevInk = null; stats.rinses++; } });
+      W(PAPER.x, SAFE_Y, PAPER.z, { label: `Yendo a la tinta ${INKS[wantI].name}` });
+    }
+    const c = CUPS[wantI];
+    W(c.x, SAFE_Y, c.z, { label: `Yendo a la tinta ${INKS[wantI].name}` });
+    W(c.x, ST_TOP + 9, c.z, { v: 150, wait: .8, fill: wantI, label: `Cargando tinta ${INKS[wantI].name}` });
+    W(c.x, SAFE_Y, c.z, { label: 'Volviendo al brazo' });
+    const f = S[0];
+    svc = { steps: S, i: 0, t: 0, wait: 0, filled: false, fx: rob.x, fy: rob.y, fz: rob.z, dur: max(.1, hypot(f.x - rob.x, f.y - rob.y, f.z - rob.z) / f.v) };
+    pendingSvc = null;
+    mode = 'svc';
+  }
+  function serviceTick(tipErr) {
+    const w = svc.steps[svc.i];
+    if (svc.t < svc.dur || tipErr > 1.2) return;
+    if (w.rinse) tool.level = max(0, tool.level - DT / .3);
+    if (w.fill) {
+      if (!svc.filled) {
+        svc.filled = true; stats.refills++;
+        if (tool.ink && tool.ink !== w.fill) { tool.prevInk = tool.ink; tool.contam = clamp(.25 + tool.level * .6, 0, .7); }
+        tool.ink = w.fill;
+      }
+      tool.level = min(1, tool.level + DT / .7);
+    }
+    svc.wait += DT;
+    if (svc.wait < w.wait) return;
+    if (w.act) w.act();
+    svc.i++; svc.wait = 0; svc.filled = false;
+    if (svc.i >= svc.steps.length) { svc = null; mode = running ? 'approach' : 'idle'; return; }
+    const n = svc.steps[svc.i];
+    svc.fx = w.x; svc.fy = w.y; svc.fz = w.z; svc.t = 0;
+    svc.dur = max(.1, hypot(n.x - w.x, n.y - w.y, n.z - w.z) / n.v);
+  }
+
+  function startRun() {
+    if (!strokes.length) return;
+    for (const s of strokes) if (s.hint !== undefined) s.hint = 0;
+    running = true; paused = false; cur = { k: 0, s: 0 }; svc = null; pendingSvc = null; dotPh = 'move';
+    copyS(cam.S, Sref);
+    if (tool.cart !== cartFor(0) || tool.ink !== inkFor(0) || (params.inkSensor && tool.level < .5)) startService();
+    else mode = 'approach';
+    updateButtons();
+  }
+  function resetRun() {
+    running = false; paused = false; mode = 'idle'; svc = null; pendingSvc = null;
+    hits = []; lastHit = null; cur = { k: 0, s: 0 };
+    resetStats(); depthBuf.length = 0;
+    redrawPatch();
+    updateButtons();
+  }
+  function finishRun() {
+    running = false; mode = 'done';
+    runNo++;
+    const n = max(1, stats.n), p = (x) => x / n * 100;
+    const r = { within: p(stats.within), dOK: p(stats.depthOK), inkP: p(stats.inkOK), colP: p(stats.colorOK) };
+    const verdict = r.within >= 90 && r.dOK >= 90 && r.inkP >= 97 && r.colP >= 95 ? ['Limpio', 'good']
+      : r.within >= 70 && r.dOK >= 75 && r.inkP >= 90 && r.colP >= 85 ? ['Pasable', 'meh'] : ['Chapuza', 'bad'];
+    history.unshift({ n: runNo, design: designSrc.label, zone: zone.label, cfg: describeCfg(), mean: stats.sumE / n, ...r, holds: stats.holds, refills: stats.refills, changes: stats.changes, rinses: stats.rinses, verdict });
+    renderHistory();
+    updateButtons();
+  }
+  function describeCfg() {
+    const p = params, yes = (b) => (b ? 'sí' : 'no');
+    const parts = [`Movimiento ${round(p.move * 100)} %`, `respiración ${round(p.breath * 100)} %`, `giro extra ${round(p.roll * 180 / PI)}°`, `respingos ${yes(p.jerks)}`];
+    if (p.tracking) parts.push(`cámara con ${p.latency} ms`, `ruido ${round(p.noise * 100)} %`, `predicción ${yes(p.predict)}`);
+    else parts.push('sin seguimiento');
+    parts.push(`sensor de fuerza ${yes(p.force)}`, `profundidad según zona ${yes(p.zoneDepth)}`, `parada de seguridad ${yes(p.safety)}`);
+    parts.push(p.cart === 'auto' ? 'cartuchos según el diseño' : `todo con ${p.cart}`, `máquina a ${p.freq} Hz`, `trazo a ${p.speed} mm/s`, `sensor de tinta ${yes(p.inkSensor)}`, `recarga automática ${yes(p.autoRefill)}`, `enjuague ${yes(p.rinse)}`);
+    return parts.join(' · ');
+  }
+
+  // ---------- Textura de la piel: plantilla y tinta en coordenadas de piel ----------
+  const patchCanvas = document.createElement('canvas'), pc = patchCanvas.getContext('2d');
+  patchCanvas.width = 2 * PATCH_HU * PPM; patchCanvas.height = 2 * PATCH_HV * PPM;
+  const baseCanvas = document.createElement('canvas'), bc = baseCanvas.getContext('2d');
+  baseCanvas.width = 1160; baseCanvas.height = 512;
+  const px = (u) => (u - zone.u + PATCH_HU) * PPM, py = (v) => (PATCH_HV - v) * PPM;
+  let patchDirty = true;
+  const dot = (x, y, r, col) => { pc.fillStyle = col; pc.beginPath(); pc.arc(x, y, r, 0, TAU); pc.fill(); };
+
+  function stamp(h) {
+    const L = LAYOUT[h.c], dia = CARTS[h.c].dia, cs = cos(h.s), sn = sin(h.s), r = dia * .58 * PPM;
+    for (const p of L) {
+      const x = px(h.u + cs * p.a - sn * p.b), y = py(h.v + sn * p.a + cs * p.b), dn = h.d - p.z;
+      if (h.f <= 0) { dot(x, y, r * 1.4, 'rgba(205,70,60,.08)'); continue; }
+      if (dn < .15) continue;
+      let a = .5;
+      if (dn < h.lo) a = .12;
+      else if (dn > h.hi) dot(x, y, r * 2.8, 'rgba(38,64,140,.06)');
+      dot(x, y, r, `rgba(${h.col[0]},${h.col[1]},${h.col[2]},${(a * (.25 + .75 * h.f)).toFixed(3)})`);
+    }
+    if (params.showErrors && h.e > TOL) dot(px(h.u), py(h.v), .2 * PPM, 'rgba(227,38,29,.5)');
+    patchDirty = true;
+  }
+  function redrawPatch() {
+    pc.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
+    pc.save();
+    pc.strokeStyle = params.tone >= 2 ? 'rgba(214,200,255,.85)' : 'rgba(90,63,192,.7)';
+    pc.lineWidth = .35 * PPM; pc.lineCap = 'round'; pc.lineJoin = 'round';
+    pc.setLineDash([2.2 * PPM, 1.6 * PPM]);
+    pc.beginPath();
+    for (const s of stencil) {
+      s.pts.forEach((p, i) => (i ? pc.lineTo(px(p.u), py(p.v)) : pc.moveTo(px(p.u), py(p.v))));
+      if (s.closed) pc.closePath();
+    }
+    pc.stroke();
+    pc.restore();
+    for (const h of hits) stamp(h);
+    patchDirty = true;
+  }
+  function redrawBase() {
+    const W = baseCanvas.width, H = baseCanvas.height, tone = TONES[params.tone];
+    bc.fillStyle = tone; bc.fillRect(0, 0, W, H);
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 9000; i++) { bc.fillStyle = rnd() < .5 ? 'rgba(0,0,0,.05)' : 'rgba(255,255,255,.05)'; bc.fillRect(rnd() * W, rnd() * H, 1.4, 1.4); }
+    const uOf = (x) => -U_CAP + x / W * 2 * U_CAP, phiOf = (y) => (1 - y / H) * TAU - PI;
+    if (params.showMap) {
+      const cw = 8, ch = 8;
+      for (let x = 0; x < W; x += cw) for (let y = 0; y < H; y += ch) {
+        const sk = skinAtAbs(uOf(x + cw / 2), phiOf(y + ch / 2));
+        if (sk.soft > .45) bc.fillStyle = `rgba(40,110,230,${((sk.soft - .45) * 1.1).toFixed(3)})`;
+        else bc.fillStyle = `rgba(235,120,30,${((.45 - sk.soft) * 1.5).toFixed(3)})`;
+        bc.fillRect(x, y, cw, ch);
+      }
+    }
+    const dark = params.tone >= 2;
+    bc.strokeStyle = dark ? 'rgba(255,255,255,.07)' : 'rgba(70,35,10,.09)';
+    bc.lineWidth = 1;
+    bc.beginPath();
+    for (let u = -U_END; u <= U_END; u += 10) { const x = round((u + U_CAP) / (2 * U_CAP) * W) + .5; bc.moveTo(x, 0); bc.lineTo(x, H); }
+    for (let f = -PI; f <= PI; f += 10 / 36) { const y = round((1 - (f + PI) / TAU) * H) + .5; bc.moveTo(0, y); bc.lineTo(W, y); }
+    bc.stroke();
+  }
+
+  // ---------- Escena 3D ----------
+  const stageEl = $('#stage');
+  let renderer = null, scene, camMain, camLens, controls;
+  let armGroup, tube, tubeGeo, patchMesh, patchGeo, patchTex, baseTex, hand;
+  let robotGroup, ghost, ghostGeo, targetDot, lensGroup, holdRing, grid, penCart;
+  const stickers = [], parts = {}, M = {}, slotCarts = {}, lensNeedles = [];
+  let U_SAMPLES = [], NU = 0;
+  const NP = 48, NPU = 88, NPV = 44;
+  const GHOST_RINGS = [-150, -95, 95, 150], GHOST_LONG = [-1.5, -.95, .95, 1.5], RING_SEG = 64, LONG_SEG = 32, STK_SEG = 16;
+  let SW = 0, SH = 0, lensPx = 150, follow = false, lastUpload = 0;
+  const C = {};
+  let vD, vX, vY, vZ, Yup, Zax, mBasis;
+
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ['stage', 'table', 'table-line', 'armrest', 'sleeve', 'robot', 'robot-edge', 'robot-joint', 'accent', 'safety', 'ok', 'ok-soft', 'bad', 'fg', 'muted', 'line', 'surface', 'surface-2']) C[k] = cs.getPropertyValue('--' + k).trim();
+    applyTheme(); drawPad(); drawTip();
+  }
+  function applyTheme() {
+    if (!renderer) return;
+    scene.background = new THREE.Color(C.stage);
+    M.table.color.set(C.table); M.rest.color.set(C.armrest); M.sleeve.color.set(C.sleeve);
+    M.robot.color.set(C.robot); M.edge.color.set(C['robot-edge']); M.joint.color.set(C['robot-joint']);
+    M.grip.color.set(C.accent); M.ghost.color.set(C.accent); M.target.color.set(C.accent); M.hold.color.set(C.safety);
+    if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+    grid = new THREE.GridHelper(2000, 40, new THREE.Color(C['table-line']), new THREE.Color(C['table-line']));
+    grid.position.y = .4; grid.material.transparent = true; grid.material.opacity = .7;
+    scene.add(grid);
+  }
+  function showGLError(text) { $('#gl-error-text').textContent = text; $('#gl-error').hidden = false; $('#lens-frame').hidden = true; }
+
+  function gridGeo(nu, nv, uvFn) {
+    const n = (nu + 1) * (nv + 1), pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = [];
+    for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) { const k = i * (nv + 1) + j, t = uvFn(i, j); uv[k * 2] = t[0]; uv[k * 2 + 1] = t[1]; }
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) { const a = i * (nv + 1) + j, b = a + nv + 1; idx.push(a, a + 1, b, b, a + 1, b + 1); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('normal', new THREE.BufferAttribute(nor, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 420);
+    return g;
+  }
+  function buildTubeGeo() {
+    const us = [];
+    for (let u = -U_CAP; u < -U_END; u += 3) us.push(u);
+    for (let u = -U_END; u <= U_END; u += 5) us.push(u);
+    for (let u = U_END + 3; u < U_CAP; u += 3) us.push(u);
+    us.push(U_CAP);
+    U_SAMPLES = us; NU = us.length;
+    return gridGeo(NU - 1, NP, (i, j) => [(us[i] + U_CAP) / (2 * U_CAP), j / NP]);
+  }
+  function updateTube(S) {
+    const pos = tubeGeo.attributes.position.array, nor = tubeGeo.attributes.normal.array;
+    let k = 0;
+    for (let i = 0; i < NU; i++) {
+      const u = U_SAMPLES[i], au = abs(u), x = au > U_END ? (au - U_END) / (U_CAP - U_END) : 0;
+      const cap = sqrt(max(.0004, 1 - x * x)), sx = u > 0 ? x : -x;
+      const r = R0(u) * (1 + S.b * gB(u)) * cap, lx = u * (1 + S.s), roll = S.roll + S.twist * tw(u);
+      for (let j = 0; j <= NP; j++) {
+        const ang = -PI + TAU * j / NP + roll, ca = cos(ang), sa = sin(ang);
+        pos[k] = lx; pos[k + 1] = r * ca; pos[k + 2] = r * sa;
+        nor[k] = sx; nor[k + 1] = cap * ca; nor[k + 2] = cap * sa;
+        k += 3;
+      }
+    }
+    tubeGeo.attributes.position.needsUpdate = true; tubeGeo.attributes.normal.needsUpdate = true;
+  }
+  function updatePatch(S) {
+    const pos = patchGeo.attributes.position.array, nor = patchGeo.attributes.normal.array;
+    let k = 0;
+    for (let i = 0; i <= NPU; i++) {
+      const u = zone.u - PATCH_HU + 2 * PATCH_HU * i / NPU, r0 = R0(u);
+      const r = r0 * (1 + S.b * gB(u)) + .12, lx = u * (1 + S.s), roll = zone.phi + S.roll + S.twist * tw(u);
+      for (let j = 0; j <= NPV; j++) {
+        const v = -PATCH_HV + 2 * PATCH_HV * j / NPV, ang = v / r0 + roll, ca = cos(ang), sa = sin(ang);
+        pos[k] = lx; pos[k + 1] = r * ca; pos[k + 2] = r * sa;
+        nor[k] = 0; nor[k + 1] = ca; nor[k + 2] = sa;
+        k += 3;
+      }
+    }
+    patchGeo.attributes.position.needsUpdate = true; patchGeo.attributes.normal.needsUpdate = true;
+  }
+  function updateStickers(S) {
+    MARKERS.forEach(([du, v], i) => {
+      const u = zone.u + du, r0 = R0(u), r = r0 * (1 + S.b * gB(u)) + .2, ang = v / r0 + zone.phi + S.roll + S.twist * tw(u);
+      stickers[i].position.set(u * (1 + S.s), r * cos(ang), r * sin(ang));
+      stickers[i].rotation.set(ang, 0, 0);
+    });
+  }
+  function updateGhost(S) {
+    const a = ghostGeo.attributes.position.array;
+    let k = 0;
+    const put = (o) => { a[k++] = o.x; a[k++] = o.y; a[k++] = o.z; };
+    for (const du of GHOST_RINGS) {
+      const u = zone.u + du, r0 = R0(u);
+      for (let j = 0; j < RING_SEG; j++) {
+        surf(u, r0 * (-PI + TAU * j / RING_SEG), S, SQ, .7); put(SQ);
+        surf(u, r0 * (-PI + TAU * (j + 1) / RING_SEG), S, SQ, .7); put(SQ);
+      }
+    }
+    for (const f of GHOST_LONG) for (let i = 0; i < LONG_SEG; i++) {
+      const u0 = zone.u - 170 + 340 * i / LONG_SEG, u1 = zone.u - 170 + 340 * (i + 1) / LONG_SEG;
+      surf(u0, R0(u0) * f, S, SQ, .7); put(SQ);
+      surf(u1, R0(u1) * f, S, SQ, .7); put(SQ);
+    }
+    for (const [du, mv] of MARKERS) {
+      surf(zone.u + du, mv, S, SR, .8);
+      const t2x = SR.ny * SR.az - SR.nz * SR.ay, t2y = SR.nz * SR.ax - SR.nx * SR.az, t2z = SR.nx * SR.ay - SR.ny * SR.ax;
+      for (let j = 0; j < STK_SEG; j++) for (const q of [j, j + 1]) {
+        const t = TAU * q / STK_SEG, c = 5.5 * cos(t), s = 5.5 * sin(t);
+        a[k++] = SR.x + c * SR.ax + s * t2x; a[k++] = SR.y + c * SR.ay + s * t2y; a[k++] = SR.z + c * SR.az + s * t2z;
+      }
+    }
+    ghostGeo.attributes.position.needsUpdate = true;
+  }
+
+  // Cartucho: punta cónica transparente, cuerpo, cuello, pestaña con aletas (se apoya en la horquilla) y parte que entra en la empuñadura
+  function makeCart(key, withTop) {
+    const g = new THREE.Group(), band = new THREE.MeshStandardMaterial({ color: CARTS[key].color, roughness: .5 });
+    const add = (geo, mat, y, x = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, 0); m.castShadow = true; g.add(m); return m; };
+    add(new THREE.CylinderGeometry(3.6, .8, 10, 18), M.cart, 5);
+    add(new THREE.CylinderGeometry(5.5, 5.5, 12, 20), M.cart, 16);
+    add(new THREE.CylinderGeometry(4.5, 4.5, 2, 18), M.edge, 23);
+    add(new THREE.CylinderGeometry(8, 8, 3, 24), band, 25.5);
+    add(new THREE.BoxGeometry(3.2, 3, 3), band, 25.5, 9.3);
+    add(new THREE.BoxGeometry(3.2, 3, 3), band, 25.5, -9.3);
+    if (withTop) add(new THREE.CylinderGeometry(6.5, 6.5, 23, 20), M.robot, 38.5);
+    const inkMat = new THREE.MeshStandardMaterial({ color: 0x16141c, roughness: .2 });
+    const inkM = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 1, 12), inkMat);
+    g.add(inkM);
+    return { g, band, inkMat, inkM };
+  }
+
+  function initGL() {
+    if (!window.THREE || !THREE.OrbitControls) { showGLError('No se ha podido cargar el motor 3D. Revisa la conexión y recarga la página.'); return false; }
+    try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+    catch (err) { renderer = null; showGLError('Este navegador no puede mostrar gráficos 3D (WebGL). Prueba con otro navegador u otro dispositivo.'); return false; }
+    vD = new THREE.Vector3(); vX = new THREE.Vector3(); vY = new THREE.Vector3(); vZ = new THREE.Vector3();
+    Yup = new THREE.Vector3(0, 1, 0); Zax = new THREE.Vector3(0, 0, 1); mBasis = new THREE.Matrix4();
+    renderer.setPixelRatio(min(2, window.devicePixelRatio || 1));
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    stageEl.prepend(renderer.domElement);
+    renderer.domElement.setAttribute('role', 'img');
+    renderer.domElement.setAttribute('aria-label', 'Escena 3D: un brazo robot tatuando un antebrazo, con su estación de cartuchos y tintas');
+
+    scene = new THREE.Scene();
+    camMain = new THREE.PerspectiveCamera(36, 1, 5, 6000);
+    camLens = new THREE.PerspectiveCamera(LENS_FOV, 1, 1, 1200);
+    controls = new THREE.OrbitControls(camMain, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = .12;
+    controls.maxPolarAngle = PI * .48; controls.minDistance = 60; controls.maxDistance = 1800;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8594, .62));
+    const sun = new THREE.DirectionalLight(0xffffff, .78);
+    sun.position.set(260, 720, 360); sun.target.position.set(40, 60, -80);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -560, right: 560, top: 560, bottom: -560, near: 50, far: 1700 });
+    sun.shadow.camera.updateProjectionMatrix();
+    sun.shadow.bias = -.0004;
+    scene.add(sun, sun.target);
+    const fill = new THREE.DirectionalLight(0xffffff, .22);
+    fill.position.set(-420, 300, -240); scene.add(fill);
+
+    M.table = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: .95 });
+    M.rest = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: .85 });
+    M.sleeve = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: .9, side: THREE.DoubleSide });
+    M.robot = new THREE.MeshStandardMaterial({ color: 0xf4f4f8, roughness: .42, metalness: .05 });
+    M.edge = new THREE.MeshStandardMaterial({ color: 0x9a97ab, roughness: .5 });
+    M.joint = new THREE.MeshStandardMaterial({ color: 0x34313f, roughness: .55 });
+    M.pen = new THREE.MeshStandardMaterial({ color: 0x1d1b24, roughness: .35, metalness: .4 });
+    M.grip = new THREE.MeshStandardMaterial({ color: 0x5a3fcf, roughness: .45 });
+    M.cart = new THREE.MeshStandardMaterial({ color: 0xe4e7ef, roughness: .25, transparent: true, opacity: .5 });
+    M.needle = new THREE.MeshStandardMaterial({ color: 0xb8bcc6, roughness: .25, metalness: .9 });
+    M.metal = new THREE.MeshStandardMaterial({ color: 0xa9adb8, roughness: .35, metalness: .6 });
+    M.hold = new THREE.MeshBasicMaterial({ color: 0xf2b632 });
+    M.target = new THREE.MeshBasicMaterial({ color: 0x5a3fcf });
+    M.ghost = new THREE.LineBasicMaterial({ color: 0x5a3fcf, transparent: true, opacity: .9 });
+    M.hand = new THREE.MeshStandardMaterial({ color: 0xd6a078, roughness: .72 });
+    baseTex = new THREE.CanvasTexture(baseCanvas);
+    patchTex = new THREE.CanvasTexture(patchCanvas);
+    patchTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    M.skin = new THREE.MeshStandardMaterial({ map: baseTex, roughness: .72 });
+    M.patch = new THREE.MeshStandardMaterial({ map: patchTex, roughness: .8, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+
+    const table = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), M.table);
+    table.rotation.x = -PI / 2; table.receiveShadow = true; scene.add(table);
+    const rest = new THREE.Mesh(new THREE.BoxGeometry(620, 30, 120), M.rest);
+    rest.position.set(0, 15, 0); rest.castShadow = true; rest.receiveShadow = true; scene.add(rest);
+
+    // Antebrazo
+    armGroup = new THREE.Group(); scene.add(armGroup);
+    tubeGeo = buildTubeGeo();
+    tube = new THREE.Mesh(tubeGeo, M.skin); tube.castShadow = true; tube.receiveShadow = true; tube.frustumCulled = false;
+    armGroup.add(tube);
+    patchGeo = gridGeo(NPU, NPV, (i, j) => [i / NPU, j / NPV]);
+    patchMesh = new THREE.Mesh(patchGeo, M.patch); patchMesh.receiveShadow = true; patchMesh.frustumCulled = false; patchMesh.renderOrder = 1;
+    armGroup.add(patchMesh);
+    hand = new THREE.Group();
+    const handPart = (geo) => { const m = new THREE.Mesh(geo, M.hand); m.castShadow = true; m.receiveShadow = true; hand.add(m); return m; };
+    const palm = handPart(new THREE.SphereGeometry(1, 32, 20));
+    palm.scale.set(52, 15, 39); palm.position.set(-316, -5, 0);
+    const fingerGeo = new THREE.CylinderGeometry(7.6, 7.6, 1, 16), tipGeo = new THREE.SphereGeometry(7.6, 16, 12);
+    const finger = (z, len, droop) => {
+      const x0 = -350, y0 = -6, x1 = x0 - len * cos(droop), y1 = y0 - len * sin(droop);
+      const f = handPart(fingerGeo);
+      f.position.set((x0 + x1) / 2, (y0 + y1) / 2, z); f.scale.set(1, len, 1); f.rotation.z = PI / 2 + droop;
+      handPart(tipGeo).position.set(x1, y1, z); handPart(tipGeo).position.set(x0, y0, z);
+    };
+    finger(-25, 46, .22); finger(-8.5, 56, .2); finger(8.5, 60, .2); finger(25, 54, .22);
+    const thumb = handPart(new THREE.CylinderGeometry(8.8, 8.8, 1, 16));
+    const tA = [-296, -6, 32], tB = [-338, -12, 54];
+    thumb.position.set((tA[0] + tB[0]) / 2, (tA[1] + tB[1]) / 2, (tA[2] + tB[2]) / 2);
+    thumb.scale.set(1, hypot(tB[0] - tA[0], tB[1] - tA[1], tB[2] - tA[2]), 1);
+    thumb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(tB[0] - tA[0], tB[1] - tA[1], tB[2] - tA[2]).normalize());
+    handPart(new THREE.SphereGeometry(8.8, 16, 12)).position.set(...tB);
+    armGroup.add(hand);
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(50, 53, 90, 40, 1, true), M.sleeve);
+    sleeve.rotation.z = PI / 2; sleeve.position.x = U_END + 30; sleeve.castShadow = true; armGroup.add(sleeve);
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(52, 6, 12, 48), M.sleeve);
+    cuff.rotation.y = PI / 2; cuff.position.x = U_END - 15; cuff.castShadow = true; armGroup.add(cuff);
+    const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6 }), black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .6 });
+    for (let i = 0; i < MARKERS.length; i++) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, .5, 24), white));
+      const d = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, .6, 16), black); d.position.y = .06; g.add(d);
+      armGroup.add(g); stickers.push(g);
+    }
+
+    // Robot
+    robotGroup = new THREE.Group(); scene.add(robotGroup);
+    const mk = (geo, mat, cast = true) => { const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = true; robotGroup.add(m); return m; };
+    const unitCyl = (rt, rb, seg = 28) => new THREE.CylinderGeometry(rt, rb, 1, seg);
+    parts.base = mk(new THREE.CylinderGeometry(64, 68, 24, 40), M.joint); parts.base.position.set(RB.x, 12, RB.z);
+    parts.turret = mk(new THREE.CylinderGeometry(46, 50, SH_H - 54, 40), M.robot); parts.turret.position.set(RB.x, 24 + (SH_H - 54) / 2, RB.z);
+    parts.shoulder = mk(new THREE.CylinderGeometry(38, 38, 84, 36), M.robot);
+    parts.shoulderCap = mk(new THREE.CylinderGeometry(31, 31, 94, 36), M.joint);
+    parts.upper = mk(unitCyl(25, 28), M.robot);
+    parts.elbow = mk(new THREE.CylinderGeometry(30, 30, 66, 32), M.robot);
+    parts.elbowCap = mk(new THREE.CylinderGeometry(24, 24, 74, 32), M.joint);
+    parts.fore = mk(unitCyl(19, 23), M.robot);
+    parts.wrist = mk(new THREE.SphereGeometry(23, 28, 20), M.joint);
+    parts.wristRing = mk(new THREE.TorusGeometry(21, 3, 10, 32), M.edge);
+    parts.pen = mk(unitCyl(12, 12), M.pen);
+    parts.grip = mk(unitCyl(12.8, 12.8), M.grip);
+    parts.latch = mk(unitCyl(13.4, 13.4), M.metal);
+    parts.needle = mk(unitCyl(.3, .3, 8), M.needle, false);
+    holdRing = mk(new THREE.TorusGeometry(16, 1.4, 8, 40), M.hold, false);
+    penCart = makeCart('1205RL', false);
+    robotGroup.add(penCart.g);
+
+    // Estación: mesa, pared con horquillas, un cartucho de cada tipo, vasos de tinta, agua y papel
+    const stMesh = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); return m; };
+    stMesh(new THREE.BoxGeometry(230, ST_TOP, 130), M.rest, 225, ST_TOP / 2, -150);
+    stMesh(new THREE.BoxGeometry(172, 60, 10), M.edge, 230, ST_TOP + 30, -200);
+    const prong = new THREE.BoxGeometry(4, 3, 28);
+    for (const k of CART_KEYS) {
+      const s = SLOT[k];
+      stMesh(prong, M.metal, s.x - 7, FORK_Y, -181);
+      stMesh(prong, M.metal, s.x + 7, FORK_Y, -181);
+      const c = makeCart(k, true);
+      c.inkM.visible = false;
+      c.g.position.set(s.x, TIP_Y, s.z);
+      scene.add(c.g); slotCarts[k] = c;
+    }
+    const cupMat = new THREE.MeshStandardMaterial({ color: 0x2a2833, roughness: .45, side: THREE.DoubleSide });
+    const cupGeo = new THREE.CylinderGeometry(11, 9, 16, 28, 1, true), surfGeo = new THREE.CircleGeometry(10.3, 28);
+    const cupAt = (p, liquid) => {
+      stMesh(cupGeo, cupMat, p.x, ST_TOP + 8, p.z);
+      const s = new THREE.Mesh(surfGeo, liquid); s.rotation.x = -PI / 2; s.position.set(p.x, ST_TOP + 13, p.z); scene.add(s);
+    };
+    for (const k of INK_KEYS) cupAt(CUPS[k], new THREE.MeshStandardMaterial({ color: rgbStr(INKS[k].rgb), roughness: .12, metalness: .1 }));
+    cupAt(RINSE, new THREE.MeshStandardMaterial({ color: 0x9fd3f0, roughness: .05, transparent: true, opacity: .6 }));
+    stMesh(new THREE.BoxGeometry(30, 3, 30), new THREE.MeshStandardMaterial({ color: 0xf6f5f1, roughness: .95 }), PAPER.x, ST_TOP + 1.5, PAPER.z);
+
+    // Lo que ve el robot, punto al que apunta y agujas en la lupa
+    const nSeg = GHOST_RINGS.length * RING_SEG + GHOST_LONG.length * LONG_SEG + MARKERS.length * STK_SEG;
+    ghostGeo = new THREE.BufferGeometry();
+    ghostGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nSeg * 6), 3).setUsage(THREE.DynamicDrawUsage));
+    ghost = new THREE.LineSegments(ghostGeo, M.ghost); ghost.frustumCulled = false; scene.add(ghost);
+    targetDot = new THREE.Mesh(new THREE.SphereGeometry(.55, 16, 12), M.target); scene.add(targetDot);
+    lensGroup = new THREE.Group(); lensGroup.visible = false; scene.add(lensGroup);
+    const nGeo = new THREE.SphereGeometry(1, 12, 8), nMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(nGeo, nMat); lensGroup.add(m); lensNeedles.push(m); }
+    M.lensNeedle = nMat;
+
+    readColors();
+    redrawBase(); baseTex.needsUpdate = true;
+    setView('general');
+    return true;
+  }
+
+  function solveIK(wx, wy, wz) {
+    const dx = wx - RB.x, dy = wy - SH_H, dz = wz - RB.z;
+    const q1 = atan2(dx, dz), hx = sin(q1), hz = cos(q1), rho = hypot(dx, dz);
+    const D = clamp(hypot(rho, dy), abs(A2 - A3) + 1, A2 + A3 - 1);
+    const q3 = -acos(clamp((D * D - A2 * A2 - A3 * A3) / (2 * A2 * A3), -1, 1));
+    const q2 = atan2(dy, rho) - atan2(A3 * sin(q3), A2 + A3 * cos(q3));
+    return { hx, hz, q1, ex: RB.x + A2 * cos(q2) * hx, ey: SH_H + A2 * sin(q2), ez: RB.z + A2 * cos(q2) * hz };
+  }
+  function place(m, ax, ay, az, bx, by, bz) {
+    vD.set(bx - ax, by - ay, bz - az);
+    const L = vD.length() || .001;
+    vD.divideScalar(L);
+    m.position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
+    m.quaternion.setFromUnitVectors(Yup, vD);
+    m.scale.set(1, L, 1);
+  }
+  function orient(m, x, y, z, ax, ay, az, from) {
+    m.position.set(x, y, z);
+    vD.set(ax, ay, az).normalize();
+    m.quaternion.setFromUnitVectors(from || Yup, vD);
+  }
+  // Dirección de la fila de agujas en el mundo según el giro de la máquina
+  function rowDir(out) {
+    surf(INV.u, INV.v, skin, SR);
+    const Vx = SR.ay * SR.nz - SR.az * SR.ny, Vy = SR.az * SR.nx - SR.ax * SR.nz, Vz = SR.ax * SR.ny - SR.ay * SR.nx;
+    const c = cos(rob.spin), s = sin(rob.spin);
+    out.set(c * SR.ax + s * Vx, c * SR.ay + s * Vy, c * SR.az + s * Vz);
+    return { Vx, Vy, Vz };
+  }
+  function updateRobot() {
+    const dx = rob.dx, dy = rob.dy, dz = rob.dz;
+    const wx = rob.x - dx * LT, wy = rob.y - dy * LT, wz = rob.z - dz * LT;
+    const k = solveIK(wx, wy, wz), axx = -k.hz, axz = k.hx;
+    parts.turret.rotation.y = k.q1;
+    orient(parts.shoulder, RB.x, SH_H, RB.z, axx, 0, axz); orient(parts.shoulderCap, RB.x, SH_H, RB.z, axx, 0, axz);
+    place(parts.upper, RB.x, SH_H, RB.z, k.ex, k.ey, k.ez);
+    orient(parts.elbow, k.ex, k.ey, k.ez, axx, 0, axz); orient(parts.elbowCap, k.ex, k.ey, k.ez, axx, 0, axz);
+    place(parts.fore, k.ex, k.ey, k.ez, wx, wy, wz);
+    parts.wrist.position.set(wx, wy, wz);
+    orient(parts.wristRing, wx + dx * 14, wy + dy * 14, wz + dz * 14, dx, dy, dz, Zax);
+    const gB0 = LT - GRIP - 22, gB1 = LT - GRIP;
+    place(parts.pen, wx + dx * 16, wy + dy * 16, wz + dz * 16, wx + dx * gB0, wy + dy * gB0, wz + dz * gB0);
+    place(parts.grip, wx + dx * gB0, wy + dy * gB0, wz + dz * gB0, wx + dx * (gB1 - 4), wy + dy * (gB1 - 4), wz + dz * (gB1 - 4));
+    place(parts.latch, wx + dx * (gB1 - 4), wy + dy * (gB1 - 4), wz + dz * (gB1 - 4), wx + dx * gB1, wy + dy * gB1, wz + dz * gB1);
+    // Cartucho puesto, girado con la máquina: aletas alineadas con la fila de agujas
+    const has = !!tool.cart;
+    penCart.g.visible = has;
+    if (has) {
+      penCart.band.color.set(CARTS[tool.cart].color);
+      rowDir(vX);
+      vY.set(-dx, -dy, -dz);
+      vX.addScaledVector(vY, -vX.dot(vY));
+      if (vX.lengthSq() < 1e-6) vX.set(1, 0, 0).addScaledVector(vY, -vY.x);
+      vX.normalize();
+      vZ.crossVectors(vX, vY);
+      mBasis.makeBasis(vX, vY, vZ);
+      penCart.g.quaternion.setFromRotationMatrix(mBasis);
+      penCart.g.position.set(rob.x, rob.y, rob.z);
+      const lv = tool.level;
+      penCart.inkM.visible = lv > .02;
+      if (lv > .02) { const hgt = 18 * lv; penCart.inkM.scale.set(1, hgt, 1); penCart.inkM.position.set(0, 3 + hgt / 2, 0); penCart.inkMat.color.set(rgbStr(inkRGB())); }
+    }
+    for (const kk of CART_KEYS) slotCarts[kk].g.visible = tool.cart !== kk;
+    parts.needle.visible = has && rob.e > .05;
+    if (parts.needle.visible) place(parts.needle, rob.x, rob.y, rob.z, tip.x, tip.y, tip.z);
+    holdRing.visible = mode === 'hold';
+    if (holdRing.visible) orient(holdRing, rob.x - dx * 10, rob.y - dy * 10, rob.z - dz * 10, dx, dy, dz, Zax);
+  }
+
+  const VIEWS = {
+    general: { pos: [470, 620, 700], tgt: [-10, 130, -80] },
+    arriba: { pos: [0, 640, 80], tgt: [0, 70, -20] },
+    lado: { pos: [-780, 320, 140], tgt: [0, 140, -70] },
+    estacion: { pos: [330, 260, 90], tgt: [215, 90, -160] }
+  };
+  function setView(name) {
+    if (!renderer) return;
+    follow = name === 'seguir';
+    if (follow) { camMain.position.set(tip.x + 150, tip.y + 170, tip.z + 220); controls.target.set(tip.x, tip.y, tip.z); }
+    else { const v = VIEWS[name]; camMain.position.set(...v.pos); controls.target.set(...v.tgt); }
+    controls.update();
+  }
+  function sizeStage() {
+    const w = stageEl.clientWidth;
+    if (!w) return;
+    const h = round(clamp(min(w * .72, window.innerHeight * .7), 320, 720));
+    if (w === SW && h === SH) return;
+    SW = w; SH = h;
+    stageEl.style.height = h + 'px';
+    lensPx = round(clamp(min(w, h) * .3, 110, 200));
+    const lf = $('#lens-frame');
+    lf.style.width = lf.style.height = lensPx + 'px';
+    $('#lens-bar').style.width = max(4, lensPx / (2 * LENS_D * tan(LENS_FOV * PI / 360))) + 'px';
+    if (renderer) { renderer.setSize(w, h, false); camMain.aspect = w / h; camMain.updateProjectionMatrix(); }
+  }
+  function renderGL(now) {
+    if (!renderer) return;
+    armGroup.position.set(skin.x, AXIS_H + skin.y, skin.z);
+    armGroup.rotation.set(0, skin.yaw, skin.pitch, 'YZX');
+    updateTube(skin); updatePatch(skin); updateStickers(skin);
+    hand.rotation.x = skin.roll + skin.twist;
+    M.hand.color.set(TONES[params.tone]);
+    updateRobot();
+    ghost.visible = params.showGhost;
+    if (ghost.visible) updateGhost(Sest);
+    targetDot.visible = running && aim.ok;
+    targetDot.position.set(aim.x, aim.y, aim.z);
+    if (patchDirty && now - lastUpload > 80) { patchTex.needsUpdate = true; patchDirty = false; lastUpload = now; }
+    if (follow) {
+      const k = .12, ddx = (tip.x - controls.target.x) * k, ddy = (tip.y - controls.target.y) * k, ddz = (tip.z - controls.target.z) * k;
+      camMain.position.x += ddx; camMain.position.y += ddy; camMain.position.z += ddz;
+      controls.target.x += ddx; controls.target.y += ddy; controls.target.z += ddz;
+    }
+    controls.update();
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, SW, SH);
+    renderer.render(scene, camMain);
+    if (params.showLens) renderLens();
+  }
+  function renderLens() {
+    const L = lensPx, x = SW - L - 12, y = 12;
+    const dx = rob.dx, dy = rob.dy, dz = rob.dz;
+    const cp = cos(skin.pitch), sp = sin(skin.pitch), cy = cos(skin.yaw), sy = sin(skin.yaw);
+    const ax = cp * cy, ay = sp, az = -cp * sy;
+    let ux = -dy * az + dz * ay, uy = -dz * ax + dx * az, uz = -dx * ay + dy * ax;
+    const ul = hypot(ux, uy, uz) || 1;
+    camLens.up.set(ux / ul, uy / ul, uz / ul);
+    camLens.position.set(tip.x - dx * LENS_D, tip.y - dy * LENS_D, tip.z - dz * LENS_D);
+    camLens.lookAt(tip.x, tip.y, tip.z);
+    // agujas del cartucho vistas desde la máquina
+    const Lay = tool.cart ? LAYOUT[tool.cart] : [];
+    if (tool.cart) {
+      const V = rowDir(vX), c = cos(rob.spin), s = sin(rob.spin), dia = CARTS[tool.cart].dia;
+      // ejes de la piel: a lo largo (A) y alrededor (V); la huella gira con la máquina
+      for (let i = 0; i < lensNeedles.length; i++) {
+        const m = lensNeedles[i];
+        m.visible = i < Lay.length;
+        if (!m.visible) continue;
+        const p = Lay[i], du = c * p.a - s * p.b, dv = s * p.a + c * p.b;
+        m.position.set(tip.x + du * SR.ax + dv * V.Vx - dx * .2, tip.y + du * SR.ay + dv * V.Vy - dy * .2, tip.z + du * SR.az + dv * V.Vz - dz * .2);
+        m.scale.setScalar(dia / 2);
+      }
+      M.lensNeedle.color.set(inSkin ? 0x111111 : 0x6a6780);
+    } else lensNeedles.forEach((m) => { m.visible = false; });
+    robotGroup.visible = false; ghost.visible = false; lensGroup.visible = true;
+    renderer.setScissorTest(true);
+    renderer.setViewport(x, y, L, L); renderer.setScissor(x, y, L, L);
+    renderer.render(scene, camLens);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, SW, SH);
+    robotGroup.visible = true; ghost.visible = params.showGhost; lensGroup.visible = false;
+  }
+
+  // ---------- Gráfica de profundidad ----------
+  const dcv = $('#depth'), dctx = dcv.getContext('2d');
+  let DW = 0; const DH = 96;
+  let dpr = min(2, window.devicePixelRatio || 1);
+  function sizeDepth() {
+    dpr = min(2, window.devicePixelRatio || 1);
+    const w = dcv.clientWidth;
+    if (!w) return;
+    DW = w; dcv.width = round(w * dpr); dcv.height = round(DH * dpr);
+  }
+  function drawDepth() {
+    if (!DW) return;
+    const c = dctx, w = DW, h = DH;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, h);
+    const pl = 40, pr = 8, pt = 6, pb = 8, pw = w - pl - pr, t0 = simT - 6;
+    const ym = (d) => pt + clamp(d, 0, 2.5) / 2.5 * (h - pt - pb);
+    const xm = (t) => pl + (t - t0) / 6 * pw;
+    c.fillStyle = C['ok-soft'];
+    for (let i = 1; i < depthBuf.length; i++) {
+      const s = depthBuf[i];
+      if (s.t < t0 || s.lo === null) continue;
+      const xa = xm(depthBuf[i - 1].t), xb = xm(s.t);
+      c.fillRect(xa, ym(s.hi), xb - xa + .6, ym(s.lo) - ym(s.hi));
+    }
+    c.font = '500 10.5px "IBM Plex Mono", ui-monospace, monospace';
+    c.textAlign = 'right'; c.textBaseline = 'middle';
+    for (const d of [0, 1, 2]) {
+      c.strokeStyle = C.line; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(pl, round(ym(d)) + .5); c.lineTo(w - pr, round(ym(d)) + .5); c.stroke();
+      c.fillStyle = C.muted; c.fillText(d === 0 ? 'piel' : d + ' mm', pl - 6, ym(d));
+    }
+    c.lineWidth = 2; c.lineJoin = 'round';
+    let prev = null;
+    for (const s of depthBuf) {
+      if (s.t < t0 || s.d === null) { prev = null; continue; }
+      const x = xm(s.t), y = ym(s.d);
+      if (prev) {
+        c.strokeStyle = s.lo !== null && (s.d < s.lo || s.d > s.hi) ? C.bad : C.fg;
+        c.beginPath(); c.moveTo(prev.x, prev.y); c.lineTo(x, y); c.stroke();
+      }
+      prev = { x, y };
+    }
+  }
+
+  // ---------- Punta del cartucho vista desde abajo ----------
+  const tipCv = $('#tip'), tctx = tipCv.getContext('2d');
+  const shownCart = () => (params.cart !== 'auto' ? params.cart : (tool.cart || (strokes[0] && strokes[0].cart) || '1205RL'));
+  let lastTipKey = '';
+  function drawTip() {
+    const key = shownCart();
+    const W = 224, c = tctx, s = 44 * 2, cx = W / 2, cy = W / 2;   // 44 px por mm en pantalla
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, W, W);
+    c.strokeStyle = C.line || '#ccc'; c.lineWidth = 1;
+    c.beginPath();
+    for (let m = -1; m <= 1; m += .5) { const x = round(cx + m * s) + .5, y = round(cy + m * s) + .5; c.moveTo(x, 0); c.lineTo(x, W); c.moveTo(0, y); c.lineTo(W, y); }
+    c.stroke();
+    const cart = CARTS[key];
+    for (const p of LAYOUT[key]) {
+      c.fillStyle = C.fg || '#222';
+      c.globalAlpha = 1 - clamp(p.z / .6, 0, .6);
+      c.beginPath(); c.arc(cx + p.a * s, cy + p.b * s, cart.dia / 2 * s, 0, TAU); c.fill();
+    }
+    c.globalAlpha = 1;
+    c.fillStyle = C.muted || '#777'; c.font = '500 18px "IBM Plex Mono", ui-monospace, monospace'; c.textAlign = 'left'; c.textBaseline = 'top';
+    c.fillText('0,5 mm', 8, 8);
+    const auto = params.cart === 'auto' ? ' (el que toca ahora)' : '';
+    $('#tip-note').innerHTML = `<b>${key}</b>${auto}: ${cart.n} agujas del #${cart.gauge} (${fmt(cart.dia, 2)} mm), ${CFG_NAME[cart.cfg]}. Huella ≈ ${fmt(cart.w, 1)} × ${fmt(cart.t, 1)} mm. ${cart.uso}.`;
+    lastTipKey = key;
+  }
+
+  // ---------- Interfaz ----------
+  const statusEl = $('#status'), statusText = $('#status-text'), toastEl = $('#toast');
+  let toastTimer = 0, lastStatus = '';
+  function showToast(t) { toastEl.textContent = t; toastEl.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 1000); }
+  function updateStatus() {
+    let kind = mode, text;
+    if (paused) { kind = 'idle'; text = 'En pausa'; }
+    else if (mode === 'svc') text = svc.steps[svc.i].label;
+    else {
+      text = { idle: 'Preparado', approach: 'Acercándose al brazo', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Retirando la aguja', svclift: 'Retirando la aguja para ir a la estación', hold: 'Parada de seguridad', dry: 'Sin tinta · dale a «Recargar tinta»', done: 'Terminado' }[mode];
+      if (mode === 'ink' && strokes[cur.k]) text = strokes[cur.k].type === 'dots' ? 'Puntillismo' : strokes[cur.k].spin != null ? 'Relleno sólido' : 'Tatuando línea';
+    }
+    if (!params.tracking && running && !paused) text += ' · a ciegas';
+    const key = kind + text;
+    if (key === lastStatus) return;
+    lastStatus = key;
+    statusEl.dataset.kind = kind === 'dry' ? 'hold' : ['approach', 'travel', 'lift', 'svclift'].includes(kind) ? 'idle' : kind;
+    statusText.textContent = text;
+  }
+  function updateButtons() { $('#btn-main').textContent = running ? (paused ? 'Seguir' : 'Pausar') : (mode === 'done' ? 'Tatuar otra vez' : 'Empezar a tatuar'); }
+  function setV(id, html, cls) { const el = $(id); el.innerHTML = html; el.className = 'v' + (cls ? ' ' + cls : ''); }
+  const grade = (x, g, m) => (x >= g ? 'good' : x >= m ? 'meh' : 'bad');
+  function updateStats() {
+    const prog = mode === 'done' ? 100 : totalLen ? clamp(doneLen() / totalLen * 100, 0, 100) : 0;
+    setV('#st-prog', `${round(prog)}<small>%</small>`);
+    $('#st-bar').style.width = prog + '%';
+    if (stats.n) {
+      const n = stats.n, mean = stats.sumE / n, w = stats.within / n * 100, d = stats.depthOK / n * 100, ik = stats.inkOK / n * 100, co = stats.colorOK / n * 100;
+      setV('#st-mean', `${fmt(mean, 2)}<small>mm</small>`, mean <= .25 ? 'good' : mean <= .5 ? 'meh' : 'bad');
+      setV('#st-max', `${fmt(stats.maxE, 1)}<small>mm</small>`, stats.maxE <= .5 ? 'good' : stats.maxE <= 1.5 ? 'meh' : 'bad');
+      setV('#st-within', `${round(w)}<small>%</small>`, grade(w, 90, 70));
+      setV('#st-depth', `${round(d)}<small>%</small>`, grade(d, 90, 75));
+      setV('#st-ink', `${round(ik)}<small>%</small>`, grade(ik, 97, 90));
+      setV('#st-color', `${round(co)}<small>%</small>`, grade(co, 95, 85));
+    } else for (const id of ['#st-mean', '#st-max', '#st-within', '#st-depth', '#st-ink', '#st-color']) setV(id, '–');
+    setV('#st-holds', String(stats.holds), stats.holds ? 'meh' : '');
+    const lvl = round(tool.level * 100), low = tool.cart && tool.level <= params.refillAt;
+    setV('#st-level', tool.cart && tool.ink ? `${lvl}<small>% ${INKS[tool.ink].label.toLowerCase()}</small>` : '–', low ? 'bad' : '');
+    $('#st-level-bar').style.width = (tool.cart ? lvl : 0) + '%';
+    $('#st-level-bar').style.background = tool.ink ? rgbStr(inkRGB()) : '';
+    $('#st-level-wrap').classList.toggle('low', !!low);
+    setV('#st-cart', tool.cart || 'ninguno');
+    setV('#st-svc', `${stats.refills} · ${stats.changes} · ${stats.rinses}`);
+    setV('#st-time', `${fmt(stats.time, 1)}<small>s</small>`);
+    const pill = $('#tool-pill');
+    $('#tool-dot').style.background = tool.cart ? CARTS[tool.cart].color : 'transparent';
+    $('#tool-cart').textContent = tool.cart || 'Sin cartucho';
+    $('#tool-inkdot').style.background = tool.ink ? rgbStr(inkRGB()) : 'transparent';
+    $('#tool-ink').style.width = (tool.cart ? lvl : 0) + '%';
+    $('#tool-ink').style.background = tool.ink ? rgbStr(inkRGB()) : '';
+    $('#tool-ink-txt').textContent = tool.cart ? `${lvl} %` : '–';
+    $('#tool-sensor').hidden = params.inkSensor;
+    pill.classList.toggle('low', !!low);
+    $('#out-cap').textContent = capLabel();
+    if (shownCart() !== lastTipKey) drawTip();
+  }
+  function renderHistory() {
+    const body = $('#hist-body');
+    body.textContent = '';
+    for (const h of history.slice(0, 12)) {
+      const tr = document.createElement('tr');
+      const cells = [['num', String(h.n)], ['', h.design], ['', h.zone], ['cfg', h.cfg], ['num', `${fmt(h.mean, 2)} mm`], ['num', `${round(h.within)} %`], ['num', `${round(h.dOK)} %`], ['num', `${round(h.inkP)} %`], ['num', `${round(h.colP)} %`], ['num', String(h.holds)], ['num', String(h.refills)], ['num', String(h.changes)], ['num', String(h.rinses)]];
+      for (const [cls, txt] of cells) { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; tr.appendChild(td); }
+      const td = document.createElement('td'), sp = document.createElement('span');
+      sp.className = 'verdict ' + h.verdict[1]; sp.textContent = h.verdict[0];
+      td.appendChild(sp); tr.appendChild(td);
+      body.appendChild(tr);
+    }
+    $('#hist-empty').hidden = history.length > 0;
+    $('#hist-wrap').hidden = history.length === 0;
+  }
+
+  function capLabel() {
+    const k = params.cart !== 'auto' ? params.cart : (tool.cart || '1205RL');
+    return `≈ ${round(params.capacity / CARTS[k].use / 10)} cm con ${k}`;
+  }
+  const RANGES = {
+    move: ['#rng-move', '#out-move', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
+    breath: ['#rng-breath', '#out-breath', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
+    roll: ['#rng-roll', '#out-roll', (v) => v * PI / 180, (p) => round(p * 180 / PI), (p) => `${round(p * 180 / PI)}°`],
+    latency: ['#rng-latency', '#out-latency', (v) => v, (p) => p, (p) => `${p} ms`],
+    noise: ['#rng-noise', '#out-noise', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
+    speed: ['#rng-speed', '#out-speed', (v) => v, (p) => p, (p) => `${p} mm/s`],
+    freq: ['#rng-freq', '#out-freq', (v) => v, (p) => p, (p) => `${p} Hz`],
+    capacity: ['#rng-cap', '#out-cap', (v) => v, (p) => p, () => capLabel()],
+    refillAt: ['#rng-refill', '#out-refill', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`]
+  };
+  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', zoneDepth: '#sw-zonedepth', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', rinse: '#sw-rinse', showGhost: '#sw-ghost', showErrors: '#sw-errors', showLens: '#sw-lens', showMap: '#sw-map' };
+  function syncControls() {
+    for (const [k, [rid, oid, , toUI, label]] of Object.entries(RANGES)) { $(rid).value = toUI(params[k]); $(oid).textContent = label(params[k]); }
+    for (const [k, id] of Object.entries(SWITCHES)) $(id).checked = params[k];
+    for (const id of ['#f-latency', '#f-noise', '#f-predict']) $(id).classList.toggle('dim', !params.tracking);
+    $$('.cartc').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cart === params.cart)));
+    $$('.zone').forEach((b) => b.setAttribute('aria-pressed', String(ZONES[b.dataset.zone] === zone)));
+    $('#zone-note').textContent = zone.note;
+    $('#design-note').textContent = designSrc ? designSrc.note || '' : '';
+    $('#lens-frame').hidden = !params.showLens || !renderer;
+    drawTip();
+  }
+  const clearScenario = () => $$('.scn').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+
+  // Botones que se generan: cartuchos, tintas de la estación y tintas del dibujo propio
+  $('#cart-chips').innerHTML = ['<button class="chip cartc" data-cart="auto" aria-pressed="true">Según el diseño</button>']
+    .concat(CART_KEYS.map((k) => `<button class="chip cartc" data-cart="${k}" aria-pressed="false"><i class="dot" style="background:${CARTS[k].color}"></i>${k}</button>`)).join('');
+  $('#ink-list').innerHTML = INK_KEYS.map((k) => `<span><i style="background:${rgbStr(INKS[k].rgb)}"></i>${INKS[k].label}</span>`).join('') + '<span><i style="background:#9fd3f0"></i>Agua</span><span><i style="background:#f6f5f1"></i>Papel</span>';
+  $('#pad-inks').innerHTML = INK_KEYS.map((k, i) => `<button class="chip pink" data-ink="${k}" aria-pressed="${i === 0}"><i class="dot" style="background:${rgbStr(INKS[k].rgb)}"></i>${INKS[k].label}</button>`).join('');
+
+  for (const [k, [rid, oid, fromUI, , label]] of Object.entries(RANGES)) {
+    $(rid).addEventListener('input', (e) => { params[k] = fromUI(+e.target.value); $(oid).textContent = label(params[k]); if (!['speed', 'freq'].includes(k)) clearScenario(); });
+  }
+  for (const [k, id] of Object.entries(SWITCHES)) {
+    $(id).addEventListener('change', (e) => {
+      const was = params[k];
+      params[k] = e.target.checked;
+      if (k === 'tracking' && was && !params.tracking) copyS(cam.S, Sref);
+      if (k === 'showErrors') redrawPatch();
+      if (k === 'showMap') { redrawBase(); if (baseTex) baseTex.needsUpdate = true; }
+      if (!k.startsWith('show')) clearScenario();
+      syncControls();
+    });
+  }
+  function setDesign(key) {
+    designSrc = { ...DESIGNS[key], key };
+    $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.design === key)));
+    $('#pad-wrap').hidden = true;
+    buildDesign();
+  }
+  function setZone(key) { zone = ZONES[key]; if (designSrc) buildDesign(); }
+  $$('.scn').forEach((b) => b.addEventListener('click', () => {
+    const sc = SCENARIOS[b.dataset.scn];
+    for (const k of Object.keys(BASE)) params[k] = sc[k];
+    if (sc.design) setDesign(sc.design);
+    if (sc.zone) setZone(sc.zone);
+    $$('.scn').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    syncControls(); resetRun(); startRun();
+  }));
+  $$('.view').forEach((b) => b.addEventListener('click', () => { $$('.view').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); setView(b.dataset.view); }));
+  $$('.tspeed').forEach((b) => b.addEventListener('click', () => { timeScale = +b.dataset.t; $$('.tspeed').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+  $$('.tone').forEach((b) => b.addEventListener('click', () => {
+    params.tone = +b.dataset.tone;
+    $$('.tone').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    redrawBase(); if (baseTex) baseTex.needsUpdate = true;
+    redrawPatch();
+  }));
+  $$('.design').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.design;
+    if (id === 'propio') {
+      $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      $('#pad-wrap').hidden = false; sizePad(); return;
+    }
+    setDesign(id); syncControls(); resetRun(); startRun();
+  }));
+  $$('.zone').forEach((b) => b.addEventListener('click', () => { setZone(b.dataset.zone); clearScenario(); syncControls(); resetRun(); startRun(); }));
+  $$('.cartc').forEach((b) => b.addEventListener('click', () => {
+    params.cart = b.dataset.cart; clearScenario(); syncControls();
+    if (running && strokes[cur.k] && tool.cart !== cartFor(cur.k)) requestService('svc');
+  }));
+  $('#btn-main').addEventListener('click', () => { if (running) paused = !paused; else { resetRun(); startRun(); } updateButtons(); });
+  $('#btn-restart').addEventListener('click', () => { resetRun(); startRun(); });
+  $('#btn-jerk').addEventListener('click', triggerJerk);
+  $('#btn-refill').addEventListener('click', () => requestService('svc'));
+
+  // Agarrar el antebrazo y moverlo por la mesa
+  let armDrag = null, raycaster, ndc, dragPlane, hitP;
+  function pointerRay(e) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camMain);
+  }
+  function hitArm(e) { pointerRay(e); const h = raycaster.intersectObjects([tube, hand], true); return h.length ? h[0].point : null; }
+  function initPointer() {
+    raycaster = new THREE.Raycaster(); ndc = new THREE.Vector2(); dragPlane = new THREE.Plane(); hitP = new THREE.Vector3();
+    const cv = renderer.domElement;
+    stageEl.addEventListener('pointerdown', (e) => {
+      if (e.target !== cv || e.button > 0) return;
+      const p = hitArm(e);
+      if (!p) return;
+      dragPlane.set(new THREE.Vector3(0, 1, 0), -p.y);
+      armDrag = { id: e.pointerId, x: p.x, z: p.z, tx: drag.tx, tz: drag.tz };
+      controls.enabled = false;
+      cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing';
+      e.stopPropagation();
+    }, true);
+    window.addEventListener('pointermove', (e) => {
+      if (armDrag && e.pointerId === armDrag.id) {
+        pointerRay(e);
+        if (raycaster.ray.intersectPlane(dragPlane, hitP)) {
+          drag.tx = clamp(armDrag.tx + hitP.x - armDrag.x, -60, 60);
+          drag.tz = clamp(armDrag.tz + hitP.z - armDrag.z, -30, 50);
+        }
+      } else if (e.target === cv && e.pointerType === 'mouse' && !e.buttons) cv.style.cursor = hitArm(e) ? 'grab' : 'default';
+    });
+    const end = (e) => { if (!armDrag || e.pointerId !== armDrag.id) return; armDrag = null; controls.enabled = true; cv.style.cursor = 'grab'; };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  }
+
+  // Zona de dibujo propio
+  const pad = $('#pad'), pctx = pad.getContext('2d');
+  let padStrokes = [], padCur = null, PWd = 0, PHd = 0, padTech = 'linea', padInk = 'negro';
+  function sizePad() {
+    const r = pad.getBoundingClientRect();
+    if (!r.width) return;
+    PWd = r.width; PHd = r.height;
+    pad.width = round(PWd * dpr); pad.height = round(PHd * dpr);
+    drawPad();
+  }
+  function drawPad() {
+    if (!PWd) return;
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pctx.clearRect(0, 0, PWd, PHd);
+    pctx.strokeStyle = C.line; pctx.lineWidth = 1;
+    pctx.beginPath();
+    for (let i = 1; i < 14; i++) { const x = round(PWd * i / 14) + .5; pctx.moveTo(x, 0); pctx.lineTo(x, PHd); }
+    for (let i = 1; i < 5.4; i++) { const y = round(PHd * i / 5.4) + .5; pctx.moveTo(0, y); pctx.lineTo(PWd, y); }
+    pctx.stroke();
+    if (!padStrokes.length) {
+      pctx.fillStyle = C.muted; pctx.font = '500 13px "IBM Plex Sans", system-ui, sans-serif';
+      pctx.textAlign = 'center'; pctx.textBaseline = 'middle';
+      pctx.fillText('Dibuja aquí con el dedo o el ratón', PWd / 2, PHd / 2);
+    }
+    pctx.strokeStyle = C.fg; pctx.lineWidth = 2.2; pctx.lineCap = 'round'; pctx.lineJoin = 'round';
+    for (const s of padStrokes) {
+      pctx.beginPath();
+      s.forEach((p, i) => (i ? pctx.lineTo(p.x * PWd, p.y * PHd) : pctx.moveTo(p.x * PWd, p.y * PHd)));
+      if (padTech !== 'linea' && s.length > 2) pctx.closePath();
+      pctx.stroke();
+    }
+  }
+  const padNorm = (e) => { const r = pad.getBoundingClientRect(); return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) }; };
+  pad.addEventListener('pointerdown', (e) => { pad.setPointerCapture(e.pointerId); padCur = [padNorm(e)]; padStrokes.push(padCur); $('#pad-msg').textContent = ''; drawPad(); });
+  pad.addEventListener('pointermove', (e) => {
+    if (!padCur) return;
+    const p = padNorm(e), l = padCur[padCur.length - 1];
+    if (hypot(p.x - l.x, (p.y - l.y) * PHd / (PWd || 1)) > .005) { padCur.push(p); drawPad(); }
+  });
+  const padEnd = () => { padCur = null; };
+  pad.addEventListener('pointerup', padEnd);
+  pad.addEventListener('pointercancel', padEnd);
+  $$('.tech').forEach((b) => b.addEventListener('click', () => { padTech = b.dataset.tech; $$('.tech').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); drawPad(); }));
+  $$('.pink').forEach((b) => b.addEventListener('click', () => { padInk = b.dataset.ink; $$('.pink').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+  $('#pad-clear').addEventListener('click', () => { padStrokes = []; drawPad(); });
+  $('#pad-use').addEventListener('click', () => {
+    const smooth = (s) => s.map((p, i) => { const a = s[max(0, i - 1)], c = s[min(s.length - 1, i + 1)]; return [(a.x + p.x + c.x) / 3, (a.y + p.y + c.y) / 3]; });
+    const shapes = padStrokes.filter((s) => s.length > 2).map(smooth);
+    if (!shapes.length) { $('#pad-msg').textContent = 'Dibuja algo primero.'; return; }
+    const els = [];
+    if (padTech === 'linea') for (const p of shapes) els.push({ kind: 'line', pts: p, cart: '1205RL', ink: padInk });
+    else if (padTech === 'relleno') {
+      for (const p of shapes) els.push({ kind: 'line', pts: p.concat([p[0]]), cart: '1205RL', ink: 'negro' });
+      for (const p of shapes) els.push({ kind: 'fill', poly: p, cart: '1207M1', ink: padInk });
+    } else for (const p of shapes) els.push({ kind: 'dots', poly: p, dens: (q) => 1 - q.ny * .8, rMin: .85, rMax: 2.4, cart: '1003RL', ink: padInk });
+    designSrc = { key: 'propio', label: 'Diseño propio', pad: true, els, note: padTech === 'linea' ? 'Tu dibujo en línea con 1205RL.' : padTech === 'relleno' ? 'Contorno con 1205RL y relleno sólido con 1207M1.' : 'Puntillismo con 1003RL, más denso arriba.' };
+    buildDesign(); syncControls(); resetRun(); startRun();
+  });
+
+  // ---------- Bucle ----------
+  let lastTs = null, acc = 0, statTimer = 0;
+  function frame(ts) {
+    if (lastTs === null) lastTs = ts;
+    const el = min(.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    if (!paused) {
+      acc += el * timeScale;
+      let n = 0;
+      const cap = 40 * timeScale;
+      while (acc >= DT && n < cap) { step(); acc -= DT; n++; }
+      if (n >= cap) acc = 0;
+      depthBuf.push({ t: simT, d: inSkin ? depthEff : null, lo: curWin ? curWin.lo : null, hi: curWin ? curWin.hi : null });
+      while (depthBuf.length && depthBuf[0].t < simT - 6.2) depthBuf.shift();
+    }
+    try { renderGL(ts); } catch (err) { console.error(err); }
+    drawDepth();
+    updateStatus();
+    statTimer += el;
+    if (statTimer > .1) { statTimer = 0; updateStats(); }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Arranque ----------
+  updateSkin();
+  for (let i = 0; i < HN; i++) pushHist(skin);
+  copyS(skin, cam.S); copyS(skin, Sest); copyS(skin, Sref);
+  setDesign('estrella');
+  redrawBase(); redrawPatch();
+  if (initGL()) initPointer(); else readColors();
+  sizeStage(); sizeDepth();
+  new ResizeObserver(() => { sizeStage(); sizeDepth(); sizePad(); }).observe(document.body);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  syncControls();
+  renderHistory();
+  startRun();
+  requestAnimationFrame(frame);
+})();
+</script>
