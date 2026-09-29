@@ -379,6 +379,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <div class="chips" role="group" aria-label="Técnica de sombreado">
           <button class="chip shadec" data-shade="presion" aria-pressed="true">Por presión · medio péndulo</button>
           <button class="chip shadec" data-shade="dilucion" aria-pressed="false">Por dilución · grises</button>
+          <button class="chip shadec" data-shade="realismo" aria-pressed="false">Realismo · degradado suave</button>
+          <button class="chip shadec" data-shade="puntos" aria-pressed="false">Puntillismo</button>
+          <button class="chip shadec" data-shade="arrastre" aria-pressed="false">Puntillismo de arrastre</button>
         </div>
         <small class="note" id="shade-note"></small>
         <div class="pad-wrap" id="pad-wrap" hidden>
@@ -517,7 +520,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     <section class="card" aria-label="Cosas para probar">
       <h2>Cosas para probar</h2>
       <ul class="tips">
-        <li><b>Tu propio tatuaje.</b> «Subir una imagen» (o «Usar una de ejemplo»): el robot pasa cada línea por su centro con el liner de su grosor, hace el negro sólido con contorno y relleno, saca las sombras del tono de la imagen y los colores de la propia imagen (llena los vasos de la segunda fila con ellos), y ajusta la máquina en cada trazo. Debajo sale lo que va a hacer y, si la imagen tiene más detalle del que cabe, a qué tamaño saldría bien.</li>
+        <li><b>Tu propio tatuaje.</b> «Subir una imagen» (o «Usar una de ejemplo»): el robot pasa cada línea por su centro con el liner de su grosor, hace el negro sólido con contorno y relleno, saca las sombras del tono de la imagen (con la técnica que elijas: presión, dilución, realismo, puntillismo o puntillismo de arrastre) y los colores de la propia imagen (llena los vasos de la segunda fila con ellos), y ajusta la máquina en cada trazo. Debajo sale lo que va a hacer y, si la imagen tiene más detalle del que cabe, a qué tamaño saldría bien.</li>
         <li><b>Sombras.</b> Elige la rosa o la luna y compara «Por presión» (medio péndulo, solo negro) con «Por dilución» (gris claro, medio y oscuro por capas).</li>
         <li><b>Letras.</b> Con «Letras góticas» o «Caligrafía» escribe tu texto: el robot hace el contorno y rellena cada trazo.</li>
         <li><b>Mira dónde queda la tinta.</b> Al terminar, «Ver resultado sin plantilla» quita el stencil, y el «Corte de la piel» enseña cada pinchazo en su capa. Con «Piel fina, profundidad fija» verás tinta en la dermis honda.</li>
@@ -1781,6 +1784,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     let nTone = 0;
     for (let i = 0; i < N; i++) { T[i] = Ex[i] || bdn[i] < .12 ? 0 : clamp(bn[i] / bdn[i], 0, 1); if (T[i] > .07) nTone++; }
     const toned = nTone > N * .004;
+    // el mismo tono con la mitad de suavizado: más definición para realismo y puntillismo
+    const sTf = max(.8, .2 / mmpp), bn2 = blurG(num, W, H, sTf), bd2 = blurG(den, W, H, sTf), Tf = new Float32Array(N);
+    for (let i = 0; i < N; i++) Tf[i] = Ex[i] || bd2[i] < .12 ? 0 : clamp(bn2[i] / bd2[i], 0, 1);
     // diluciones: cada capa, sumada a las de debajo, da el tono medio de su franja
     const TH = [.07, .33, .58], toneRings = [], ops = [];
     let acc = 0;
@@ -1802,7 +1808,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       recSize = min(250, ceil(size * .5 / w30 / 10) * 10);
       if (recSize < size + 20) recSize = 0;
     }
-    return { W, H, N, mmpp, size, Lp, B, T, colIdx, palette, black, colors, toneRings, ops, toned, fineShare, recSize, nTex, crop: [sx, sy, sw, sh], ms: round(performance.now() - t0) };
+    return { W, H, N, mmpp, size, Lp, B, T, Tf, colIdx, palette, black, colors, toneRings, ops, toned, fineShare, recSize, nTex, crop: [sx, sy, sw, sh], ms: round(performance.now() - t0) };
   }
   // Ajustes de la máquina por tipo de trazo: frecuencia (Hz), carrera (mm) y velocidad del brazo (mm/s)
   function machineFor(kind, cart) {
@@ -1811,46 +1817,130 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (kind === 'pressure') return { hz: 80, stroke: 3.0, spd: 18 };
     if (kind === 'fill') return c.mag ? { hz: 100, stroke: 3.8, spd: 16 } : { hz: 105, stroke: 3.5, spd: 13 };
     if (kind === 'dots') return { hz: 100, stroke: 3.2, spd: 15 };
+    // realismo: mano muy ligera y máquina suave, muchas pasadas finas
+    if (kind === 'realismo') return { hz: 90, stroke: 2.8, spd: 14 };
+    // arrastre: pocos pinchazos por segundo; lo que decide la densidad es lo rápido que corre el brazo
+    if (kind === 'arrastre') return { hz: 45, stroke: 3.2, spd: 9 };
     const hz = c.n <= 3 ? 120 : c.n <= 5 ? 115 : 105;
     return { hz, stroke: c.n <= 5 ? 3.5 : 3.8, spd: round(hz * .12) };   // unos 0,12 mm entre pinchazo y pinchazo: línea sólida
   }
-  // Presión que pide cada tono de la imagen (0 = la mano casi sin apretar, 1 = a fondo).
-  // Tabla medida en el simulador con una tira de grises: cuánto oscurece la piel (d) cada presión (w)
-  const SHADE_TAB = [[0, 0], [.032, .057], [.061, .18], [.103, .29], [.162, .39], [.24, .49], [.345, .59], [.458, .69], [.573, .8], [.68, .9], [.782, 1]];
-  let shadeW = (t) => {
-    const d = .95 * t;
-    for (let i = 1; i < SHADE_TAB.length; i++) { const [d0, w0] = SHADE_TAB[i - 1], [d1, w1] = SHADE_TAB[i]; if (d <= d1) return w0 + (w1 - w0) * (d - d0) / (d1 - d0); }
-    return 1;
+  // =====================================================================
+  // TÉCNICAS DE SOMBRA sobre un mapa de tonos (de una imagen o del degradado de un diseño)
+  //  presión: medio péndulo, filas con la mano subiendo y bajando (1211RM y 1207RS)
+  //  realismo: dos pasadas cruzadas de 1207M1 con la mano muy ligera: degradado sin rayas y más definición
+  //  puntos: puntillismo, punto a punto con 1003RL, más juntos donde es más oscuro
+  //  arrastre: puntillismo de arrastre, el liner corre y deja un rastro de pinchazos sueltos; más despacio, más juntos
+  // =====================================================================
+  // Tablas medidas en el simulador con una tira de grises: cuánto oscurece la piel (d) cada valor de mando (c).
+  // En presión y realismo c es la presión de la mano; en arrastre, lo despacio que va; en puntillismo, la densidad de puntos.
+  const SHADE_TABS = {
+    presion: [[0, 0], [.032, .057], [.061, .18], [.103, .29], [.162, .39], [.24, .49], [.345, .59], [.458, .69], [.573, .8], [.68, .9], [.782, 1]],
+    realismo: [[0, 0], [.232, .18], [.379, .28], [.5, .38], [.627, .49], [.751, .59], [.83, .69], [.885, .79], [.9, 1]],
+    puntos: [[0, 0], [.093, .18], [.151, .28], [.175, .38], [.249, .49], [.345, .59], [.441, .69], [.507, .79], [.558, .89], [.659, 1]],
+    arrastre: [[0, 0], [.116, .18], [.137, .28], [.154, .38], [.189, .49], [.213, .59], [.25, .69], [.326, .79], [.394, .89], [.596, 1]]
   };
-  // Sombra por presión sobre el mapa de tonos: filas paralelas y cada punto con la presión que pide la imagen.
-  // Primero el magnum curvo grande donde cabe entero; lo que queda (zonas estrechas), con el shader redondo.
-  function pressureRows(A) {
-    const { W, H, mmpp, T, B } = A, t0 = .07, out = [];
+  function shadeC(mode, t) {
+    const T_ = SHADE_TABS[mode] || SHADE_TABS.presion, d = .95 * t;
+    for (let i = 1; i < T_.length; i++) { const [d0, c0] = T_[i - 1], [d1, c1] = T_[i]; if (d <= d1) return c0 + (c1 - c0) * (d - d0) / (d1 - d0); }
+    return 1;
+  }
+  // Muestreador del tono de la imagen (fine: el mapa con menos suavizado)
+  function imgSampler(A, fine) {
+    const { W, H, mmpp, B } = A, T = fine ? A.Tf : A.T, t0 = .07;
     const idx = (u, v) => { const x = round(u / mmpp + W / 2), y = round(v / mmpp + H / 2); return x < 0 || y < 0 || x >= W || y >= H ? -1 : y * W + x; };
-    const cov = new Uint8Array(W * H), R = hypot(W, H) * mmpp / 2 + 2, ang = .6, ca = cos(ang), sa = sin(ang);
-    for (const cart of ['1211RM', '1207RS']) {
-      const fw = CARTS[cart].w, sp = fw * .5, stp = .4, m = max(0, fw / 2 - .3), big = cart === '1211RM';
+    return { R: hypot(W, H) * mmpp / 2 + 2, cu: 0, cv: 0, t0,
+      tone: (u, v) => { const i = idx(u, v); return i < 0 ? -1 : T[i]; },
+      // donde puede caer la huella de la aguja: en sombra o en negro, nunca en blanco ni en color
+      ok: (u, v) => { const i = idx(u, v); return i >= 0 && (T[i] > t0 * .5 || B[i] === 1); } };
+  }
+  // Muestreador de la sombra de un diseño de serie: el degradado dentro de su contorno
+  function gradSampler(el) {
+    const g = el.grad, poly = el.poly;
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, P0 = Infinity, P1 = -Infinity;
+    const ca = g.rad ? 1 : cos(g.ang), sa = g.rad ? 0 : sin(g.ang);
+    for (const p of poly) { u0 = min(u0, p.u); u1 = max(u1, p.u); v0 = min(v0, p.v); v1 = max(v1, p.v); const q = p.u * ca + p.v * sa; P0 = min(P0, q); P1 = max(P1, q); }
+    const inside = (u, v) => pointInPoly({ u, v }, poly);
+    return { R: hypot(u1 - u0, v1 - v0) / 2 + 1, cu: (u0 + u1) / 2, cv: (v0 + v1) / 2, t0: .05,
+      tone: (u, v) => {
+        if (!inside(u, v)) return -1;
+        const q = g.rad ? clamp((hypot(u - g.c.u, v - g.c.v) - g.r0) / (g.r1 - g.r0 || 1), 0, 1) : clamp((u * ca + v * sa - P0) / (P1 - P0 || 1), 0, 1);
+        return .82 * (1 - q) ** 1.4;
+      },
+      ok: inside };
+  }
+  // Filas paralelas sobre el mapa de tonos: cada punto con el mando que pide su tono.
+  // Cada pasada: aguja, ángulo, paso entre filas (en anchos de aguja), si marca lo que cubre o si solo rellena lo que quedó sin cubrir
+  function toneRows(S, passes) {
+    const out = [], g = .2, n = ceil(2 * S.R / g) + 1, cov = new Uint8Array(n * n);
+    const ci = (u, v) => { const x = round((u - S.cu + S.R) / g), y = round((v - S.cv + S.R) / g); return x < 0 || y < 0 || x >= n || y >= n ? -1 : y * n + x; };
+    for (const P of passes) {
+      const fw = CARTS[P.cart].w, sp = fw * P.k, stp = .4, m = max(0, fw / 2 - .3), ca = cos(P.ang), sa = sin(P.ang);
       let row = 0;
-      for (let q = -R; q <= R; q += sp, row++) {
+      for (let q = -S.R; q <= S.R; q += sp, row++) {
         const runs = [];
         let run = null;
-        for (let s = -R; s <= R; s += stp) {
-          const u = ca * s - sa * q, v = sa * s + ca * q, i = idx(u, v);
-          let ok = i >= 0 && T[i] > t0 && (big || !cov[i]);
-          // la huella entera tiene que caer en sombra o en negro: no mancha el blanco ni el color
-          if (ok) for (const k of [-1, -.5, .5, 1]) { const j = idx(u - sa * m * k, v + ca * m * k); if (j < 0 || !(T[j] > t0 * .5 || B[j])) { ok = false; break; } }
+        for (let s = -S.R; s <= S.R; s += stp) {
+          const u = S.cu + ca * s - sa * q, v = S.cv + sa * s + ca * q, t = S.tone(u, v);
+          let ok = t > S.t0;
+          if (ok && P.fill) { const c = ci(u, v); ok = c >= 0 && !cov[c]; }
+          // la huella entera tiene que caer donde se puede: no mancha el blanco ni el color
+          if (ok) for (const k of [-1, -.5, .5, 1]) if (!S.ok(u - sa * m * k, v + ca * m * k)) { ok = false; break; }
           if (ok) {
-            (run || (run = [])).push({ u, v, w: shadeW(T[i]) });
-            if (big) for (let a2 = -fw / 2; a2 <= fw / 2; a2 += mmpp * .8) for (let a = -stp / 2; a < stp / 2; a += mmpp * .8) { const j = idx(u + ca * a - sa * a2, v + sa * a + ca * a2); if (j >= 0) cov[j] = 1; }
+            (run || (run = [])).push({ u, v, w: shadeC(P.mode, t) });
+            if (P.mark) for (let a2 = -fw / 2; a2 <= fw / 2; a2 += g * .8) for (let a = -stp / 2; a < stp / 2; a += g * .8) { const c = ci(u + ca * a - sa * a2, v + sa * a + ca * a2); if (c >= 0) cov[c] = 1; }
           } else if (run) { runs.push(run); run = null; }
         }
         if (run) runs.push(run);
         const good = runs.filter((r) => r.length >= 3);
         if (row % 2) { good.reverse(); good.forEach((r) => r.reverse()); }
-        for (const r of good) out.push({ cart, pts: r });
+        for (const r of good) out.push({ cart: P.cart, pts: r, drag: !!P.drag });
       }
     }
     return out;
+  }
+  // Puntillismo: puntos sueltos repartidos en ruido azul (sin filas ni grumos), más juntos donde es más oscuro.
+  // Luego se ordenan en franjas de ida y vuelta para que el brazo no dé saltos largos.
+  function toneDots(S) {
+    const a = .14, sMin = sqrt(a / .866), rnd = seeded(5), cell = 1, n = ceil(2 * S.R / cell) + 1, grid = new Map(), pts = [];
+    const spacing = (t) => { const c = shadeC('puntos', t); return c > .02 ? min(4, sMin / sqrt(c)) : 0; };
+    const tries = round(4 * S.R * S.R / (sMin * sMin) * 8);
+    for (let k = 0; k < tries; k++) {
+      const u = S.cu - S.R + rnd() * 2 * S.R, v = S.cv - S.R + rnd() * 2 * S.R, t = S.tone(u, v);
+      if (!(t > S.t0) || !S.ok(u, v)) continue;
+      const r = spacing(t);
+      if (!r) continue;
+      const gx = floor((u - S.cu + S.R) / cell), gy = floor((v - S.cv + S.R) / cell), reach = ceil((r + 4) / 2 / cell);
+      let free = true;
+      for (let yy = gy - reach; yy <= gy + reach && free; yy++) for (let xx = gx - reach; xx <= gx + reach; xx++) {
+        const L = grid.get(yy * n + xx); if (!L) continue;
+        for (const p of L) if (hypot(p.u - u, p.v - v) < (r + p.r) / 2) { free = false; break; }
+        if (!free) break;
+      }
+      if (!free) continue;
+      const hf = 1 + 2 * clamp((shadeC('puntos', t) - .45) / .55, 0, 1), p = { u, v, r, hits: floor(hf) + (rnd() < hf % 1 ? 1 : 0) }, key = gy * n + gx;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(p); pts.push(p);
+    }
+    const band = 3, ang = .6, ca = cos(ang), sa = sin(ang), key = (p) => { const x = (p.u - S.cu) * ca + (p.v - S.cv) * sa, y = -(p.u - S.cu) * sa + (p.v - S.cv) * ca, b = floor(y / band); return [b, b % 2 ? -x : x]; };
+    return pts.map((p) => [key(p), p]).sort((A_, B_) => A_[0][0] - B_[0][0] || A_[0][1] - B_[0][1]).map((e) => ({ u: e[1].u, v: e[1].v, hits: e[1].hits }));
+  }
+  // Elementos de sombra según la técnica elegida
+  function shadeEls(M, S) {
+    const els = [];
+    if (M === 'puntos') {
+      const L = toneDots(S);
+      for (let i = 0; i < L.length; i += 150) els.push({ kind: 'dots', list: L.slice(i, i + 150), cart: '1003RL', ink: 'negro', shade: true, set: machineFor('dots', '1003RL') });
+      return els;
+    }
+    const a = .6, passes = M === 'realismo'
+      ? [{ cart: '1207M1', ang: a, k: .5, mark: true }, { cart: '1207M1', ang: a + PI / 2, k: .5 }, { cart: '1207RS', ang: a, k: .5, fill: true }, { cart: '1207RS', ang: a + PI / 2, k: .5, fill: true }]
+      : M === 'arrastre'
+        ? [{ cart: '1003RL', ang: a, k: 1.2, drag: true }]
+        : [{ cart: '1211RM', ang: a, k: .5, mark: true }, { cart: '1207RS', ang: a, k: .5, fill: true }];
+    for (const P of passes) P.mode = M === 'realismo' || M === 'arrastre' ? M : 'presion';
+    const kind = M === 'realismo' || M === 'arrastre' ? M : 'pressure';
+    for (const r of toneRows(S, passes)) els.push({ kind: 'line', pts: r.pts, cart: r.cart, ink: 'negro', shade: true, drag: r.drag, set: machineFor(kind, r.cart) });
+    return els;
   }
   // Plan del tatuaje a partir del análisis, ya en milímetros según el tamaño elegido
   function planImage() {
@@ -1908,7 +1998,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const blk = work(A.black, 'negro');
     for (const k of ORDER) emit(blk[k]);
     // 2) sombras: por presión (una tinta, la mano sube y baja) o por diluciones calculadas de la imagen
-    let washTxt = '', nShade = { '1211RM': 0, '1207RS': 0 };
+    let washTxt = '';
+    const nShade = {};
     if (A.toned) {
       if (params.shadeMode === 'dilucion') {
         WASH_KEYS.forEach((k, i) => { INKS[k].wash = A.ops[i]; });
@@ -1916,7 +2007,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         A.toneRings.forEach((R, i) => { if (R.length) { els.push({ kind: 'fill', rings: R.map(toMM), cart: '1207M1', ink: WASH_KEYS[i], angle: .6 + i * .5, set: machineFor('wash', '1207M1'), shade: true, soft: true }); note('1207M1', 'wash'); } });
         washTxt = WASH_KEYS.map((k, i) => `${INKS[k].label.toLowerCase()} ${round(OP_INK(A.ops[i]) * 100)} % de tinta`).join(', ');
       } else {
-        for (const r of pressureRows(A)) { els.push({ kind: 'line', pts: r.pts, cart: r.cart, ink: 'negro', shade: true, set: machineFor('pressure', r.cart) }); nShade[r.cart]++; note(r.cart, 'pressure'); }
+        // presión con el mapa de tonos suave; realismo y puntillismo con el fino, que tiene más definición
+        for (const e of shadeEls(params.shadeMode, imgSampler(A, params.shadeMode !== 'presion'))) { els.push(e); nShade[e.cart] = (nShade[e.cart] || 0) + (e.kind === 'dots' ? e.list.length : 1); note(e.cart, 'shade'); }
       }
     }
     // 3) colores: cada uno con su tinta; primero todas las líneas (enjuagando entre colores) y luego los rellenos
@@ -2122,6 +2214,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const ca = g.rad ? 1 : cos(g.ang), sa = g.rad ? 0 : sin(g.ang);
     if (!g.rad) { P0 = Infinity; P1 = -Infinity; for (const p of poly) { const q = p.u * ca + p.v * sa; P0 = min(P0, q); P1 = max(P1, q); } }
     const rA = g.rad ? g.r0 : P0, rB = g.rad ? g.r1 : P1;
+    if (['realismo', 'puntos', 'arrastre'].includes(params.shadeMode)) { for (const j of buildJobs(shadeEls(params.shadeMode, gradSampler(el))).jobs) jobs.push(j); return; }
     if (params.shadeMode === 'dilucion') {
       const hAng = g.rad ? .6 : g.ang + PI / 2;
       for (const [ink, T] of [['gris1', 1], ['gris2', .6], ['gris3', .3]]) {
@@ -2264,7 +2357,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       if (el.kind === 'line') {
         // las filas de sombra no se calcan en la plantilla: la sombra se hace a ojo sobre el dibujo
         if (!el.shade) sten.push({ pts: el.pts, closed: false });
-        const j = makeLine(el.pts, el.cart, el.ink, null); if (j) { if (el.shade) j.shade = true; jobs.push(j); }
+        const j = makeLine(el.pts, el.cart, el.ink, null); if (j) { if (el.shade) j.shade = true; if (el.drag) j.drag = true; jobs.push(j); }
       } else if (el.kind === 'fill') {
         const rings = el.rings || [el.poly];
         if (!el.rings) sten.push({ pts: el.poly, closed: true });
@@ -2284,7 +2377,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         }
       } else if (el.kind === 'shade') { const n0 = jobs.length; shadeJobs(el, jobs); for (let i = n0; i < jobs.length; i++) { jobs[i].shade = true; jobs[i].region = [el.poly]; } } else if (el.kind === 'dots') {
         let dots;
-        if (el.list) dots = el.list.map((p) => ({ u: p.u, v: p.v, hits: 1 }));
+        if (el.list) dots = el.list.map((p) => ({ u: p.u, v: p.v, hits: p.hits || 1 }));
         else if (el.pts) { sten.push({ pts: el.pts, closed: false }); dots = dotPath(el.pts, el.spacing || 1.2); }
         else { const region = el.poly ? polyRegion(el.poly) : ringRegion(el.ring); sten.push(...region.outline); dots = stipple(region, el.dens || (() => .6), el.rMin || .9, el.rMax || 2.4, 11); }
         if (dots.length) jobs.push({ type: 'dots', dots, len: dots.length, cart: el.cart, ink: el.ink });
@@ -2590,7 +2683,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const stc = strokes[cur.k];
     // dentro de la forma, o a menos de 0,3 mm del borde (queda tapado por la línea de contorno), no cuenta como fuera de sitio
     if (stc && stc.region && e > TOL && (inRings({ u, v }, stc.region) || distRings({ u, v }, stc.region) < .3)) e = TOL;
-    const h = { u, v, s: rob.spin, c: tool.cart, col: inkRGB(), f, take, spread: 1 + .6 * hairy, d: de, lo: sk.lo, hi: sk.hi, e, w: ref.w == null ? 1 : ref.w, ink: tool.ink, wash: tool.ink && INKS[tool.ink].wash ? tool.ink : null };
+    const h = { u, v, s: rob.spin, c: tool.cart, col: inkRGB(), f, take, spread: 1 + .6 * hairy, d: de, lo: sk.lo, hi: sk.hi, e, w: ref.w == null || (stc && stc.drag) ? 1 : ref.w, ink: tool.ink, wash: tool.ink && INKS[tool.ink].wash ? tool.ink : null };
     hits.push(h); stamp(h);
     const L = skinLayers(sk);
     stats.lay[de < L.epi ? 0 : de < sk.lo ? 1 : de <= sk.hi ? 2 : de <= L.derm ? 3 : 4]++;
@@ -2601,7 +2694,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (f * take >= .5) stats.inkOK++;
     if (tool.contam < .1) stats.colorOK++;
     if (isDots) useInk(c.use * .15);
-    return true;
+    // 2: ha llegado a la franja buena (en puntillismo solo cuentan esos pinchazos)
+    return de >= sk.lo * .9 ? 2 : 1;
   }
 
   function step() {
@@ -2724,7 +2818,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       for (let i = 0; i < 3; i++) { inv(rob.x + rob.dx * t, rob.y + rob.dy * t, rob.z + rob.dz * t, Kn, INV2, ref.u, ref.v); if (INV2.far) break; t -= INV2.depth; }
       const sk = skinAt(ref.u, ref.v);
       // sombreado por presión: con la mano ligera la aguja entra menos (parte alta de la franja buena)
-      const dGood = params.zoneDepth ? sk.dC : 1.2, w = ref.w == null ? 1 : ref.w, dT = w < 1 ? sk.lo + .06 + (dGood - sk.lo - .06) * w : dGood;
+      const dGood = params.zoneDepth ? sk.dC : 1.2, w = ref.w == null || (st && st.drag) ? 1 : ref.w, dT = w < 1 ? sk.lo + .06 + (dGood - sk.lo - .06) * w : dGood;
       eT = clamp(t + dT + (params.force ? sk.soft * .6 : 0), 0, 12);
       // velocidad del brazo adaptada a la piel: más despacio si se estira (se arrastra) o si es dura
       mach.spd = mach.base * (params.autoMachine ? (1 - .3 * sk.elast) * (1 - .15 * sk.hard) : 1); mach.depth = dT;
@@ -2747,13 +2841,15 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const isDots = !!(st && st.type === 'dots');
     if (running && ref && tool.cart && rob.e > .3 && (!isDots || dotPh === 'hit')) {
       hitClock += DT * mach.hz;
-      while (hitClock >= 1) { hitClock -= 1; if (inSkin && doHit(ref, isDots) && isDots) dotHits++; }
+      while (hitClock >= 1) { hitClock -= 1; if (inSkin && doHit(ref, isDots) === 2 && isDots) dotHits++; }
     } else { hitClock = 0; if (!inSkin) lastHit = null; }
 
     if (running) {
       stats.time += DT;
       if (mode === 'ink' && st.type === 'line' && inSkin && (!params.safety || tipErr < .8)) {
-        let ds = mach.spd * DT * (st.hasW ? 1 + 1.3 * (1 - (Dp.w == null ? 1 : Dp.w)) : 1);
+        // con presión ligera la mano va algo más rápida; en el arrastre la velocidad es la que separa los puntos
+        const wv = Dp.w == null ? 1 : Dp.w;
+        let ds = mach.spd * DT * (st.hasW ? 1 + (st.drag ? 10 : 1.3) * (1 - wv) : 1);
         ds *= cornerSlow(st, cur.s);
         cur.s += ds;
         useInk(CARTS[tool.cart].use * ds);
@@ -3713,7 +3809,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     else if (mode === 'svc') text = svc.steps[svc.i].label;
     else {
       text = { idle: 'Preparado', approach: 'Acercándose a la piel', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Retirando la aguja', svclift: 'Retirando la aguja para ir a la estación', hold: 'Parada de seguridad', dry: 'Sin tinta · dale a «Recargar tinta»', done: 'Terminado' }[mode];
-      if (mode === 'ink' && strokes[cur.k]) { const q = strokes[cur.k]; text = q.type === 'dots' ? 'Puntillismo' : q.shade ? (INKS[q.ink].wash ? `Sombreado con ${INKS[q.ink].name}` : 'Sombreado a medio péndulo') : q.fill ? 'Relleno sólido' : 'Tatuando línea'; }
+      if (mode === 'ink' && strokes[cur.k]) { const q = strokes[cur.k]; text = q.type === 'dots' ? 'Puntillismo' : q.shade ? (INKS[q.ink].wash ? `Sombreado con ${INKS[q.ink].name}` : q.drag ? 'Puntillismo de arrastre' : params.shadeMode === 'realismo' ? 'Sombreado en realismo' : 'Sombreado a medio péndulo') : q.fill ? 'Relleno sólido' : 'Tatuando línea'; }
     }
     if (!params.tracking && running && !paused) text += ' · a ciegas';
     const key = kind + text;
@@ -3891,9 +3987,13 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   }
   function syncShadeNote() {
     $$('.shadec').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shade === params.shadeMode)));
-    const t = params.shadeMode === 'presion'
-      ? 'Solo tinta negra. La máquina entra por lo oscuro y sale en abanico levantando la mano: al final de cada pasada pincha menos hondo, va más rápida y deja menos tinta. Tres tandas de pasadas, cada una más corta.'
-      : 'Negro rebajado con agua en tres vasos. Primero gris claro en toda la sombra, luego el medio y al final el oscuro solo en lo más oscuro. Cada gris nunca oscurece más que su tono.';
+    const t = {
+      presion: 'Solo tinta negra. La máquina entra por lo oscuro y sale en abanico levantando la mano: al final de cada pasada pincha menos hondo, va más rápida y deja menos tinta. Tres tandas de pasadas, cada una más corta.',
+      dilucion: 'Negro rebajado con agua en tres vasos. Primero gris claro en toda la sombra, luego el medio y al final el oscuro solo en lo más oscuro. Cada gris nunca oscurece más que su tono.',
+      realismo: 'Dos pasadas cruzadas con magnum 1207M1 y la mano muy ligera (90 Hz, carrera corta), y el shader 1207RS en lo estrecho. El tono sale de la imagen con menos suavizado: degradado sin rayas y con más definición.',
+      puntos: 'Punto a punto con el liner fino 1003RL, repartidos sin filas ni grumos: más juntos donde es oscuro y más sueltos donde es claro. En lo oscuro, dos o tres pinchazos por punto. Es lo más definido y lo más lento.',
+      arrastre: 'El liner 1003RL corre en filas a pocos pinchazos por segundo (45 Hz) y deja un rastro de puntitos. Donde es claro el brazo va rápido y los puntos quedan sueltos; donde es oscuro va despacio y casi hacen línea.'
+    }[params.shadeMode];
     $('#shade-note').textContent = t + (designSrc && designSrc.shade ? '' : ' (El diseño elegido no lleva sombra: prueba la rosa o la luna.)');
   }
   $$('.shadec').forEach((b) => b.addEventListener('click', () => { params.shadeMode = b.dataset.shade; syncShadeNote(); if (designSrc && designSrc.shade) { buildDesign(); resetRun(); if (designSrc.image) renderImg(); } }));
@@ -3941,7 +4041,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // Vista previa de lo que va a hacer el robot: cada trazo con el ancho de su aguja, sus grises y sus colores
   function renderImg() {
     if (!imgAn) return;
-    const A = imgAn, cv = $('#img-prev'), c = cv.getContext('2d'), pres = params.shadeMode !== 'dilucion';
+    const A = imgAn, cv = $('#img-prev'), c = cv.getContext('2d');
     const Wm = A.W * A.mmpp, Hm = A.H * A.mmpp, k = 560 / max(Wm, Hm);
     cv.width = max(8, round(Wm * k)); cv.height = max(8, round(Hm * k));
     const X = (u) => (u + Wm / 2) * k, Y = (v) => (v + Hm / 2) * k;
@@ -3951,7 +4051,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     for (const st of strokes) {
       const cart = CARTS[st.cart], I = INKS[st.ink] || INKS.negro, x = I.wash ? wash[st.ink] : main, col = I.wash ? '22,20,28' : I.rgb.join(',');
       x.lineWidth = max(.7, cart.w * k);
-      if (st.type === 'dots') { x.fillStyle = `rgb(${col})`; for (const d of st.dots) { x.beginPath(); x.arc(X(d.u), Y(d.v), max(.6, cart.w / 2 * k), 0, TAU); x.fill(); } continue; }
+      if (st.type === 'dots') { x.fillStyle = `rgba(${col},.8)`; for (const d of st.dots) { x.beginPath(); x.arc(X(d.u), Y(d.v), max(.6, cart.w / 2 * k), 0, TAU); x.fill(); } continue; }
+      if (st.drag) {
+        // arrastre: un punto en cada pinchazo, más separados donde el brazo corre
+        const m = jobSettings(st);
+        x.fillStyle = `rgba(${col},.8)`;
+        for (let s2 = 0; s2 < st.len;) { const o = pointAt(st, s2, {}); x.beginPath(); x.arc(X(o.u), Y(o.v), max(.5, cart.w / 2 * k), 0, TAU); x.fill(); s2 += m.spd / m.hz * (1 + 10 * (1 - o.w)); }
+        continue;
+      }
       if (st.hasW) {
         x.lineCap = 'butt';
         for (let i = 1; i < st.pts.length; i++) { const a = st.pts[i - 1], b = st.pts[i]; x.strokeStyle = `rgba(${col},${(.6 * WF((a.w + b.w) / 2)).toFixed(3)})`; x.beginPath(); x.moveTo(X(a.u), Y(a.v)); x.lineTo(X(b.u), Y(b.v)); x.stroke(); }
@@ -3968,7 +4075,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (P.nDots) li.push(`<b>Puntos sueltos:</b> ${P.nDots}, uno a uno.`);
     const fl = [['1207M1', 'magnum en las zonas anchas'], ['1205RL', 'liner en las estrechas']].filter(([key]) => cnt(key, 'fill')).map(([key, t]) => `${key} (${t})`);
     if (fl.length) li.push(`<b>Negro sólido:</b> contorno con 1205RL metido por dentro del borde y relleno con ${fl.join(' y ')}.`);
-    if (A.toned) li.push(pres ? `<b>Sombras por presión:</b> ${P.nShade['1211RM'] || 0} pasadas con 1211RM donde cabe y ${P.nShade['1207RS'] || 0} con 1207RS en lo estrecho, todo con tinta negra. Cada punto lleva la presión que pide el tono de la imagen.` : `<b>Sombras por dilución:</b> 1207M1 en tres capas: ${P.washTxt} (el resto, agua).`);
+    const ns = P.nShade || {}, SH = {
+      presion: `<b>Sombras por presión:</b> ${ns['1211RM'] || 0} pasadas con 1211RM donde cabe y ${ns['1207RS'] || 0} con 1207RS en lo estrecho, todo con tinta negra. Cada punto lleva la presión que pide el tono de la imagen.`,
+      dilucion: `<b>Sombras por dilución:</b> 1207M1 en tres capas: ${P.washTxt} (el resto, agua).`,
+      realismo: `<b>Sombras en realismo:</b> ${ns['1207M1'] || 0} pasadas con 1207M1 en dos direcciones cruzadas y ${ns['1207RS'] || 0} con 1207RS en lo estrecho, mano muy ligera y máquina suave (90 Hz, carrera 2,8 mm). Tono con más definición.`,
+      puntos: `<b>Puntillismo:</b> ${ns['1003RL'] || 0} puntos con 1003RL, más juntos donde la imagen es más oscura; en lo oscuro, dos o tres pinchazos por punto.`,
+      arrastre: `<b>Puntillismo de arrastre:</b> ${ns['1003RL'] || 0} pasadas con 1003RL a 45 Hz: donde es claro el brazo corre y los pinchazos quedan sueltos; donde es oscuro va despacio y casi hacen línea.`
+    };
+    if (A.toned) li.push(SH[params.shadeMode] || SH.presion);
     if (P.colors.length) li.push(`<b>Colores de la imagen:</b> ${P.colors.map((q) => `<i class="swatch" style="background:${inkSwatch(q.key)}"></i>${q.label.toLowerCase()}`).join(', ')}. Cada uno en su vaso; primero sus líneas y luego sus rellenos con 1207M1, enjuagando entre colores.`);
     li.push('<b>Máquina:</b> líneas a 105–120 Hz, carrera 3,5–3,8 mm y brazo a 13–14 mm/s; rellenos a 100–105 Hz y 3,5–3,8 mm; sombras a 80–90 Hz y 3,0–3,2 mm. Frena donde la piel se estira o es dura, y la profundidad sale del grosor de la piel de cada punto.');
     if (A.recSize) li.push(`<b>Ojo con el detalle:</b> el ${round(A.fineShare * 100)} % de las líneas es más fino que la aguja más fina (0,6 mm) y saldrá más gordo. A ${fmt(A.recSize / 10, 0)} cm saldría bastante más fiel. <button class="btn small" id="img-rec" data-size="${A.recSize}">Ponerlo a ${fmt(A.recSize / 10, 0)} cm</button>`);
