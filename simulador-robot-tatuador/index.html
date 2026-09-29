@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: banco de pruebas. Escenario grande a la izquierda, panel de mandos a la derecha, historial de pruebas debajo. En móvil, una columna. */
+/* Layout: banco de pruebas en 3D. Escena grande a la izquierda, panel de mandos a la derecha, historial debajo. En móvil, una columna. */
 :root {
   --bg: #edecf1;
   --surface: #fafafc;
@@ -21,11 +21,13 @@
   --bad: #bf2f28;
   --bad-soft: #fbe1df;
   --stage: #e4e2ea;
-  --stage-dot: #c6c2d2;
-  --robot: #f8f8fb;
-  --robot-edge: #85819a;
+  --table: #d6d3de;
+  --table-line: #bdb9c9;
+  --armrest: #3d3a48;
+  --sleeve: #3b4a63;
+  --robot: #f4f4f8;
+  --robot-edge: #9a97ab;
   --robot-joint: #34313f;
-  --shadow: rgba(28, 22, 48, .16);
   --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
   --font-body: "IBM Plex Sans", "Segoe UI", Roboto, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -36,8 +38,8 @@
     --bg: #121117; --surface: #1b1a22; --surface-2: #272530; --fg: #ecebf3; --muted: #a4a0b4; --line: #34313f;
     --accent: #a794ff; --accent-soft: #2a2346; --on-accent: #15102b;
     --safety: #f2b632; --safety-soft: #3a2c0a; --ok: #52c48d; --ok-soft: #14301f; --bad: #ff6d63; --bad-soft: #3d1715;
-    --stage: #191820; --stage-dot: #302e3b; --robot: #dcdae5; --robot-edge: #6b6780; --robot-joint: #0e0d13;
-    --shadow: rgba(0, 0, 0, .45);
+    --stage: #17161d; --table: #25232d; --table-line: #353241; --armrest: #0d0c11; --sleeve: #2c3a52;
+    --robot: #dedce7; --robot-edge: #77738a; --robot-joint: #121118;
     color-scheme: dark;
   }
 }
@@ -45,33 +47,34 @@
   --bg: #121117; --surface: #1b1a22; --surface-2: #272530; --fg: #ecebf3; --muted: #a4a0b4; --line: #34313f;
   --accent: #a794ff; --accent-soft: #2a2346; --on-accent: #15102b;
   --safety: #f2b632; --safety-soft: #3a2c0a; --ok: #52c48d; --ok-soft: #14301f; --bad: #ff6d63; --bad-soft: #3d1715;
-  --stage: #191820; --stage-dot: #302e3b; --robot: #dcdae5; --robot-edge: #6b6780; --robot-joint: #0e0d13;
-  --shadow: rgba(0, 0, 0, .45);
+  --stage: #17161d; --table: #25232d; --table-line: #353241; --armrest: #0d0c11; --sleeve: #2c3a52;
+  --robot: #dedce7; --robot-edge: #77738a; --robot-joint: #121118;
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font-body); }
-.wrap { max-width: 1280px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); padding-block: 24px 56px; display: grid; gap: 20px; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); padding-block: 24px 56px; display: grid; gap: 20px; }
 
 header { display: grid; gap: 8px; }
 .eyebrow { font: 500 12px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0; }
 h1 { font: 800 clamp(2.4rem, 6vw, 3.6rem)/.92 var(--font-display); letter-spacing: .01em; text-transform: uppercase; margin: 0; text-wrap: balance; }
-.lede { max-width: 68ch; color: var(--muted); margin: 0; }
+.lede { max-width: 70ch; color: var(--muted); margin: 0; }
 
-.scenarios { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.scenarios > span { font: 500 12px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.scenarios, .views { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scenarios > span, .views > span { font: 500 12px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
 .chip { font: 500 13.5px/1 var(--font-body); padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
 .chip:hover { border-color: var(--accent); }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.views .chip { padding: 7px 11px; font-size: 13px; }
 
 .lab { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
-@media (max-width: 940px) { .lab { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 980px) { .lab { grid-template-columns: minmax(0, 1fr); } }
 
 .stage-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 12px; min-width: 0; }
-.stage { position: relative; border-radius: 8px; overflow: hidden; background: var(--stage); }
-.stage canvas { display: block; width: 100%; touch-action: auto; }
+.stage { position: relative; border-radius: 8px; overflow: hidden; background: var(--stage); height: 520px; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
 .status { position: absolute; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 500 12.5px/1 var(--font-mono); pointer-events: none; }
 .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .status[data-kind="ink"] i { background: var(--accent); }
@@ -79,6 +82,11 @@ h1 { font: 800 clamp(2.4rem, 6vw, 3.6rem)/.92 var(--font-display); letter-spacin
 .status[data-kind="hold"] i { background: var(--safety); }
 .status[data-kind="done"] i { background: var(--ok); }
 .toast { position: absolute; top: 10px; right: 10px; padding: 6px 11px; border-radius: 999px; font: 600 12.5px/1 var(--font-mono); background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); pointer-events: none; }
+.lens-frame { position: absolute; right: 12px; bottom: 12px; border: 2px solid var(--fg); border-radius: 10px; pointer-events: none; }
+.lens-label { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 500 10.5px/1 var(--font-mono); white-space: nowrap; }
+.lens-label b { display: block; height: 0; border-top: 1.5px solid var(--fg); }
+.gl-error { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); background: var(--stage); }
+.gl-error p { max-width: 42ch; margin: 0; }
 .hint { font-size: 13px; color: var(--muted); margin: 0; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -113,7 +121,8 @@ button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 2px so
 .l-shallow i { border-top: 2.5px solid rgba(22, 20, 28, .3); }
 .l-deep i { border-top: 2.5px solid #16141c; box-shadow: 0 0 0 2.5px rgba(38, 64, 140, .35); }
 .l-err i { border-top: 2.5px solid #e3261d; }
-.l-ghost { width: 30px; height: 14px; border: 1.5px dashed var(--accent); border-radius: 3px; }
+.l-ghost i { border-top: 1.5px solid var(--accent); width: 26px; }
+.l-dot i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 20px; min-width: 0; }
 .group { display: grid; gap: 12px; }
@@ -138,13 +147,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
 .tone { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
 .tone[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
 .pad-wrap { display: grid; gap: 8px; }
-.pad { display: block; width: 100%; aspect-ratio: 140 / 62; max-width: 100%; border-radius: 6px; border: 1.5px dashed var(--line); background: var(--surface-2); touch-action: none; cursor: crosshair; }
+.pad { display: block; width: 100%; aspect-ratio: 140 / 54; max-width: 100%; border-radius: 6px; border: 1.5px dashed var(--line); background: var(--surface-2); touch-action: none; cursor: crosshair; }
 .pad-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .pad-row .btn { padding: 8px 12px; font-size: 13px; }
 .pad-msg { font-size: 12.5px; color: var(--bad); }
 
 .lower { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 940px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 980px) { .lower { grid-template-columns: minmax(0, 1fr); } }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
 .card h2 { font: 800 1.35rem/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase; margin: 0; }
 .table-scroll { overflow-x: auto; }
@@ -166,15 +175,16 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Banco de pruebas virtual</p>
+    <p class="eyebrow">Banco de pruebas virtual · 3D</p>
     <h1>Robot tatuador</h1>
-    <p class="lede">Un brazo robot tatúa sobre un antebrazo que se mueve, respira y da respingos. Toca los ajustes y mira dónde cae la tinta. Todo es simulado: los números son orientativos y sirven para entender los problemas, no para calibrar una máquina de verdad.</p>
+    <p class="lede">Un brazo robot tatúa sobre un antebrazo de verdad: redondo, que se mueve por la mesa, gira la muñeca, respira y da respingos. La máquina tiene que seguir la curva de la piel y quedarse siempre perpendicular. Todo es simulado: los números son orientativos y sirven para entender los problemas, no para calibrar una máquina real.</p>
   </header>
 
   <div class="scenarios" role="group" aria-label="Escenarios de prueba">
     <span>Escenarios</span>
     <button class="chip scn" data-scn="tranquilo" aria-pressed="true">Cliente tranquilo</button>
     <button class="chip scn" data-scn="nervioso" aria-pressed="false">Cliente nervioso</button>
+    <button class="chip scn" data-scn="gira" aria-pressed="false">Gira la muñeca</button>
     <button class="chip scn" data-scn="lenta" aria-pressed="false">Cámara lenta</button>
     <button class="chip scn" data-scn="ciegas" aria-pressed="false">Robot a ciegas</button>
     <button class="chip scn" data-scn="sinfrenos" aria-pressed="false">Sin frenos</button>
@@ -183,11 +193,19 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   <div class="lab">
     <section class="stage-card" aria-label="Simulación">
       <div class="stage" id="stage">
-        <canvas id="cv" role="img" aria-label="Vista cenital de un brazo robot tatuando un antebrazo"></canvas>
         <div class="status" id="status" data-kind="idle"><i></i><span id="status-text">Preparado</span></div>
         <div class="toast" id="toast" hidden></div>
+        <div class="lens-frame" id="lens-frame"><span class="lens-label"><b id="lens-bar"></b>1 mm · lupa</span></div>
+        <div class="gl-error" id="gl-error" hidden><p id="gl-error-text"></p></div>
       </div>
-      <p class="hint">Agarra el antebrazo y arrástralo para moverlo tú. Con la rueda del ratón lo giras. La lupa de abajo a la derecha sigue a la aguja.</p>
+      <div class="views" role="group" aria-label="Cámara">
+        <span>Cámara</span>
+        <button class="chip view" data-view="general" aria-pressed="true">General</button>
+        <button class="chip view" data-view="arriba" aria-pressed="false">Desde arriba</button>
+        <button class="chip view" data-view="lado" aria-pressed="false">De lado</button>
+        <button class="chip view" data-view="seguir" aria-pressed="false">Seguir la aguja</button>
+      </div>
+      <p class="hint">Arrastra el fondo para girar la cámara y usa la rueda o pellizca para acercarte. Si agarras el antebrazo, lo mueves por la mesa. La lupa mira desde la máquina hacia la aguja.</p>
       <div class="actions">
         <button class="btn primary" id="btn-main">Pausar</button>
         <button class="btn" id="btn-restart">Borrar y empezar</button>
@@ -200,7 +218,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         <div class="stat"><span class="k">Dentro de ±0,5 mm</span><span class="v" id="st-within">–</span></div>
         <div class="stat"><span class="k">Profundidad buena</span><span class="v" id="st-depth">–</span></div>
         <div class="stat"><span class="k">Paradas de seguridad</span><span class="v" id="st-holds">0</span></div>
-        <div class="stat"><span class="k">Brazo se mueve a</span><span class="v" id="st-speed">0<small>mm/s</small></span></div>
+        <div class="stat"><span class="k">Inclinación máquina</span><span class="v" id="st-tilt">0<small>°</small></span></div>
         <div class="stat"><span class="k">Tiempo</span><span class="v" id="st-time">0,0<small>s</small></span></div>
       </div>
       <div class="depth">
@@ -213,7 +231,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         <span class="l-shallow"><span class="sw-skin"><i></i></span>Muy superficial, no agarra</span>
         <span class="l-deep"><span class="sw-skin"><i></i></span>Muy profunda, se corre</span>
         <span class="l-err"><span class="sw-skin"><i></i></span>Fuera de sitio (más de 0,5 mm)</span>
-        <span><span class="l-ghost"></span>Dónde cree el robot que está el brazo</span>
+        <span class="l-ghost"><i></i>Dónde cree el robot que está el brazo</span>
+        <span class="l-dot"><i></i>Dónde apunta el robot</span>
       </div>
     </section>
 
@@ -229,13 +248,13 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
           <button class="chip design" data-design="propio" aria-pressed="false">Dibujar el mío</button>
         </div>
         <div class="pad-wrap" id="pad-wrap" hidden>
-          <canvas class="pad" id="pad" aria-label="Zona de dibujo del diseño, 14 por 6 centímetros"></canvas>
+          <canvas class="pad" id="pad" aria-label="Zona de dibujo del diseño, 14 por 5,4 centímetros"></canvas>
           <div class="pad-row">
             <button class="btn" id="pad-clear">Borrar</button>
             <button class="btn primary" id="pad-use">Tatuar este diseño</button>
             <span class="pad-msg" id="pad-msg"></span>
           </div>
-          <small class="note">La zona de dibujo mide 14 × 6,2 cm sobre la piel. Cada trazo que hagas es una pasada de la aguja.</small>
+          <small class="note">La zona de dibujo mide 14 × 5,4 cm medidos sobre la piel, y se enrolla alrededor del antebrazo. Cada trazo que hagas es una pasada de la aguja.</small>
         </div>
         <div class="field">
           <div class="field-head"><label for="rng-speed">Velocidad del trazo</label><output id="out-speed"></output></div>
@@ -255,12 +274,17 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         <div class="field">
           <div class="field-head"><label for="rng-move">Cuánto se mueve</label><output id="out-move"></output></div>
           <input type="range" id="rng-move" min="0" max="100" step="1" value="25">
-          <small>Deriva lenta del brazo y un pelín de temblor.</small>
+          <small>Deriva por la mesa, giro de muñeca y un pelín de temblor.</small>
         </div>
         <div class="field">
           <div class="field-head"><label for="rng-breath">Respiración y músculo</label><output id="out-breath"></output></div>
           <input type="range" id="rng-breath" min="0" max="100" step="1" value="35">
           <small>La piel se estira, se hincha y sube y baja.</small>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="rng-roll">Girar el antebrazo</label><output id="out-roll"></output></div>
+          <input type="range" id="rng-roll" min="-45" max="45" step="1" value="0">
+          <small>Como cuando giras la mano boca arriba o boca abajo. Muévelo mientras tatúa.</small>
         </div>
         <label class="toggle"><span><b>Respingos por sorpresa</b><small>De vez en cuando pega un tirón.</small></span><input type="checkbox" class="sw" id="sw-jerks"></label>
       </div>
@@ -279,7 +303,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
         </div>
         <label class="toggle" id="f-predict"><span><b>Predecir el movimiento</b><small>Adivina dónde estará el brazo para compensar el retraso.</small></span><input type="checkbox" class="sw" id="sw-predict" checked></label>
         <label class="toggle"><span><b>Sensor de fuerza en la aguja</b><small>Nota la piel al instante: controla la profundidad y detecta tirones.</small></span><input type="checkbox" class="sw" id="sw-force" checked></label>
-        <label class="toggle"><span><b>Parada de seguridad</b><small>Levanta la aguja si algo se mueve demasiado rápido.</small></span><input type="checkbox" class="sw" id="sw-safety" checked></label>
+        <label class="toggle"><span><b>Parada de seguridad</b><small>Retira la aguja si algo se mueve demasiado rápido.</small></span><input type="checkbox" class="sw" id="sw-safety" checked></label>
       </div>
 
       <div class="group">
@@ -305,63 +329,73 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     <section class="card" aria-label="Cosas para probar">
       <h2>Cosas para probar</h2>
       <ul class="tips">
+        <li><b>Gira la muñeca.</b> Mueve «Girar el antebrazo» mientras tatúa y mira cómo el robot inclina la máquina para seguir perpendicular.</li>
         <li><b>Retraso sin predicción.</b> Sube el retraso a 250 ms, apaga la predicción y mueve el brazo: la tinta se va quedando atrás.</li>
         <li><b>Sin cámara.</b> Apaga el seguimiento. El robot tatúa donde estaba el brazo al principio, no donde está ahora.</li>
         <li><b>Frenos fuera.</b> Quita la parada de seguridad y dale a «¡Respingo!» mientras tatúa.</li>
         <li><b>Profundidad a ojo.</b> Apaga el sensor de fuerza, sube la respiración y mira la gráfica de profundidad.</li>
-        <li><b>Muévelo tú.</b> Arrastra el antebrazo mientras tatúa, primero despacio y luego de golpe.</li>
       </ul>
-      <p class="note">Modelo simplificado: antebrazo visto desde arriba, brazo robot de dos ejes, cámara a 60 imágenes por segundo y aguja a 1,2 mm de profundidad objetivo.</p>
+      <p class="note">Modelo simplificado: antebrazo de sección redonda que se estrecha hacia la muñeca, brazo robot de tres ejes con muñeca esférica, cámara a 60 imágenes por segundo y aguja a 1,2 mm de profundidad objetivo.</p>
     </section>
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 (() => {
   'use strict';
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
-  const { sin, cos, exp, hypot, atan2, acos, min, max, abs, round, sqrt, log, PI } = Math;
+  const { sin, cos, exp, hypot, atan2, acos, min, max, abs, round, sqrt, log, tan, PI } = Math;
   const TAU = PI * 2;
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+  const wrapA = (a) => { while (a > PI) a -= TAU; while (a < -PI) a += TAU; return a; };
 
-  // ---------- Constantes del modelo (mm, s, rad) ----------
-  const DT = 0.002;                 // paso de simulación
-  const CAM_DT = 1 / 60;            // cámara a 60 fps
-  const DEPTH_TARGET = 1.2, DEPTH_MIN = 0.8, DEPTH_MAX = 1.8, TOL = 0.5;
-  const BASE = { x: 0, y: -196 }, L1 = 178, L2 = 150, HOME = { x: 0, y: -112 };
-  const SKIN_U = 235;
-  const BOX = { u0: -70, u1: 70, v0: -31, v1: 31 };
-  const WORLD = { x0: -170, x1: 170, y0: -232, y1: 96 };
-  const MARKERS = [[-95, -27], [-95, 27], [95, -31], [95, 31]];
+  // ---------- Modelo (mm, s, rad). Y hacia arriba, el antebrazo a lo largo de X, el robot detrás (Z negativa) ----------
+  const DT = .002, CAM_DT = 1 / 60;
+  const DEPTH_TARGET = 1.2, DEPTH_MIN = .8, DEPTH_MAX = 1.8, TOL = .5;
+  const AXIS_H = 66, U_END = 260, U_CAP = 290;
+  const BOX = { u0: -70, u1: 70, v0: -27, v1: 27 };
+  const PATCH = { u0: -110, u1: 110, v0: -55, v1: 55, ppm: 8 };
+  const MARKERS = [[-100, -24], [-100, 24], [100, -24], [100, 24]];
   const TONES = ['#f0c8a4', '#d6a078', '#a56a44', '#6a4029'];
-  const KEYS = ['x', 'y', 'th', 's', 'b', 'z'];
+  const KEYS = ['x', 'y', 'z', 'yaw', 'pitch', 'roll', 'twist', 's', 'b'];
+  const NOISE = { x: .6, y: .6, z: .6, yaw: .004, pitch: .002, roll: .006, twist: .004, s: .002, b: .004 };
+  const JK = ['x', 'y', 'z', 'yaw', 'roll'];
   const INK = '#16141c', ERR = '#e3261d';
+  const RB = { x: 0, z: -220 }, SH_H = 130, A2 = 230, A3 = 210, LT = 112;
+  const HOME = { x: 0, y: 250, z: -60 };
+  const STANDOFF = 3, HOP = 9, APPROACH = 14;
+  const LENS_D = 46, LENS_FOV = 24;
+
+  const R0 = (u) => 36 + 8.5 * clamp(u, -U_END, U_END) / U_END;      // radio: más fino en la muñeca
+  const gB = (u) => exp(-(((u - 60) / 70) ** 2));                      // vientre del músculo
+  const tw = (u) => (U_END - clamp(u, -U_END, U_END)) / (2 * U_END);   // la muñeca gira más que el codo
 
   const params = {
-    move: .25, breath: .35, jerks: false, tracking: true, latency: 40, noise: .12,
+    move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12,
     predict: true, safety: true, force: true, speed: 18,
     showGhost: true, showErrors: true, showLens: true, tone: 1, design: 'estrella'
   };
-
   const SCENARIOS = {
-    tranquilo: { move: .25, breath: .35, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true },
-    nervioso: { move: .8, breath: .7, jerks: true, tracking: true, latency: 50, noise: .2, predict: true, safety: true, force: true },
-    lenta: { move: .55, breath: .5, jerks: false, tracking: true, latency: 220, noise: .12, predict: false, safety: true, force: false },
-    ciegas: { move: .5, breath: .6, jerks: false, tracking: false, latency: 40, noise: .12, predict: true, safety: true, force: false },
-    sinfrenos: { move: .5, breath: .5, jerks: true, tracking: true, latency: 50, noise: .12, predict: true, safety: false, force: false }
+    tranquilo: { move: .25, breath: .35, roll: 0, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true },
+    nervioso: { move: .8, breath: .7, roll: 0, jerks: true, tracking: true, latency: 50, noise: .2, predict: true, safety: true, force: true },
+    gira: { move: .3, breath: .35, roll: 35 * PI / 180, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true },
+    lenta: { move: .55, breath: .5, roll: 0, jerks: false, tracking: true, latency: 220, noise: .12, predict: false, safety: true, force: false },
+    ciegas: { move: .5, breath: .6, roll: 0, jerks: false, tracking: false, latency: 40, noise: .12, predict: true, safety: true, force: false },
+    sinfrenos: { move: .5, breath: .5, roll: 0, jerks: true, tracking: true, latency: 50, noise: .12, predict: true, safety: false, force: false }
   };
 
   // ---------- Utilidades ----------
-  const mkS = () => ({ x: 0, y: 0, th: 0, s: 0, b: 0, z: 0 });
+  const mkS = () => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, twist: 0, s: 0, b: 0 });
   const copyS = (a, b) => { for (const k of KEYS) b[k] = a[k]; return b; };
   let spare = null;
   function gauss() {
     if (spare !== null) { const v = spare; spare = null; return v; }
-    let u = 0, v = 0;
+    let u = 0;
     while (u === 0) u = Math.random();
-    v = Math.random();
-    const r = sqrt(-2 * log(u));
+    const v = Math.random(), r = sqrt(-2 * log(u));
     spare = r * sin(TAU * v);
     return r * cos(TAU * v);
   }
@@ -371,23 +405,31 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     const c = hexRgb(hex), t = amt < 0 ? 0 : 255, a = abs(amt);
     return `rgb(${c.map((v) => round(v + (t - v) * a)).join(',')})`;
   }
-  const halfW = (u) => 38 + 9 * (clamp(u, -SKIN_U, SKIN_U) + SKIN_U) / (2 * SKIN_U);
 
-  // Piel (u,v en mm sobre la piel) -> mundo (x,y en mm sobre la mesa)
-  function W(u, v, S, o) {
-    const g = exp(-(((u - 25) / 55) ** 2));
-    const u1 = u * (1 + S.s), v1 = v * (1 + S.b * g);
-    const c = cos(S.th), s = sin(S.th);
-    o.x = S.x + c * u1 - s * v1;
-    o.y = S.y + s * u1 + c * v1;
+  // Piel (u a lo largo, v alrededor, en mm) -> mundo. Devuelve punto, normal y eje del antebrazo.
+  function surf(u, v, S, o, lift) {
+    const r0 = R0(u), r = r0 * (1 + S.b * gB(u)) + (lift || 0);
+    const ang = v / r0 + S.roll + S.twist * tw(u);
+    const ca = cos(ang), sa = sin(ang);
+    const lx = u * (1 + S.s), ly = r * ca, lz = r * sa;
+    const cp = cos(S.pitch), sp = sin(S.pitch), cy = cos(S.yaw), sy = sin(S.yaw);
+    let x1 = lx * cp - ly * sp, y1 = lx * sp + ly * cp, z1 = lz;
+    o.x = x1 * cy + z1 * sy + S.x; o.y = y1 + AXIS_H + S.y; o.z = -x1 * sy + z1 * cy + S.z;
+    x1 = -ca * sp; y1 = ca * cp; z1 = sa;
+    o.nx = x1 * cy + z1 * sy; o.ny = y1; o.nz = -x1 * sy + z1 * cy;
+    o.ax = cp * cy; o.ay = sp; o.az = -cp * sy;
     return o;
   }
-  function Winv(x, y, S, o) {
-    const dx = x - S.x, dy = y - S.y, c = cos(S.th), s = sin(S.th);
-    const u = (c * dx + s * dy) / (1 + S.s);
-    const g = exp(-(((u - 25) / 55) ** 2));
+  // Mundo -> piel, con la profundidad (positiva por dentro de la piel)
+  function inv(px, py, pz, S, o) {
+    const X = px - S.x, Y = py - AXIS_H - S.y, Z = pz - S.z;
+    const cp = cos(S.pitch), sp = sin(S.pitch), cy = cos(S.yaw), sy = sin(S.yaw);
+    const x1 = X * cy - Z * sy, z1 = X * sy + Z * cy, y1 = Y;
+    const lx = x1 * cp + y1 * sp, ly = -x1 * sp + y1 * cp, lz = z1;
+    const u = lx / (1 + S.s), r0 = R0(u);
     o.u = u;
-    o.v = (-s * dx + c * dy) / (1 + S.b * g);
+    o.v = r0 * wrapA(atan2(lz, ly) - S.roll - S.twist * tw(u));
+    o.depth = r0 * (1 + S.b * gB(u)) - hypot(ly, lz);
     return o;
   }
 
@@ -425,7 +467,6 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       return out;
     } }
   };
-
   function fitDesign(raw) {
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
     for (const s of raw) for (const [x, y] of s) { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y); }
@@ -459,7 +500,6 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     o.v = st.pts[i].v + (st.pts[i + 1].v - st.pts[i].v) * f;
     return o;
   }
-
   let strokes = [], totalLen = 0, designLabel = '';
   function setDesign(list, label) {
     strokes = buildStrokes(list);
@@ -467,25 +507,25 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     designLabel = label;
   }
 
-  // ---------- Estado de la simulación ----------
-  const skin = mkS(), Sest = mkS(), Sref = mkS(), tmpS = mkS(), tmpS2 = mkS();
-  const jerk = { x: 0, y: 0, th: 0, z: 0, vx: 0, vy: 0, vth: 0, vz: 0 };
-  const drag = { x: 0, y: 0, th: 0, tx: 0, ty: 0, tth: 0 };
+  // ---------- Estado ----------
+  const skin = mkS(), Sest = mkS(), Sref = mkS(), Sfor = mkS(), tmpS = mkS();
+  const jerk = { p: { x: 0, y: 0, z: 0, yaw: 0, roll: 0 }, v: { x: 0, y: 0, z: 0, yaw: 0, roll: 0 } };
+  const drag = { x: 0, z: 0, roll: 0, tx: 0, tz: 0 };
   const env = { A: params.move, D: params.breath };
   const cam = { S: mkS(), vel: mkS(), age: 0, timer: 0 };
-  const HN = 256, hist = new Float64Array(HN * 6);
+  const NK = KEYS.length, HN = 256, hist = new Float64Array(HN * NK);
   let hHead = 0, simT = 0;
 
-  const rob = { x: HOME.x, y: HOME.y, vx: 0, vy: 0, zn: 6, tfx: 0, tfy: 0, ptx: HOME.x, pty: HOME.y };
-  const T = { x: HOME.x, y: HOME.y }, Dp = { u: 0, v: 0 }, liftD = { u: 0, v: 0 }, Ap = { u: 0, v: 0 };
-  const Pa = { x: 0, y: 0 }, Pb = { x: 0, y: 0 };
+  const rob = { x: HOME.x, y: HOME.y, z: HOME.z, vx: 0, vy: 0, vz: 0, dx: 0, dy: -1, dz: 0, e: 0, tfx: 0, tfy: 0, tfz: 0, ptx: HOME.x, pty: HOME.y, ptz: HOME.z };
+  const tgt = { x: HOME.x, y: HOME.y, z: HOME.z }, aim = { x: 0, y: 0, z: 0, ok: false }, tip = { x: HOME.x, y: HOME.y, z: HOME.z };
+  const trav = { fu: 0, fv: 0, tu: 0, tv: 0, h0: STANDOFF, amp: 0, dur: .15, p: 0 };
+  const Dp = { u: 0, v: 0 }, liftD = { u: 0, v: 0 }, refP = { u: 0, v: 0 };
+  const SP = {}, SQ = {}, SR = {}, INV = {}, INV2 = {};
   let mode = 'idle', running = false, paused = false, holdOk = 0;
   let cur = { k: 0, s: 0 };
   let depth = -5, inSkin = false;
-  let ink = [], curInk = null;
-  let stats = null;
-  const depthBuf = [];
-  const history = [];
+  let ink = [], curInk = null, stats = null;
+  const depthBuf = [], history = [];
   let runNo = 0;
 
   function resetStats() { stats = { n: 0, sumE: 0, maxE: 0, within: 0, depthOK: 0, holds: 0, time: 0 }; }
@@ -493,12 +533,12 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
 
   function pushHist(S) {
     hHead = (hHead + 1) % HN;
-    const o = hHead * 6;
-    hist[o] = S.x; hist[o + 1] = S.y; hist[o + 2] = S.th; hist[o + 3] = S.s; hist[o + 4] = S.b; hist[o + 5] = S.z;
+    const o = hHead * NK;
+    for (let i = 0; i < NK; i++) hist[o + i] = S[KEYS[i]];
   }
   function getHist(ago, out) {
-    const o = (((hHead - ago) % HN) + HN) % HN * 6;
-    out.x = hist[o]; out.y = hist[o + 1]; out.th = hist[o + 2]; out.s = hist[o + 3]; out.b = hist[o + 4]; out.z = hist[o + 5];
+    const o = ((((hHead - ago) % HN) + HN) % HN) * NK;
+    for (let i = 0; i < NK; i++) out[KEYS[i]] = hist[o + i];
     return out;
   }
 
@@ -506,68 +546,72 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     const t = simT;
     env.A += (params.move - env.A) * (DT / .8);
     env.D += (params.breath - env.D) * (DT / .8);
-    const A = env.A, D = env.D;
-    const w = 11, zt = .45;
-    jerk.vx += (-w * w * jerk.x - 2 * zt * w * jerk.vx) * DT; jerk.x += jerk.vx * DT;
-    jerk.vy += (-w * w * jerk.y - 2 * zt * w * jerk.vy) * DT; jerk.y += jerk.vy * DT;
-    jerk.vth += (-w * w * jerk.th - 2 * zt * w * jerk.vth) * DT; jerk.th += jerk.vth * DT;
-    jerk.vz += (-w * w * jerk.z - 2 * zt * w * jerk.vz) * DT; jerk.z += jerk.vz * DT;
-    const kd = DT / .035;
-    drag.x += (drag.tx - drag.x) * kd; drag.y += (drag.ty - drag.y) * kd; drag.th += (drag.tth - drag.th) * kd;
-    skin.x = A * (14 * sin(TAU * .061 * t) + 7 * sin(TAU * .17 * t + 1.3) + .35 * sin(TAU * 1.7 * t) + .25 * sin(TAU * 2.9 * t + .4)) + jerk.x + drag.x;
-    skin.y = A * (9 * sin(TAU * .083 * t + .7) + 5 * sin(TAU * .21 * t + 2.1) + .3 * sin(TAU * 2.3 * t + 1.1)) + jerk.y + drag.y;
-    skin.th = A * (.07 * sin(TAU * .052 * t + .3) + .03 * sin(TAU * .23 * t + 1.7)) + jerk.th + drag.th;
+    const A = env.A, D = env.D, w = 11, zt = .45;
+    for (const k of JK) { jerk.v[k] += (-w * w * jerk.p[k] - 2 * zt * w * jerk.v[k]) * DT; jerk.p[k] += jerk.v[k] * DT; }
+    const kd = DT / .035, kr = DT / .3;
+    drag.x += (drag.tx - drag.x) * kd; drag.z += (drag.tz - drag.z) * kd; drag.roll += (params.roll - drag.roll) * kr;
     const br = sin(TAU * .25 * t);
+    skin.x = A * (12 * sin(TAU * .061 * t) + 6 * sin(TAU * .17 * t + 1.3) + .35 * sin(TAU * 1.7 * t) + .25 * sin(TAU * 2.9 * t + .4)) + jerk.p.x + drag.x;
+    skin.z = A * (7 * sin(TAU * .083 * t + .7) + 4 * sin(TAU * .21 * t + 2.1) + .3 * sin(TAU * 2.3 * t + 1.1)) + jerk.p.z + drag.z;
+    skin.y = D * (1.0 * sin(TAU * .25 * t + .5) + .12 * sin(TAU * 1.15 * t)) + A * .8 * sin(TAU * .13 * t + .4) + jerk.p.y;
+    skin.yaw = A * (.05 * sin(TAU * .052 * t + .3) + .02 * sin(TAU * .23 * t + 1.7)) + jerk.p.yaw;
+    skin.pitch = A * .015 * sin(TAU * .071 * t + 2.2);
+    skin.roll = A * (.12 * sin(TAU * .045 * t + .8) + .04 * sin(TAU * .19 * t + .2)) + jerk.p.roll + drag.roll;
+    skin.twist = A * .06 * sin(TAU * .09 * t + 1.9);
     skin.s = D * .025 * br;
     skin.b = D * (.05 + .05 * sin(TAU * .11 * t + .9) + .03 * br);
-    skin.z = D * (1.0 * sin(TAU * .25 * t + .5) + .12 * sin(TAU * 1.15 * t)) + jerk.z;
   }
 
   function triggerJerk() {
     const a = Math.random() * TAU, sp = 300 + Math.random() * 150;
-    jerk.vx += sp * cos(a);
-    jerk.vy += sp * sin(a) * .7;
-    jerk.vth += (Math.random() - .5) * 1.2;
-    jerk.vz += (Math.random() < .5 ? -1 : 1) * (25 + Math.random() * 15);
+    jerk.v.x += sp * cos(a);
+    jerk.v.z += sp * sin(a) * .7;
+    jerk.v.y += (Math.random() < .5 ? -1 : 1) * (40 + Math.random() * 30);
+    jerk.v.yaw += (Math.random() - .5) * 1.0;
+    jerk.v.roll += (Math.random() - .5) * 3.0;
     showToast('¡Respingo!');
   }
 
   function camSample() {
-    const steps = min(HN - 1, round(params.latency / 1000 / DT));
-    getHist(steps, tmpS);
+    getHist(min(HN - 1, round(params.latency / 1000 / DT)), tmpS);
     const n = params.noise;
-    tmpS.x += gauss() * .6 * n; tmpS.y += gauss() * .6 * n; tmpS.th += gauss() * .004 * n;
-    tmpS.z += gauss() * .3 * n; tmpS.s += gauss() * .002 * n; tmpS.b += gauss() * .004 * n;
     for (const k of KEYS) {
+      tmpS[k] += gauss() * NOISE[k] * n;
       const raw = (tmpS[k] - cam.S[k]) / CAM_DT;
       cam.vel[k] += (raw - cam.vel[k]) * .35;
       cam.S[k] = tmpS[k];
     }
     cam.age = 0;
   }
-
   function estimate(out) {
     if (!params.tracking) copyS(Sref, out);
     else if (params.predict) {
       const h = params.latency / 1000 + cam.age;
       for (const k of KEYS) out[k] = cam.S[k] + cam.vel[k] * h;
     } else copyS(cam.S, out);
-    if (params.force) out.z = getHist(2, tmpS2).z + gauss() * .02;
     return out;
   }
-
   // Velocidad de la piel bajo el punto del diseño, según lo que el robot puede medir
   function skinSpeedSeen(D) {
     if (params.force) {
-      getHist(2, tmpS); W(D.u, D.v, tmpS, Pa);
-      getHist(4, tmpS); W(D.u, D.v, tmpS, Pb);
-      return hypot(Pa.x - Pb.x, Pa.y - Pb.y) / (2 * DT);
+      getHist(2, tmpS); surf(D.u, D.v, tmpS, SQ);
+      const x = SQ.x, y = SQ.y, z = SQ.z;
+      getHist(4, tmpS); surf(D.u, D.v, tmpS, SQ);
+      return hypot(x - SQ.x, y - SQ.y, z - SQ.z) / (2 * DT);
     }
     if (!params.tracking) return 0;
-    W(D.u, D.v, cam.S, Pa);
+    surf(D.u, D.v, cam.S, SQ);
+    const x = SQ.x, y = SQ.y, z = SQ.z;
     for (const k of KEYS) tmpS[k] = cam.S[k] + cam.vel[k] * .01;
-    W(D.u, D.v, tmpS, Pb);
-    return hypot(Pb.x - Pa.x, Pb.y - Pa.y) / .01;
+    surf(D.u, D.v, tmpS, SQ);
+    return hypot(SQ.x - x, SQ.y - y, SQ.z - z) / .01;
+  }
+
+  function startTravel(fu, fv, tu, tv, h0) {
+    const dist = hypot(tu - fu, tv - fv);
+    trav.fu = fu; trav.fv = fv; trav.tu = tu; trav.tv = tv; trav.h0 = h0;
+    trav.amp = min(HOP, dist * .4); trav.dur = max(.15, .1 + dist / 90); trav.p = 0;
+    mode = 'travel';
   }
 
   function step() {
@@ -579,81 +623,110 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     if (cam.timer >= CAM_DT) { cam.timer -= CAM_DT; camSample(); }
     estimate(Sest);
 
-    let tx = HOME.x, ty = HOME.y, ref = null;
+    // 1) Punto de la piel al que apunta y altura de la máquina sobre la piel
+    let ref = null, h = STANDOFF;
     if (running) {
-      if (mode === 'lift') ref = liftD;
+      if (mode === 'approach') { ref = pointAt(strokes[0], 0, refP); h = APPROACH; }
+      else if (mode === 'travel') {
+        const p = trav.p;
+        refP.u = trav.fu + (trav.tu - trav.fu) * p; refP.v = trav.fv + (trav.tv - trav.fv) * p;
+        ref = refP; h = trav.h0 * (1 - p) + STANDOFF * p + trav.amp * sin(PI * p);
+      } else if (mode === 'lift') ref = liftD;
       else ref = pointAt(strokes[cur.k], cur.s, Dp);
-      W(ref.u, ref.v, Sest, T);
-      tx = T.x; ty = T.y;
-    } else { T.x = tx; T.y = ty; }
+    }
+    let dtx = 0, dty = -1, dtz = 0;
+    if (ref) {
+      surf(ref.u, ref.v, Sest, SP);
+      aim.x = SP.x; aim.y = SP.y; aim.z = SP.z; aim.ok = true;
+      tgt.x = SP.x + SP.nx * h; tgt.y = SP.y + SP.ny * h; tgt.z = SP.z + SP.nz * h;
+      dtx = -SP.nx; dty = -SP.ny; dtz = -SP.nz;
+    } else { tgt.x = HOME.x; tgt.y = HOME.y; tgt.z = HOME.z; aim.ok = false; }
 
-    // Velocidad del objetivo filtrada (anticipación)
-    let rvx = (tx - rob.ptx) / DT, rvy = (ty - rob.pty) / DT;
-    if (hypot(tx - rob.ptx, ty - rob.pty) > 3) { rvx = 0; rvy = 0; }
-    rob.ptx = tx; rob.pty = ty;
+    // 2) Servo de posición de la máquina, con anticipación
+    let rvx = (tgt.x - rob.ptx) / DT, rvy = (tgt.y - rob.pty) / DT, rvz = (tgt.z - rob.ptz) / DT;
+    if (hypot(tgt.x - rob.ptx, tgt.y - rob.pty, tgt.z - rob.ptz) > 3) rvx = rvy = rvz = 0;
+    rob.ptx = tgt.x; rob.pty = tgt.y; rob.ptz = tgt.z;
     const kf = DT / .025;
-    rob.tfx += (rvx - rob.tfx) * kf; rob.tfy += (rvy - rob.tfy) * kf;
-
-    // Servo XY
+    rob.tfx += (rvx - rob.tfx) * kf; rob.tfy += (rvy - rob.tfy) * kf; rob.tfz += (rvz - rob.tfz) * kf;
     const wn = TAU * 14;
-    let ax = wn * wn * (tx - rob.x) + 2 * wn * (rob.tfx - rob.vx);
-    let ay = wn * wn * (ty - rob.y) + 2 * wn * (rob.tfy - rob.vy);
-    const am = hypot(ax, ay);
-    if (am > 30000) { ax *= 30000 / am; ay *= 30000 / am; }
-    rob.vx += ax * DT; rob.vy += ay * DT;
-    const vm = hypot(rob.vx, rob.vy);
-    if (vm > 600) { rob.vx *= 600 / vm; rob.vy *= 600 / vm; }
-    rob.x += rob.vx * DT; rob.y += rob.vy * DT;
+    let ax = wn * wn * (tgt.x - rob.x) + 2 * wn * (rob.tfx - rob.vx);
+    let ay = wn * wn * (tgt.y - rob.y) + 2 * wn * (rob.tfy - rob.vy);
+    let az = wn * wn * (tgt.z - rob.z) + 2 * wn * (rob.tfz - rob.vz);
+    const am = hypot(ax, ay, az);
+    if (am > 30000) { const f = 30000 / am; ax *= f; ay *= f; az *= f; }
+    rob.vx += ax * DT; rob.vy += ay * DT; rob.vz += az * DT;
+    const vm = hypot(rob.vx, rob.vy, rob.vz);
+    if (vm > 600) { const f = 600 / vm; rob.vx *= f; rob.vy *= f; rob.vz *= f; }
+    rob.x += rob.vx * DT; rob.y += rob.vy * DT; rob.z += rob.vz * DT;
+    // Orientación: la máquina busca quedarse perpendicular a la piel
+    const ko = min(1, DT / .04);
+    rob.dx += (dtx - rob.dx) * ko; rob.dy += (dty - rob.dy) * ko; rob.dz += (dtz - rob.dz) * ko;
+    const dl = hypot(rob.dx, rob.dy, rob.dz) || 1;
+    rob.dx /= dl; rob.dy /= dl; rob.dz /= dl;
 
-    const tipErr = hypot(tx - rob.x, ty - rob.y);
-    let needleWant = false;
+    const tipErr = hypot(tgt.x - rob.x, tgt.y - rob.y, tgt.z - rob.z);
+    const relV = hypot(rob.vx - rob.tfx, rob.vy - rob.tfy, rob.vz - rob.tfz);
+
+    // 3) Estados
+    let needle = false;
     if (running) {
-      if (mode === 'travel' && tipErr < .6 && hypot(rob.vx - rob.tfx, rob.vy - rob.tfy) < 60) mode = 'ink';
+      if (mode === 'approach') {
+        if (tipErr < 1.2 && relV < 80) startTravel(refP.u, refP.v, refP.u, refP.v, APPROACH);
+      } else if (mode === 'travel') {
+        trav.p = min(1, trav.p + DT / trav.dur);
+        if (trav.p >= 1 && tipErr < .6 && relV < 60) mode = 'ink';
+      }
       if (mode === 'ink') {
-        needleWant = true;
+        needle = true;
         if (params.safety) {
           const sp = skinSpeedSeen(ref);
-          if (tipErr > 2 || sp > 80) { mode = 'hold'; holdOk = 0; stats.holds++; needleWant = false; }
+          if (tipErr > 2 || sp > 80) { mode = 'hold'; holdOk = 0; stats.holds++; needle = false; }
         }
       } else if (mode === 'hold') {
         const sp = skinSpeedSeen(ref);
-        if (tipErr < 1 && sp < 40) { holdOk += DT; if (holdOk > .25) mode = 'travel'; } else holdOk = 0;
+        if (tipErr < 1 && sp < 40) { holdOk += DT; if (holdOk > .25) startTravel(ref.u, ref.v, ref.u, ref.v, STANDOFF); } else holdOk = 0;
       }
     }
 
-    // Eje Z de la aguja
-    const zTarget = needleWant ? Sest.z - DEPTH_TARGET : Sest.z + 4;
-    rob.zn += (zTarget - rob.zn) * min(1, DT / .012);
-    depth = skin.z - rob.zn;
-    inSkin = depth > .3;
+    // 4) La aguja sale de la máquina hasta la piel más la profundidad objetivo.
+    //    Con sensor de fuerza nota la piel real al momento; sin él, se fía de la cámara.
+    let eT = 0;
+    if (needle) {
+      const S = params.force ? getHist(2, Sfor) : Sest;
+      let t = STANDOFF;
+      for (let i = 0; i < 3; i++) { inv(rob.x + rob.dx * t, rob.y + rob.dy * t, rob.z + rob.dz * t, S, INV2); t -= INV2.depth; }
+      eT = clamp(t + DEPTH_TARGET, 0, 12);
+    }
+    rob.e += (eT - rob.e) * min(1, DT / .008);
+    tip.x = rob.x + rob.dx * rob.e; tip.y = rob.y + rob.dy * rob.e; tip.z = rob.z + rob.dz * rob.e;
+    inv(tip.x, tip.y, tip.z, skin, INV);
+    depth = INV.depth; inSkin = depth > .3;
 
-    // Tinta: se deposita donde está la aguja de verdad sobre la piel de verdad
+    // 5) Tinta: queda donde está la aguja de verdad, sobre la piel de verdad
     if (inSkin && running && ref) {
-      Winv(rob.x, rob.y, skin, Ap);
-      const e = hypot(Ap.u - ref.u, Ap.v - ref.v);
+      const e = hypot(INV.u - ref.u, INV.v - ref.v);
       if (!curInk) { curInk = []; ink.push(curInk); }
       const last = curInk[curInk.length - 1];
-      if (!last || hypot(Ap.u - last.u, Ap.v - last.v) >= .25) {
-        curInk.push({ u: Ap.u, v: Ap.v, e, d: depth });
+      if (!last || hypot(INV.u - last.u, INV.v - last.v) >= .25) {
+        const pt = { u: INV.u, v: INV.v, e, d: depth };
+        curInk.push(pt);
+        drawInkSeg(last || pt, pt);
         stats.n++; stats.sumE += e; stats.maxE = max(stats.maxE, e);
         if (e <= TOL) stats.within++;
         if (depth >= DEPTH_MIN && depth <= DEPTH_MAX) stats.depthOK++;
       }
     } else curInk = null;
 
-    // Avance por el diseño
+    // 6) Avance por el diseño
     if (running) {
       stats.time += DT;
       if (mode === 'ink' && inSkin && (!params.safety || tipErr < .8)) {
         const st = strokes[cur.k];
         cur.s += params.speed * DT;
-        if (cur.s >= st.len) {
-          pointAt(st, st.len, liftD);
-          cur.k++; cur.s = 0;
-          mode = 'lift';
-        }
-      } else if (mode === 'lift' && depth < -1.5) {
-        if (cur.k >= strokes.length) finishRun(); else mode = 'travel';
+        if (cur.s >= st.len) { pointAt(st, st.len, liftD); cur.k++; cur.s = 0; mode = 'lift'; }
+      } else if (mode === 'lift' && rob.e < .5) {
+        if (cur.k >= strokes.length) finishRun();
+        else { const nx = strokes[cur.k].pts[0]; startTravel(liftD.u, liftD.v, nx.u, nx.v, STANDOFF); }
       }
     }
   }
@@ -661,7 +734,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   function startRun() {
     if (!strokes.length) return;
     for (const s of strokes) s.hint = 0;
-    running = true; paused = false; mode = 'travel'; cur = { k: 0, s: 0 };
+    running = true; paused = false; mode = 'approach'; cur = { k: 0, s: 0 };
     copyS(cam.S, Sref);
     updateButtons();
   }
@@ -669,6 +742,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     running = false; paused = false; mode = 'idle';
     ink = []; curInk = null; cur = { k: 0, s: 0 };
     resetStats(); depthBuf.length = 0;
+    redrawPatch();
     updateButtons();
   }
   function finishRun() {
@@ -683,299 +757,499 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   }
   function describeCfg() {
     const p = params, yes = (b) => (b ? 'sí' : 'no');
-    const parts = [`Movimiento ${round(p.move * 100)} %`, `respiración ${round(p.breath * 100)} %`, `respingos ${yes(p.jerks)}`];
+    const parts = [`Movimiento ${round(p.move * 100)} %`, `respiración ${round(p.breath * 100)} %`, `giro ${round(p.roll * 180 / PI)}°`, `respingos ${yes(p.jerks)}`];
     if (p.tracking) parts.push(`cámara con ${p.latency} ms de retraso`, `ruido ${round(p.noise * 100)} %`, `predicción ${yes(p.predict)}`);
     else parts.push('sin seguimiento');
     parts.push(`sensor de fuerza ${yes(p.force)}`, `parada de seguridad ${yes(p.safety)}`);
     return parts.join(' · ');
   }
 
-  // ---------- Dibujo ----------
-  let dpr = 1;
-  const stageEl = $('#stage'), cv = $('#cv'), ctx = cv.getContext('2d');
-  const dcv = $('#depth'), dctx = dcv.getContext('2d');
-  let SW = 0, SH = 0, view = { s: 1, ox: 0, oy: 0 }, DW = 0, DH = 96;
+  // ---------- Textura de la piel: plantilla y tinta, en coordenadas de piel ----------
+  const PPM = PATCH.ppm;
+  const patchCanvas = document.createElement('canvas'), pc = patchCanvas.getContext('2d');
+  patchCanvas.width = (PATCH.u1 - PATCH.u0) * PPM; patchCanvas.height = (PATCH.v1 - PATCH.v0) * PPM;
+  const baseCanvas = document.createElement('canvas'), bc = baseCanvas.getContext('2d');
+  baseCanvas.width = 1160; baseCanvas.height = 512;
+  const px = (u) => (u - PATCH.u0) * PPM, py = (v) => (PATCH.v1 - v) * PPM;
+  let patchDirty = true;
+
+  function drawInkSeg(a, b) {
+    const lw = .8 * PPM, x1 = px(a.u), y1 = py(a.v), x2 = px(b.u) + (a === b ? .01 : 0), y2 = py(b.v);
+    pc.lineCap = 'round';
+    const seg = (w, col) => { pc.lineWidth = w; pc.strokeStyle = col; pc.beginPath(); pc.moveTo(x1, y1); pc.lineTo(x2, y2); pc.stroke(); };
+    if (b.d > DEPTH_MAX) seg(lw * 3.4, 'rgba(38,64,140,.28)');
+    seg(lw, b.d < DEPTH_MIN ? 'rgba(22,20,28,.28)' : INK);
+    if (params.showErrors && b.e > TOL) seg(lw * 1.1, ERR);
+    patchDirty = true;
+  }
+  function redrawPatch() {
+    pc.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
+    pc.save();
+    pc.strokeStyle = params.tone >= 2 ? 'rgba(214,200,255,.85)' : 'rgba(90,63,192,.7)';
+    pc.lineWidth = .4 * PPM; pc.lineCap = 'round'; pc.lineJoin = 'round';
+    pc.setLineDash([2.2 * PPM, 1.6 * PPM]);
+    pc.beginPath();
+    for (const st of strokes) st.pts.forEach((p, i) => (i ? pc.lineTo(px(p.u), py(p.v)) : pc.moveTo(px(p.u), py(p.v))));
+    pc.stroke();
+    pc.restore();
+    for (const s of ink) for (let i = 0; i < s.length; i++) drawInkSeg(s[max(0, i - 1)], s[i]);
+    patchDirty = true;
+  }
+  function redrawBase() {
+    const W = baseCanvas.width, H = baseCanvas.height, tone = TONES[params.tone];
+    bc.fillStyle = tone; bc.fillRect(0, 0, W, H);
+    // poros y matices para que no parezca plástico
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 9000; i++) {
+      bc.fillStyle = rnd() < .5 ? 'rgba(0,0,0,.05)' : 'rgba(255,255,255,.05)';
+      bc.fillRect(rnd() * W, rnd() * H, 1.4, 1.4);
+    }
+    // cuadrícula de 1 cm que se deforma con la piel
+    const dark = params.tone >= 2;
+    bc.strokeStyle = dark ? 'rgba(255,255,255,.07)' : 'rgba(70,35,10,.09)';
+    bc.lineWidth = 1;
+    bc.beginPath();
+    for (let u = -U_END; u <= U_END; u += 10) { const x = round((u + U_CAP) / (2 * U_CAP) * W) + .5; bc.moveTo(x, 0); bc.lineTo(x, H); }
+    const dphi = 10 / 36;
+    for (let f = -PI; f <= PI; f += dphi) { const y = round((1 - (f + PI) / TAU) * H) + .5; bc.moveTo(0, y); bc.lineTo(W, y); }
+    bc.stroke();
+  }
+
+  // ---------- Escena 3D ----------
+  const stageEl = $('#stage');
+  let renderer = null, scene, camMain, camLens, controls;
+  let armGroup, tube, tubeGeo, patchMesh, patchGeo, patchTex, baseTex, hand;
+  let robotGroup, ghost, ghostGeo, targetDot, lensGroup, needleDot, needleRing, holdRing, grid, table, rest;
+  const stickers = [], parts = {}, M = {};
+  let U_SAMPLES = [], NU = 0;
+  const NP = 48, NPU = 88, NPV = 44;
+  const GHOST_RINGS = [-150, -95, 95, 150], GHOST_LONG = [-1.5, -.95, .95, 1.5], RING_SEG = 64, LONG_SEG = 32, STK_SEG = 16;
+  let SW = 0, SH = 0, lensPx = 150, follow = false;
+  let lastUpload = 0;
   const C = {};
+
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ['stage', 'stage-dot', 'robot', 'robot-edge', 'robot-joint', 'accent', 'safety', 'bad', 'ok', 'ok-soft', 'fg', 'muted', 'line', 'surface', 'surface-2', 'shadow']) C[k] = cs.getPropertyValue('--' + k).trim();
+    for (const k of ['stage', 'table', 'table-line', 'armrest', 'sleeve', 'robot', 'robot-edge', 'robot-joint', 'accent', 'safety', 'ok', 'ok-soft', 'bad', 'fg', 'muted', 'line', 'surface']) C[k] = cs.getPropertyValue('--' + k).trim();
+    applyTheme();
     drawPad();
+  }
+  function applyTheme() {
+    if (!renderer) return;
+    scene.background = new THREE.Color(C.stage);
+    M.table.color.set(C.table); M.rest.color.set(C.armrest); M.sleeve.color.set(C.sleeve);
+    M.robot.color.set(C.robot); M.edge.color.set(C['robot-edge']); M.joint.color.set(C['robot-joint']);
+    M.grip.color.set(C.accent); M.ghost.color.set(C.accent); M.target.color.set(C.accent); M.hold.color.set(C.safety);
+    if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+    grid = new THREE.GridHelper(2000, 40, new THREE.Color(C['table-line']), new THREE.Color(C['table-line']));
+    grid.position.y = .4; grid.material.transparent = true; grid.material.opacity = .7;
+    scene.add(grid);
+  }
+
+  function showGLError(text) {
+    $('#gl-error-text').textContent = text;
+    $('#gl-error').hidden = false;
+    $('#lens-frame').hidden = true;
+  }
+
+  function buildTubeGeo() {
+    const us = [];
+    for (let u = -U_CAP; u < -U_END; u += 3) us.push(u);
+    for (let u = -U_END; u <= U_END; u += 5) us.push(u);
+    for (let u = U_END + 3; u < U_CAP; u += 3) us.push(u);
+    us.push(U_CAP);
+    U_SAMPLES = us; NU = us.length;
+    const pos = new Float32Array(NU * (NP + 1) * 3), uv = new Float32Array(NU * (NP + 1) * 2), idx = [];
+    for (let i = 0; i < NU; i++) for (let j = 0; j <= NP; j++) {
+      const k = i * (NP + 1) + j;
+      uv[k * 2] = (us[i] + U_CAP) / (2 * U_CAP); uv[k * 2 + 1] = j / NP;
+    }
+    for (let i = 0; i < NU - 1; i++) for (let j = 0; j < NP; j++) {
+      const a = i * (NP + 1) + j, b = a + NP + 1;
+      idx.push(a, a + 1, b, b, a + 1, b + 1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 420);
+    return g;
+  }
+  function buildPatchGeo() {
+    const n = (NPU + 1) * (NPV + 1), pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = [];
+    for (let i = 0; i <= NPU; i++) for (let j = 0; j <= NPV; j++) {
+      const k = i * (NPV + 1) + j;
+      uv[k * 2] = i / NPU; uv[k * 2 + 1] = j / NPV;
+    }
+    for (let i = 0; i < NPU; i++) for (let j = 0; j < NPV; j++) {
+      const a = i * (NPV + 1) + j, b = a + NPV + 1;
+      idx.push(a, a + 1, b, b, a + 1, b + 1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 300);
+    return g;
+  }
+  function updateTube(S) {
+    const pos = tubeGeo.attributes.position.array;
+    let k = 0;
+    for (let i = 0; i < NU; i++) {
+      const u = U_SAMPLES[i], au = abs(u);
+      const cap = au > U_END ? sqrt(max(.0004, 1 - ((au - U_END) / (U_CAP - U_END)) ** 2)) : 1;
+      const r = R0(u) * (1 + S.b * gB(u)) * cap, lx = u * (1 + S.s), roll = S.roll + S.twist * tw(u);
+      for (let j = 0; j <= NP; j++) {
+        const ang = -PI + TAU * j / NP + roll;
+        pos[k++] = lx; pos[k++] = r * cos(ang); pos[k++] = r * sin(ang);
+      }
+    }
+    tubeGeo.attributes.position.needsUpdate = true;
+    tubeGeo.computeVertexNormals();
+  }
+  function updatePatch(S) {
+    const pos = patchGeo.attributes.position.array;
+    let k = 0;
+    for (let i = 0; i <= NPU; i++) {
+      const u = PATCH.u0 + (PATCH.u1 - PATCH.u0) * i / NPU, r0 = R0(u);
+      const r = r0 * (1 + S.b * gB(u)) + .12, lx = u * (1 + S.s), roll = S.roll + S.twist * tw(u);
+      for (let j = 0; j <= NPV; j++) {
+        const v = PATCH.v0 + (PATCH.v1 - PATCH.v0) * j / NPV, ang = v / r0 + roll;
+        pos[k++] = lx; pos[k++] = r * cos(ang); pos[k++] = r * sin(ang);
+      }
+    }
+    patchGeo.attributes.position.needsUpdate = true;
+    patchGeo.computeVertexNormals();
+  }
+  function updateStickers(S) {
+    MARKERS.forEach(([u, v], i) => {
+      const r0 = R0(u), r = r0 * (1 + S.b * gB(u)) + .2, ang = v / r0 + S.roll + S.twist * tw(u);
+      stickers[i].position.set(u * (1 + S.s), r * cos(ang), r * sin(ang));
+      stickers[i].rotation.set(ang, 0, 0);
+    });
+  }
+  function updateGhost(S) {
+    const a = ghostGeo.attributes.position.array;
+    let k = 0;
+    const put = (o) => { a[k++] = o.x; a[k++] = o.y; a[k++] = o.z; };
+    for (const u of GHOST_RINGS) {
+      const r0 = R0(u);
+      for (let j = 0; j < RING_SEG; j++) {
+        surf(u, r0 * (-PI + TAU * j / RING_SEG), S, SQ, .7); put(SQ);
+        surf(u, r0 * (-PI + TAU * (j + 1) / RING_SEG), S, SQ, .7); put(SQ);
+      }
+    }
+    for (const f of GHOST_LONG) for (let i = 0; i < LONG_SEG; i++) {
+      const u0 = -170 + 340 * i / LONG_SEG, u1 = -170 + 340 * (i + 1) / LONG_SEG;
+      surf(u0, R0(u0) * f, S, SQ, .7); put(SQ);
+      surf(u1, R0(u1) * f, S, SQ, .7); put(SQ);
+    }
+    for (const [mu, mv] of MARKERS) {
+      surf(mu, mv, S, SR, .8);
+      const t2x = SR.ny * SR.az - SR.nz * SR.ay, t2y = SR.nz * SR.ax - SR.nx * SR.az, t2z = SR.nx * SR.ay - SR.ny * SR.ax;
+      for (let j = 0; j < STK_SEG; j++) {
+        for (const q of [j, j + 1]) {
+          const t = TAU * q / STK_SEG, c = 5.5 * cos(t), s = 5.5 * sin(t);
+          a[k++] = SR.x + c * SR.ax + s * t2x; a[k++] = SR.y + c * SR.ay + s * t2y; a[k++] = SR.z + c * SR.az + s * t2z;
+        }
+      }
+    }
+    ghostGeo.attributes.position.needsUpdate = true;
+  }
+
+  function initGL() {
+    if (!window.THREE || !THREE.OrbitControls) { showGLError('No se ha podido cargar el motor 3D. Revisa la conexión y recarga la página.'); return false; }
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch (err) {
+      renderer = null;
+      showGLError('Este navegador no puede mostrar gráficos 3D (WebGL). Prueba con otro navegador u otro dispositivo.');
+      return false;
+    }
+    renderer.setPixelRatio(min(2, window.devicePixelRatio || 1));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    stageEl.prepend(renderer.domElement);
+    renderer.domElement.setAttribute('role', 'img');
+    renderer.domElement.setAttribute('aria-label', 'Escena 3D: un brazo robot tatuando un antebrazo apoyado en la mesa');
+
+    scene = new THREE.Scene();
+    camMain = new THREE.PerspectiveCamera(36, 1, 5, 6000);
+    camLens = new THREE.PerspectiveCamera(LENS_FOV, 1, 1, 1200);
+    controls = new THREE.OrbitControls(camMain, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = .12;
+    controls.maxPolarAngle = PI * .48; controls.minDistance = 90; controls.maxDistance = 1800;
+    controls.enableKeys = false;
+
+    // Luces
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8594, .62));
+    const sun = new THREE.DirectionalLight(0xffffff, .78);
+    sun.position.set(260, 720, 360); sun.target.position.set(0, 60, -60);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -520, right: 520, top: 520, bottom: -520, near: 50, far: 1700 });
+    sun.shadow.camera.updateProjectionMatrix();
+    sun.shadow.bias = -.0004;
+    scene.add(sun, sun.target);
+    const fill = new THREE.DirectionalLight(0xffffff, .22);
+    fill.position.set(-420, 300, -240);
+    scene.add(fill);
+
+    // Materiales
+    M.table = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: .95 });
+    M.rest = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: .85 });
+    M.sleeve = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: .9, side: THREE.DoubleSide });
+    M.robot = new THREE.MeshStandardMaterial({ color: 0xf4f4f8, roughness: .42, metalness: .05 });
+    M.edge = new THREE.MeshStandardMaterial({ color: 0x9a97ab, roughness: .5 });
+    M.joint = new THREE.MeshStandardMaterial({ color: 0x34313f, roughness: .55 });
+    M.pen = new THREE.MeshStandardMaterial({ color: 0x1d1b24, roughness: .35, metalness: .4 });
+    M.grip = new THREE.MeshStandardMaterial({ color: 0x5a3fcf, roughness: .45 });
+    M.cart = new THREE.MeshStandardMaterial({ color: 0xd9dce6, roughness: .3, transparent: true, opacity: .75 });
+    M.needle = new THREE.MeshStandardMaterial({ color: 0xb8bcc6, roughness: .25, metalness: .9 });
+    M.hold = new THREE.MeshBasicMaterial({ color: 0xf2b632 });
+    M.target = new THREE.MeshBasicMaterial({ color: 0x5a3fcf });
+    M.ghost = new THREE.LineBasicMaterial({ color: 0x5a3fcf, transparent: true, opacity: .9 });
+    M.hand = new THREE.MeshStandardMaterial({ color: 0xd6a078, roughness: .72 });
+    baseTex = new THREE.CanvasTexture(baseCanvas);
+    patchTex = new THREE.CanvasTexture(patchCanvas);
+    patchTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    M.skin = new THREE.MeshStandardMaterial({ map: baseTex, roughness: .72 });
+    M.patch = new THREE.MeshStandardMaterial({ map: patchTex, roughness: .8, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+
+    // Mesa y reposabrazos
+    table = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), M.table);
+    table.rotation.x = -PI / 2; table.receiveShadow = true; scene.add(table);
+    rest = new THREE.Mesh(new THREE.BoxGeometry(620, 30, 120), M.rest);
+    rest.position.set(0, 15, 0); rest.castShadow = true; rest.receiveShadow = true; scene.add(rest);
+
+    // Antebrazo
+    armGroup = new THREE.Group(); scene.add(armGroup);
+    tubeGeo = buildTubeGeo();
+    tube = new THREE.Mesh(tubeGeo, M.skin); tube.castShadow = true; tube.receiveShadow = true; tube.frustumCulled = false;
+    armGroup.add(tube);
+    patchGeo = buildPatchGeo();
+    patchMesh = new THREE.Mesh(patchGeo, M.patch); patchMesh.receiveShadow = true; patchMesh.frustumCulled = false; patchMesh.renderOrder = 1;
+    armGroup.add(patchMesh);
+    // Mano boca abajo: palma, cuatro dedos y pulgar. Gira con la muñeca.
+    hand = new THREE.Group();
+    const handPart = (geo) => { const m = new THREE.Mesh(geo, M.hand); m.castShadow = true; m.receiveShadow = true; hand.add(m); return m; };
+    const palm = handPart(new THREE.SphereGeometry(1, 32, 20));
+    palm.scale.set(52, 15, 39); palm.position.set(-316, -5, 0);
+    const fingerGeo = new THREE.CylinderGeometry(7.6, 7.6, 1, 16), tipGeo = new THREE.SphereGeometry(7.6, 16, 12);
+    const finger = (z, len, droop) => {
+      const x0 = -350, y0 = -6, x1 = x0 - len * cos(droop), y1 = y0 - len * sin(droop);
+      const f = handPart(fingerGeo);
+      f.position.set((x0 + x1) / 2, (y0 + y1) / 2, z); f.scale.set(1, len, 1); f.rotation.z = PI / 2 + droop;
+      handPart(tipGeo).position.set(x1, y1, z);
+      handPart(tipGeo).position.set(x0, y0, z);
+    };
+    finger(-25, 46, .22); finger(-8.5, 56, .2); finger(8.5, 60, .2); finger(25, 54, .22);
+    const thumb = handPart(new THREE.CylinderGeometry(8.8, 8.8, 1, 16));
+    const tA = [-296, -6, 32], tB = [-338, -12, 54];
+    thumb.position.set((tA[0] + tB[0]) / 2, (tA[1] + tB[1]) / 2, (tA[2] + tB[2]) / 2);
+    thumb.scale.set(1, hypot(tB[0] - tA[0], tB[1] - tA[1], tB[2] - tA[2]), 1);
+    thumb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(tB[0] - tA[0], tB[1] - tA[1], tB[2] - tA[2]).normalize());
+    handPart(new THREE.SphereGeometry(8.8, 16, 12)).position.set(...tB);
+    armGroup.add(hand);
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(50, 53, 90, 40, 1, true), M.sleeve);
+    sleeve.rotation.z = PI / 2; sleeve.position.x = U_END + 30; sleeve.castShadow = true; armGroup.add(sleeve);
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(52, 6, 12, 48), M.sleeve);
+    cuff.rotation.y = PI / 2; cuff.position.x = U_END - 15; cuff.castShadow = true; armGroup.add(cuff);
+    const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6 }), black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .6 });
+    for (let i = 0; i < MARKERS.length; i++) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, .5, 24), white));
+      const dot = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, .6, 16), black);
+      dot.position.y = .06; g.add(dot);
+      armGroup.add(g); stickers.push(g);
+    }
+
+    // Robot: base, hombro, codo, muñeca esférica y máquina de tatuar
+    robotGroup = new THREE.Group(); scene.add(robotGroup);
+    const mk = (geo, mat, cast = true) => { const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = true; robotGroup.add(m); return m; };
+    const unitCyl = (rt, rb, seg = 28) => new THREE.CylinderGeometry(rt, rb, 1, seg);
+    parts.base = mk(new THREE.CylinderGeometry(64, 68, 24, 40), M.joint); parts.base.position.set(RB.x, 12, RB.z);
+    parts.turret = mk(new THREE.CylinderGeometry(46, 50, SH_H - 54, 40), M.robot); parts.turret.position.set(RB.x, 24 + (SH_H - 54) / 2, RB.z);
+    parts.shoulder = mk(new THREE.CylinderGeometry(38, 38, 84, 36), M.robot);
+    parts.shoulderCap = mk(new THREE.CylinderGeometry(31, 31, 94, 36), M.joint);
+    parts.upper = mk(unitCyl(25, 28), M.robot);
+    parts.elbow = mk(new THREE.CylinderGeometry(30, 30, 66, 32), M.robot);
+    parts.elbowCap = mk(new THREE.CylinderGeometry(24, 24, 74, 32), M.joint);
+    parts.fore = mk(unitCyl(19, 23), M.robot);
+    parts.wrist = mk(new THREE.SphereGeometry(23, 28, 20), M.joint);
+    parts.wristRing = mk(new THREE.TorusGeometry(21, 3, 10, 32), M.edge);
+    parts.pen = mk(unitCyl(12, 12), M.pen);
+    parts.grip = mk(unitCyl(13.6, 13.6), M.grip);
+    parts.cart = mk(unitCyl(2.2, 8), M.cart);
+    parts.needle = mk(unitCyl(.3, .3, 8), M.needle, false);
+    holdRing = mk(new THREE.TorusGeometry(16, 1.4, 8, 40), M.hold, false);
+
+    // Lo que ve el robot, punto al que apunta y marcas de la lupa
+    const nSeg = GHOST_RINGS.length * RING_SEG + GHOST_LONG.length * LONG_SEG + MARKERS.length * STK_SEG;
+    ghostGeo = new THREE.BufferGeometry();
+    ghostGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nSeg * 6), 3).setUsage(THREE.DynamicDrawUsage));
+    ghost = new THREE.LineSegments(ghostGeo, M.ghost); ghost.frustumCulled = false; scene.add(ghost);
+    targetDot = new THREE.Mesh(new THREE.SphereGeometry(.55, 16, 12), M.target); scene.add(targetDot);
+    lensGroup = new THREE.Group(); lensGroup.visible = false; scene.add(lensGroup);
+    needleDot = new THREE.Mesh(new THREE.SphereGeometry(.32, 16, 12), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    needleRing = new THREE.Mesh(new THREE.TorusGeometry(1.5, .14, 8, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    lensGroup.add(needleDot, needleRing);
+
+    readColors();
+    redrawBase(); baseTex.needsUpdate = true;
+    setView('general');
+    return true;
+  }
+
+  // Cinemática inversa del brazo de tres ejes para llevar la muñeca a su sitio
+  function solveIK(wx, wy, wz) {
+    const dx = wx - RB.x, dy = wy - SH_H, dz = wz - RB.z;
+    const q1 = atan2(dx, dz), hx = sin(q1), hz = cos(q1);
+    const rho = hypot(dx, dz);
+    const D = clamp(hypot(rho, dy), abs(A2 - A3) + 1, A2 + A3 - 1);
+    const q3 = -acos(clamp((D * D - A2 * A2 - A3 * A3) / (2 * A2 * A3), -1, 1));
+    const q2 = atan2(dy, rho) - atan2(A3 * sin(q3), A2 + A3 * cos(q3));
+    return { hx, hz, q1, ex: RB.x + A2 * cos(q2) * hx, ey: SH_H + A2 * sin(q2), ez: RB.z + A2 * cos(q2) * hz };
+  }
+  let vD, Yup, Zax;
+  function place(m, ax, ay, az, bx, by, bz) {
+    vD.set(bx - ax, by - ay, bz - az);
+    const L = vD.length() || .001;
+    vD.divideScalar(L);
+    m.position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
+    m.quaternion.setFromUnitVectors(Yup, vD);
+    m.scale.set(1, L, 1);
+  }
+  function orient(m, x, y, z, ax, ay, az, from) {
+    m.position.set(x, y, z);
+    vD.set(ax, ay, az).normalize();
+    m.quaternion.setFromUnitVectors(from || Yup, vD);
+  }
+  function updateRobot() {
+    const dx = rob.dx, dy = rob.dy, dz = rob.dz;
+    const wx = rob.x - dx * LT, wy = rob.y - dy * LT, wz = rob.z - dz * LT;
+    const k = solveIK(wx, wy, wz);
+    const axx = -k.hz, axz = k.hx;
+    parts.turret.rotation.y = k.q1;
+    orient(parts.shoulder, RB.x, SH_H, RB.z, axx, 0, axz);
+    orient(parts.shoulderCap, RB.x, SH_H, RB.z, axx, 0, axz);
+    place(parts.upper, RB.x, SH_H, RB.z, k.ex, k.ey, k.ez);
+    orient(parts.elbow, k.ex, k.ey, k.ez, axx, 0, axz);
+    orient(parts.elbowCap, k.ex, k.ey, k.ez, axx, 0, axz);
+    place(parts.fore, k.ex, k.ey, k.ez, wx, wy, wz);
+    parts.wrist.position.set(wx, wy, wz);
+    orient(parts.wristRing, wx + dx * 14, wy + dy * 14, wz + dz * 14, dx, dy, dz, Zax);
+    const bodyEnd = LT - 24;
+    place(parts.pen, wx + dx * 16, wy + dy * 16, wz + dz * 16, wx + dx * bodyEnd, wy + dy * bodyEnd, wz + dz * bodyEnd);
+    place(parts.grip, wx + dx * (LT - 52), wy + dy * (LT - 52), wz + dz * (LT - 52), wx + dx * (LT - 32), wy + dy * (LT - 32), wz + dz * (LT - 32));
+    place(parts.cart, wx + dx * bodyEnd, wy + dy * bodyEnd, wz + dz * bodyEnd, rob.x, rob.y, rob.z);
+    parts.needle.visible = rob.e > .05;
+    if (parts.needle.visible) place(parts.needle, rob.x, rob.y, rob.z, tip.x, tip.y, tip.z);
+    holdRing.visible = mode === 'hold';
+    if (holdRing.visible) orient(holdRing, rob.x - dx * 10, rob.y - dy * 10, rob.z - dz * 10, dx, dy, dz, Zax);
+  }
+
+  const VIEWS = {
+    general: { pos: [470, 620, 700], tgt: [-30, 140, -70] },
+    arriba: { pos: [0, 640, 80], tgt: [0, 70, -20] },
+    lado: { pos: [-780, 320, 140], tgt: [0, 140, -70] }
+  };
+  function setView(name) {
+    if (!renderer) return;
+    follow = name === 'seguir';
+    if (follow) {
+      camMain.position.set(tip.x + 150, tip.y + 170, tip.z + 220);
+      controls.target.set(tip.x, tip.y, tip.z);
+    } else {
+      const v = VIEWS[name];
+      camMain.position.set(...v.pos);
+      controls.target.set(...v.tgt);
+    }
+    controls.update();
   }
 
   function sizeStage() {
-    dpr = min(2, window.devicePixelRatio || 1);
     const w = stageEl.clientWidth;
     if (!w) return;
-    const h = round(clamp(min(w * .96, window.innerHeight * .74), 300, 760));
-    if (w === SW && h === SH && cv.width === round(w * dpr)) return;
+    const h = round(clamp(min(w * .72, window.innerHeight * .7), 320, 720));
+    if (w === SW && h === SH) return;
     SW = w; SH = h;
-    cv.style.height = h + 'px';
-    cv.width = round(w * dpr); cv.height = round(h * dpr);
-    const s = min(w / (WORLD.x1 - WORLD.x0), h / (WORLD.y1 - WORLD.y0));
-    view = { s, ox: (w - s * (WORLD.x1 - WORLD.x0)) / 2 - s * WORLD.x0, oy: (h - s * (WORLD.y1 - WORLD.y0)) / 2 - s * WORLD.y0 };
+    stageEl.style.height = h + 'px';
+    lensPx = round(clamp(min(w, h) * .3, 110, 200));
+    const lf = $('#lens-frame');
+    lf.style.width = lf.style.height = lensPx + 'px';
+    $('#lens-bar').style.width = max(4, lensPx / (2 * LENS_D * tan(LENS_FOV * PI / 360))) + 'px';
+    if (renderer) {
+      renderer.setSize(w, h, false);
+      camMain.aspect = w / h; camMain.updateProjectionMatrix();
+    }
   }
+
+  function renderGL(now) {
+    if (!renderer) return;
+    armGroup.position.set(skin.x, AXIS_H + skin.y, skin.z);
+    armGroup.rotation.set(0, skin.yaw, skin.pitch, 'YZX');
+    updateTube(skin); updatePatch(skin); updateStickers(skin);
+    hand.rotation.x = skin.roll + skin.twist;
+    M.hand.color.set(TONES[params.tone]);
+    updateRobot();
+    ghost.visible = params.showGhost;
+    if (ghost.visible) updateGhost(Sest);
+    targetDot.visible = running && aim.ok;
+    targetDot.position.set(aim.x, aim.y, aim.z);
+    if (patchDirty && now - lastUpload > 80) { patchTex.needsUpdate = true; patchDirty = false; lastUpload = now; }
+    if (follow) {
+      const k = .12;
+      const ddx = (tip.x - controls.target.x) * k, ddy = (tip.y - controls.target.y) * k, ddz = (tip.z - controls.target.z) * k;
+      camMain.position.x += ddx; camMain.position.y += ddy; camMain.position.z += ddz;
+      controls.target.x += ddx; controls.target.y += ddy; controls.target.z += ddz;
+    }
+    controls.update();
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, SW, SH);
+    renderer.render(scene, camMain);
+    if (params.showLens) renderLens();
+  }
+  function renderLens() {
+    const L = lensPx, x = SW - L - 12, y = 12;
+    const dx = rob.dx, dy = rob.dy, dz = rob.dz;
+    const cp = cos(skin.pitch), sp = sin(skin.pitch), cy = cos(skin.yaw), sy = sin(skin.yaw);
+    const ax = cp * cy, ay = sp, az = -cp * sy;
+    // arriba de la lupa = (-d) x eje, para que el antebrazo salga en horizontal
+    let ux = -dy * az + dz * ay, uy = -dz * ax + dx * az, uz = -dx * ay + dy * ax;
+    const ul = hypot(ux, uy, uz) || 1;
+    camLens.up.set(ux / ul, uy / ul, uz / ul);
+    camLens.position.set(tip.x - dx * LENS_D, tip.y - dy * LENS_D, tip.z - dz * LENS_D);
+    camLens.lookAt(tip.x, tip.y, tip.z);
+    needleDot.position.set(tip.x, tip.y, tip.z);
+    orient(needleRing, tip.x - dx * .5, tip.y - dy * .5, tip.z - dz * .5, dx, dy, dz, Zax);
+    needleDot.material.color.set(inSkin ? 0x111111 : 0xffffff);
+    robotGroup.visible = false; ghost.visible = false; lensGroup.visible = true;
+    renderer.setScissorTest(true);
+    renderer.setViewport(x, y, L, L); renderer.setScissor(x, y, L, L);
+    renderer.render(scene, camLens);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, SW, SH);
+    robotGroup.visible = true; ghost.visible = params.showGhost; lensGroup.visible = false;
+  }
+
+  // ---------- Gráfica de profundidad ----------
+  const dcv = $('#depth'), dctx = dcv.getContext('2d');
+  let DW = 0; const DH = 96;
+  let dpr = min(2, window.devicePixelRatio || 1);
   function sizeDepth() {
+    dpr = min(2, window.devicePixelRatio || 1);
     const w = dcv.clientWidth;
     if (!w) return;
     DW = w;
     dcv.width = round(w * dpr); dcv.height = round(DH * dpr);
   }
-
-  const q = { x: 0, y: 0 }, q2 = { x: 0, y: 0 };
-  function skinPath(S, closed) {
-    const p = new Path2D(), N = 64;
-    for (let i = 0; i <= N; i++) {
-      const u = -SKIN_U + 2 * SKIN_U * i / N;
-      W(u, -halfW(u), S, q);
-      i ? p.lineTo(q.x, q.y) : p.moveTo(q.x, q.y);
-    }
-    if (!closed) {
-      for (let i = 0; i <= N; i++) {
-        const u = -SKIN_U + 2 * SKIN_U * i / N;
-        W(u, halfW(u), S, q);
-        i ? p.lineTo(q.x, q.y) : p.moveTo(q.x, q.y);
-      }
-      return p;
-    }
-    for (let i = N; i >= 0; i--) {
-      const u = -SKIN_U + 2 * SKIN_U * i / N;
-      W(u, halfW(u), S, q);
-      p.lineTo(q.x, q.y);
-    }
-    p.closePath();
-    return p;
-  }
-
-  function strokeSegs(ctx, test) {
-    ctx.beginPath();
-    for (const s of ink) {
-      if (s.length === 1) {
-        if (test(s[0])) { W(s[0].u, s[0].v, skin, q); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x + .01, q.y); }
-        continue;
-      }
-      for (let i = 1; i < s.length; i++) {
-        if (!test(s[i])) continue;
-        W(s[i - 1].u, s[i - 1].v, skin, q); W(s[i].u, s[i].v, skin, q2);
-        ctx.moveTo(q.x, q.y); ctx.lineTo(q2.x, q2.y);
-      }
-    }
-    ctx.stroke();
-  }
-
-  function drawScene(ctx, v, lens) {
-    ctx.save();
-    ctx.setTransform(dpr * v.s, 0, 0, dpr * v.s, dpr * v.ox, dpr * v.oy);
-    const px = 1 / v.s;
-    const tone = TONES[params.tone], dark = params.tone >= 2;
-
-    // Antebrazo
-    const path = skinPath(skin, true);
-    if (!lens) {
-      ctx.save(); ctx.translate(2.5, 3.5); ctx.fillStyle = C.shadow; ctx.fill(path); ctx.restore();
-    }
-    W(0, -halfW(0), skin, q); W(0, halfW(0), skin, q2);
-    const g = ctx.createLinearGradient(q.x, q.y, q2.x, q2.y);
-    g.addColorStop(0, shade(tone, -.24)); g.addColorStop(.3, tone); g.addColorStop(.55, shade(tone, .07)); g.addColorStop(1, shade(tone, -.3));
-    ctx.fillStyle = g; ctx.fill(path);
-
-    // Cuadrícula de la piel (se deforma con ella)
-    ctx.save();
-    ctx.clip(path);
-    ctx.strokeStyle = dark ? 'rgba(255,255,255,.07)' : 'rgba(70,35,10,.09)';
-    ctx.lineWidth = px;
-    ctx.beginPath();
-    for (let u = -220; u <= 220; u += 10) {
-      W(u, -halfW(u), skin, q); ctx.moveTo(q.x, q.y);
-      for (let vv = -40; vv <= 50; vv += 10) { W(u, clamp(vv, -halfW(u), halfW(u)), skin, q); ctx.lineTo(q.x, q.y); }
-    }
-    for (let vv = -40; vv <= 40; vv += 10) {
-      for (let u = -230; u <= 230; u += 10) { W(u, vv, skin, q); u === -230 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y); }
-    }
-    ctx.stroke();
-    if (lens) {
-      Winv(rob.x, rob.y, skin, Ap);
-      const u0 = Math.floor(Ap.u) - 9, v0 = Math.floor(Ap.v) - 9;
-      ctx.strokeStyle = dark ? 'rgba(255,255,255,.08)' : 'rgba(70,35,10,.1)';
-      ctx.beginPath();
-      for (let i = 0; i <= 18; i++) {
-        W(u0 + i, v0, skin, q); W(u0 + i, v0 + 18, skin, q2); ctx.moveTo(q.x, q.y); ctx.lineTo(q2.x, q2.y);
-        W(u0, v0 + i, skin, q); W(u0 + 18, v0 + i, skin, q2); ctx.moveTo(q.x, q.y); ctx.lineTo(q2.x, q2.y);
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Plantilla (papel de calco morado)
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = dark ? 'rgba(206,190,255,.75)' : 'rgba(90,63,192,.6)';
-    ctx.lineWidth = max(.45, 1.1 * px);
-    ctx.setLineDash([2.2, 1.6]);
-    ctx.beginPath();
-    for (const st of strokes) {
-      st.pts.forEach((p, i) => { W(p.u, p.v, skin, q); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Tinta
-    const lw = max(.75, 1.4 * px);
-    ctx.lineWidth = lw * 3.4; ctx.strokeStyle = 'rgba(38,64,140,.28)';
-    strokeSegs(ctx, (p) => p.d > DEPTH_MAX);
-    ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(22,20,28,.28)';
-    strokeSegs(ctx, (p) => p.d < DEPTH_MIN);
-    ctx.strokeStyle = INK;
-    strokeSegs(ctx, (p) => p.d >= DEPTH_MIN);
-    if (params.showErrors) {
-      ctx.strokeStyle = ERR; ctx.lineWidth = lw * 1.1;
-      strokeSegs(ctx, (p) => p.e > TOL);
-    }
-
-    // Pegatinas de seguimiento
-    for (const [mu, mv] of MARKERS) {
-      W(mu, mv, skin, q);
-      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(q.x, q.y, 2.4, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#111111'; ctx.beginPath(); ctx.arc(q.x, q.y, 1, 0, TAU); ctx.fill();
-    }
-
-    // Lo que ve el robot
-    if (!lens && params.showGhost) {
-      ctx.strokeStyle = C.accent; ctx.lineWidth = 1.4 * px; ctx.setLineDash([5 * px, 4 * px]);
-      ctx.stroke(skinPath(Sest, false));
-      ctx.setLineDash([]);
-      for (const [mu, mv] of MARKERS) { W(mu, mv, Sest, q); ctx.beginPath(); ctx.arc(q.x, q.y, 3.2, 0, TAU); ctx.stroke(); }
-    }
-    if (running) {
-      const r = lens ? .9 : 4;
-      ctx.strokeStyle = C.accent; ctx.lineWidth = (lens ? 1.5 : 1.4) * px;
-      ctx.beginPath(); ctx.moveTo(T.x - r, T.y); ctx.lineTo(T.x + r, T.y); ctx.moveTo(T.x, T.y - r); ctx.lineTo(T.x, T.y + r); ctx.stroke();
-    }
-    if (lens) {
-      ctx.fillStyle = inSkin ? INK : 'rgba(0,0,0,0)';
-      ctx.strokeStyle = inSkin ? '#ffffff' : C.fg; ctx.lineWidth = 1.5 * px;
-      ctx.beginPath(); ctx.arc(rob.x, rob.y, .35, 0, TAU); ctx.fill(); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  function ik(px, py) {
-    const dx = px - BASE.x, dy = py - BASE.y;
-    const d = clamp(hypot(dx, dy), abs(L1 - L2) + 1, L1 + L2 - .5);
-    const phi = atan2(dy, dx);
-    const t2 = -acos(clamp((d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2), -1, 1));
-    const t1 = phi - atan2(L2 * sin(t2), L1 + L2 * cos(t2));
-    return { x: BASE.x + L1 * cos(t1), y: BASE.y + L1 * sin(t1) };
-  }
-
-  function line(ctx, a, b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
-  function drawRobot(ctx, v) {
-    ctx.save();
-    ctx.setTransform(dpr * v.s, 0, 0, dpr * v.s, dpr * v.ox, dpr * v.oy);
-    const P = { x: rob.x, y: rob.y }, J = ik(P.x, P.y);
-    const HR = 11.5;
-    const dj = hypot(P.x - J.x, P.y - J.y) || 1;
-    const E = { x: P.x + (J.x - P.x) / dj * HR, y: P.y + (J.y - P.y) / dj * HR };
-    const lift = clamp(rob.zn - skin.z, 0, 8), sh = 3 + lift * .6;
-    ctx.lineCap = 'round';
-    // sombra
-    ctx.strokeStyle = C.shadow; ctx.fillStyle = C.shadow;
-    ctx.lineWidth = 17; line(ctx, { x: BASE.x + 4, y: BASE.y + 5 }, { x: J.x + 4, y: J.y + 5 });
-    ctx.lineWidth = 13; line(ctx, { x: J.x + 4, y: J.y + 5 }, { x: E.x + sh, y: E.y + sh });
-    ctx.beginPath(); ctx.arc(P.x + sh, P.y + sh, HR, 0, TAU); ctx.fill();
-    // base
-    ctx.fillStyle = C['robot-edge']; ctx.beginPath(); ctx.arc(BASE.x, BASE.y, 26, 0, TAU); ctx.fill();
-    ctx.fillStyle = C.robot; ctx.beginPath(); ctx.arc(BASE.x, BASE.y, 23.5, 0, TAU); ctx.fill();
-    // eslabones
-    ctx.strokeStyle = C['robot-edge']; ctx.lineWidth = 19; line(ctx, BASE, J);
-    ctx.strokeStyle = C.robot; ctx.lineWidth = 16; line(ctx, BASE, J);
-    ctx.strokeStyle = C['robot-edge']; ctx.lineWidth = 15; line(ctx, J, E);
-    ctx.strokeStyle = C.robot; ctx.lineWidth = 12; line(ctx, J, E);
-    // articulaciones
-    ctx.fillStyle = C['robot-joint'];
-    ctx.beginPath(); ctx.arc(BASE.x, BASE.y, 9, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(J.x, J.y, 7, 0, TAU); ctx.fill();
-    ctx.fillStyle = C.robot; ctx.beginPath(); ctx.arc(J.x, J.y, 2.6, 0, TAU); ctx.fill();
-    // cabezal con ventana para ver la aguja
-    const head = new Path2D();
-    head.arc(P.x, P.y, HR, 0, TAU); head.moveTo(P.x + 5, P.y); head.arc(P.x, P.y, 5, 0, TAU, true);
-    ctx.fillStyle = C.robot; ctx.fill(head, 'evenodd');
-    ctx.strokeStyle = C['robot-edge']; ctx.lineWidth = 1.2 / v.s; ctx.stroke(head);
-    ctx.strokeStyle = C['robot-joint']; ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.arc(P.x, P.y, 5.8, 0, TAU); ctx.stroke();
-    if (mode === 'hold') {
-      ctx.strokeStyle = C.safety; ctx.lineWidth = 2.4 / v.s;
-      ctx.beginPath(); ctx.arc(P.x, P.y, HR + 4, 0, TAU); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  function drawDots(ctx, v) {
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = C['stage-dot'];
-    const step = 10 * v.s;
-    const r = max(.7, v.s * .35);
-    if (step >= 8) {
-      const x0 = ((v.ox % step) + step) % step, y0 = ((v.oy % step) + step) % step;
-      for (let x = x0; x < SW; x += step) for (let y = y0; y < SH; y += step) ctx.fillRect(x - r / 2, y - r / 2, r, r);
-    }
-    ctx.restore();
-  }
-
-  function drawOverlays(ctx) {
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // escala 1 cm
-    const L = 10 * view.s, x = 14, y = SH - 16;
-    ctx.strokeStyle = C.fg; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x, y); ctx.lineTo(x + L, y); ctx.lineTo(x + L, y - 4); ctx.stroke();
-    ctx.fillStyle = C.fg; ctx.font = '500 11px "IBM Plex Mono", ui-monospace, monospace';
-    ctx.fillText('1 cm', x + L + 6, y + 1);
-    ctx.restore();
-
-    if (!params.showLens) return;
-    const R = round(clamp(SW * .15, 52, 86)), cx = SW - R - 14, cy = SH - R - 14;
-    const ls = 10;
-    const lv = { s: ls, ox: cx - ls * rob.x, oy: cy - ls * rob.y };
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.clip();
-    ctx.fillStyle = C.stage; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
-    drawScene(ctx, lv, true);
-    ctx.restore();
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.strokeStyle = C.fg; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
-    ctx.fillStyle = C.surface; ctx.strokeStyle = C.line; ctx.lineWidth = 1;
-    const label = 'LUPA · 1 mm';
-    ctx.font = '500 10.5px "IBM Plex Mono", ui-monospace, monospace';
-    const tw = ctx.measureText(label).width + 30;
-    const bx = cx - tw / 2, by = cy + R - 22;
-    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, tw, 16, 8) : ctx.rect(bx, by, tw, 16); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = C.fg; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(bx + 7, by + 8); ctx.lineTo(bx + 7 + ls, by + 8); ctx.stroke();
-    ctx.fillStyle = C.fg; ctx.fillText(label, bx + 22, by + 11.5);
-    ctx.restore();
-  }
-
-  function render() {
-    if (!SW) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = C.stage; ctx.fillRect(0, 0, SW, SH);
-    drawDots(ctx, view);
-    drawScene(ctx, view, false);
-    drawRobot(ctx, view);
-    drawOverlays(ctx);
-    drawDepth();
-  }
-
   function drawDepth() {
     if (!DW) return;
     const c = dctx, w = DW, h = DH;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, w, h);
-    const pl = 40, pr = 8, pt = 6, pb = 8;
-    const pw = w - pl - pr;
+    const pl = 40, pr = 8, pt = 6, pb = 8, pw = w - pl - pr;
     const ym = (d) => pt + clamp(d, 0, 3) / 3 * (h - pt - pb);
     c.fillStyle = C['ok-soft']; c.fillRect(pl, ym(DEPTH_MIN), pw, ym(DEPTH_MAX) - ym(DEPTH_MIN));
     c.font = '500 10.5px "IBM Plex Mono", ui-monospace, monospace';
@@ -988,16 +1262,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     c.strokeStyle = C.ok; c.setLineDash([4, 3]);
     c.beginPath(); c.moveTo(pl, ym(DEPTH_TARGET)); c.lineTo(w - pr, ym(DEPTH_TARGET)); c.stroke();
     c.setLineDash([]);
-    const now = simT, t0 = now - 6;
+    const t0 = simT - 6;
     c.lineWidth = 2; c.lineJoin = 'round';
     let prev = null;
     for (const s of depthBuf) {
-      if (s.t < t0) { prev = null; continue; }
-      if (s.d === null) { prev = null; continue; }
+      if (s.t < t0 || s.d === null) { prev = null; continue; }
       const x = pl + (s.t - t0) / 6 * pw, y = ym(s.d);
       if (prev) {
-        const bad = s.d < DEPTH_MIN || s.d > DEPTH_MAX;
-        c.strokeStyle = bad ? C.bad : C.fg;
+        c.strokeStyle = s.d < DEPTH_MIN || s.d > DEPTH_MAX ? C.bad : C.fg;
         c.beginPath(); c.moveTo(prev.x, prev.y); c.lineTo(x, y); c.stroke();
       }
       prev = { x, y };
@@ -1006,29 +1278,26 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
 
   // ---------- Interfaz ----------
   const statusEl = $('#status'), statusText = $('#status-text'), toastEl = $('#toast');
-  let toastTimer = 0;
+  let toastTimer = 0, lastStatus = '';
   function showToast(t) {
     toastEl.textContent = t; toastEl.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { toastEl.hidden = true; }, 1000);
   }
-  let lastStatus = '';
   function updateStatus() {
     let kind = mode, text;
     if (paused) { kind = 'idle'; text = 'En pausa'; }
-    else text = { idle: 'Preparado', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Levantando la aguja', hold: 'Parada de seguridad', done: 'Terminado' }[mode];
+    else text = { idle: 'Preparado', approach: 'Acercándose al brazo', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Retirando la aguja', hold: 'Parada de seguridad', done: 'Terminado' }[mode];
     if (!params.tracking && running && !paused) text += ' · a ciegas';
     const key = kind + text;
     if (key === lastStatus) return;
     lastStatus = key;
-    statusEl.dataset.kind = kind; statusText.textContent = text;
+    statusEl.dataset.kind = kind === 'approach' || kind === 'travel' || kind === 'lift' ? 'idle' : kind;
+    statusText.textContent = text;
   }
   function updateButtons() {
     $('#btn-main').textContent = running ? (paused ? 'Seguir' : 'Pausar') : (mode === 'done' ? 'Tatuar otra vez' : 'Empezar a tatuar');
   }
-
-  let skinSpeed = 0;
-  const cprev = { x: 0, y: 0 };
   function setV(id, html, cls) { const el = $(id); el.innerHTML = html; el.className = 'v' + (cls ? ' ' + cls : ''); }
   function updateStats() {
     const done = strokes.slice(0, cur.k).reduce((a, s) => a + s.len, 0) + (cur.k < strokes.length ? cur.s : 0);
@@ -1041,23 +1310,17 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       setV('#st-max', `${fmt(stats.maxE, 1)}<small>mm</small>`, stats.maxE <= .5 ? 'good' : stats.maxE <= 1.5 ? 'meh' : 'bad');
       setV('#st-within', `${round(w)}<small>%</small>`, w >= 90 ? 'good' : w >= 70 ? 'meh' : 'bad');
       setV('#st-depth', `${round(d)}<small>%</small>`, d >= 90 ? 'good' : d >= 75 ? 'meh' : 'bad');
-    } else {
-      for (const id of ['#st-mean', '#st-max', '#st-within', '#st-depth']) setV(id, '–');
-    }
+    } else for (const id of ['#st-mean', '#st-max', '#st-within', '#st-depth']) setV(id, '–');
     setV('#st-holds', String(stats.holds), stats.holds ? 'meh' : '');
-    setV('#st-speed', `${round(skinSpeed)}<small>mm/s</small>`);
+    setV('#st-tilt', `${round(acos(clamp(-rob.dy, -1, 1)) * 180 / PI)}<small>°</small>`);
     setV('#st-time', `${fmt(stats.time, 1)}<small>s</small>`);
   }
-
   function renderHistory() {
     const body = $('#hist-body');
     body.textContent = '';
     for (const h of history.slice(0, 12)) {
       const tr = document.createElement('tr');
-      const cells = [
-        ['num', String(h.n)], ['', h.design], ['cfg', h.cfg],
-        ['num', `${fmt(h.mean, 2)} mm`], ['num', `${round(h.within)} %`], ['num', `${round(h.dOK)} %`], ['num', String(h.holds)]
-      ];
+      const cells = [['num', String(h.n)], ['', h.design], ['cfg', h.cfg], ['num', `${fmt(h.mean, 2)} mm`], ['num', `${round(h.within)} %`], ['num', `${round(h.dOK)} %`], ['num', String(h.holds)]];
       for (const [cls, txt] of cells) { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; tr.appendChild(td); }
       const td = document.createElement('td'), sp = document.createElement('span');
       sp.className = 'verdict ' + h.verdict[1]; sp.textContent = h.verdict[0];
@@ -1068,23 +1331,22 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     $('#hist-wrap').hidden = history.length === 0;
   }
 
-  // Controles
   const RANGES = {
     move: ['#rng-move', '#out-move', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
     breath: ['#rng-breath', '#out-breath', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
+    roll: ['#rng-roll', '#out-roll', (v) => v * PI / 180, (p) => round(p * 180 / PI), (p) => `${round(p * 180 / PI)}°`],
     latency: ['#rng-latency', '#out-latency', (v) => v, (p) => p, (p) => `${p} ms`],
     noise: ['#rng-noise', '#out-noise', (v) => v / 100, (p) => round(p * 100), (p) => `${round(p * 100)} %`],
     speed: ['#rng-speed', '#out-speed', (v) => v, (p) => p, (p) => `${p} mm/s`]
   };
   const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', showGhost: '#sw-ghost', showErrors: '#sw-errors', showLens: '#sw-lens' };
-
   function syncControls() {
     for (const [k, [rid, oid, , toUI, label]] of Object.entries(RANGES)) { $(rid).value = toUI(params[k]); $(oid).textContent = label(params[k]); }
     for (const [k, id] of Object.entries(SWITCHES)) $(id).checked = params[k];
     for (const id of ['#f-latency', '#f-noise', '#f-predict']) $(id).classList.toggle('dim', !params.tracking);
+    $('#lens-frame').hidden = !params.showLens || !renderer;
   }
-  function clearScenario() { $$('.scn').forEach((b) => b.setAttribute('aria-pressed', 'false')); }
-
+  const clearScenario = () => $$('.scn').forEach((b) => b.setAttribute('aria-pressed', 'false'));
   for (const [k, [rid, oid, fromUI, , label]] of Object.entries(RANGES)) {
     $(rid).addEventListener('input', (e) => {
       params[k] = fromUI(+e.target.value);
@@ -1097,23 +1359,27 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       const was = params[k];
       params[k] = e.target.checked;
       if (k === 'tracking' && was && !params.tracking) copyS(cam.S, Sref);
+      if (k === 'showErrors') redrawPatch();
       if (!k.startsWith('show')) clearScenario();
       syncControls();
     });
   }
-
   $$('.scn').forEach((b) => b.addEventListener('click', () => {
     Object.assign(params, SCENARIOS[b.dataset.scn]);
     $$('.scn').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     syncControls();
     resetRun(); startRun();
   }));
-
+  $$('.view').forEach((b) => b.addEventListener('click', () => {
+    $$('.view').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    setView(b.dataset.view);
+  }));
   $$('.tone').forEach((b) => b.addEventListener('click', () => {
     params.tone = +b.dataset.tone;
     $$('.tone').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    redrawBase(); if (baseTex) baseTex.needsUpdate = true;
+    redrawPatch();
   }));
-
   $$('.design').forEach((b) => b.addEventListener('click', () => {
     $$('.design').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     const id = b.dataset.design;
@@ -1123,7 +1389,6 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
     setDesign(fitDesign(DESIGNS[id].make()), DESIGNS[id].label);
     resetRun(); startRun();
   }));
-
   $('#btn-main').addEventListener('click', () => {
     if (running) paused = !paused;
     else { resetRun(); startRun(); }
@@ -1132,69 +1397,79 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   $('#btn-restart').addEventListener('click', () => { resetRun(); startRun(); });
   $('#btn-jerk').addEventListener('click', triggerJerk);
 
-  // Arrastrar el antebrazo
-  let dragging = null;
-  function toWorld(e) {
-    const r = cv.getBoundingClientRect();
-    return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
+  // Agarrar el antebrazo y moverlo por la mesa
+  let armDrag = null, raycaster, ndc, dragPlane, hitP;
+  function pointerRay(e) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camMain);
   }
-  function onSkin(wp) { Winv(wp.x, wp.y, skin, Ap); return abs(Ap.u) < SKIN_U && abs(Ap.v) <= halfW(Ap.u); }
-  cv.addEventListener('pointerdown', (e) => {
-    const wp = toWorld(e);
-    if (!onSkin(wp)) return;
-    dragging = { id: e.pointerId, x: wp.x, y: wp.y, tx: drag.tx, ty: drag.ty };
-    cv.setPointerCapture(e.pointerId);
-    cv.style.cursor = 'grabbing';
-  });
-  cv.addEventListener('pointermove', (e) => {
-    const wp = toWorld(e);
-    if (dragging && e.pointerId === dragging.id) {
-      drag.tx = clamp(dragging.tx + wp.x - dragging.x, -50, 50);
-      drag.ty = clamp(dragging.ty + wp.y - dragging.y, -45, 40);
-    } else if (e.pointerType === 'mouse') cv.style.cursor = onSkin(wp) ? 'grab' : 'default';
-  });
-  const endDrag = (e) => { if (dragging && e.pointerId === dragging.id) { dragging = null; cv.style.cursor = 'grab'; } };
-  cv.addEventListener('pointerup', endDrag);
-  cv.addEventListener('pointercancel', endDrag);
-  cv.addEventListener('touchstart', (e) => {
-    const t = e.touches[0];
-    if (t && onSkin(toWorld(t))) e.preventDefault();
-  }, { passive: false });
-  cv.addEventListener('wheel', (e) => {
-    if (!onSkin(toWorld(e))) return;
-    e.preventDefault();
-    drag.tth = clamp(drag.tth + (e.deltaY > 0 ? .02 : -.02), -.35, .35);
-  }, { passive: false });
+  function hitArm(e) {
+    pointerRay(e);
+    const hits = raycaster.intersectObjects([tube, hand], true);
+    return hits.length ? hits[0].point : null;
+  }
+  function initPointer() {
+    raycaster = new THREE.Raycaster(); ndc = new THREE.Vector2(); dragPlane = new THREE.Plane(); hitP = new THREE.Vector3();
+    const cv = renderer.domElement;
+    stageEl.addEventListener('pointerdown', (e) => {
+      if (e.target !== cv || e.button > 0) return;
+      const p = hitArm(e);
+      if (!p) return;
+      dragPlane.set(new THREE.Vector3(0, 1, 0), -p.y);
+      armDrag = { id: e.pointerId, x: p.x, z: p.z, tx: drag.tx, tz: drag.tz };
+      controls.enabled = false;
+      cv.setPointerCapture(e.pointerId);
+      cv.style.cursor = 'grabbing';
+      e.stopPropagation();
+    }, true);
+    window.addEventListener('pointermove', (e) => {
+      if (armDrag && e.pointerId === armDrag.id) {
+        pointerRay(e);
+        if (raycaster.ray.intersectPlane(dragPlane, hitP)) {
+          drag.tx = clamp(armDrag.tx + hitP.x - armDrag.x, -60, 60);
+          drag.tz = clamp(armDrag.tz + hitP.z - armDrag.z, -50, 50);
+        }
+      } else if (e.target === cv && e.pointerType === 'mouse' && !e.buttons) cv.style.cursor = hitArm(e) ? 'grab' : 'default';
+    });
+    const end = (e) => {
+      if (!armDrag || e.pointerId !== armDrag.id) return;
+      armDrag = null; controls.enabled = true; cv.style.cursor = 'grab';
+    };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  }
 
   // Zona de dibujo
   const pad = $('#pad'), pctx = pad.getContext('2d');
-  let padStrokes = [], padCur = null, PW = 0, PH = 0;
+  let padStrokes = [], padCur = null, PWd = 0, PHd = 0;
   function sizePad() {
     const r = pad.getBoundingClientRect();
     if (!r.width) return;
-    PW = r.width; PH = r.height;
-    pad.width = round(PW * dpr); pad.height = round(PH * dpr);
+    PWd = r.width; PHd = r.height;
+    pad.width = round(PWd * dpr); pad.height = round(PHd * dpr);
     drawPad();
   }
   function drawPad() {
-    if (!PW) return;
+    if (!PWd) return;
     pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    pctx.clearRect(0, 0, PW, PH);
+    pctx.clearRect(0, 0, PWd, PHd);
     pctx.strokeStyle = C.line; pctx.lineWidth = 1;
     pctx.beginPath();
-    for (let i = 1; i < 14; i++) { const x = round(PW * i / 14) + .5; pctx.moveTo(x, 0); pctx.lineTo(x, PH); }
-    for (let i = 1; i < 6.2; i++) { const y = round(PH * i / 6.2) + .5; pctx.moveTo(0, y); pctx.lineTo(PW, y); }
+    const cu = (BOX.u1 - BOX.u0) / 10, cvv = (BOX.v1 - BOX.v0) / 10;
+    for (let i = 1; i < cu; i++) { const x = round(PWd * i / cu) + .5; pctx.moveTo(x, 0); pctx.lineTo(x, PHd); }
+    for (let i = 1; i < cvv; i++) { const y = round(PHd * i / cvv) + .5; pctx.moveTo(0, y); pctx.lineTo(PWd, y); }
     pctx.stroke();
     if (!padStrokes.length) {
       pctx.fillStyle = C.muted; pctx.font = '500 13px "IBM Plex Sans", system-ui, sans-serif';
       pctx.textAlign = 'center'; pctx.textBaseline = 'middle';
-      pctx.fillText('Dibuja aquí con el dedo o el ratón', PW / 2, PH / 2);
+      pctx.fillText('Dibuja aquí con el dedo o el ratón', PWd / 2, PHd / 2);
     }
     pctx.strokeStyle = C.fg; pctx.lineWidth = 2.2; pctx.lineCap = 'round'; pctx.lineJoin = 'round';
     for (const s of padStrokes) {
       pctx.beginPath();
-      s.forEach((p, i) => (i ? pctx.lineTo(p.x * PW, p.y * PH) : pctx.moveTo(p.x * PW, p.y * PH)));
-      if (s.length === 1) pctx.lineTo(s[0].x * PW + .1, s[0].y * PH);
+      s.forEach((p, i) => (i ? pctx.lineTo(p.x * PWd, p.y * PHd) : pctx.moveTo(p.x * PWd, p.y * PHd)));
+      if (s.length === 1) pctx.lineTo(s[0].x * PWd + .1, s[0].y * PHd);
       pctx.stroke();
     }
   }
@@ -1203,22 +1478,19 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   pad.addEventListener('pointermove', (e) => {
     if (!padCur) return;
     const p = padNorm(e), l = padCur[padCur.length - 1];
-    if (hypot(p.x - l.x, (p.y - l.y) * PH / (PW || 1)) > .005) { padCur.push(p); drawPad(); }
+    if (hypot(p.x - l.x, (p.y - l.y) * PHd / (PWd || 1)) > .005) { padCur.push(p); drawPad(); }
   });
   const padEnd = () => { padCur = null; };
   pad.addEventListener('pointerup', padEnd);
   pad.addEventListener('pointercancel', padEnd);
   $('#pad-clear').addEventListener('click', () => { padStrokes = []; drawPad(); });
   $('#pad-use').addEventListener('click', () => {
-    const list = padStrokes.filter((s) => s.length > 2).map((s) => {
-      const sm = s.map((p, i) => {
-        const a = s[max(0, i - 1)], c = s[min(s.length - 1, i + 1)];
-        return { x: (a.x + p.x + c.x) / 3, y: (a.y + p.y + c.y) / 3 };
-      });
-      return sm.map((p) => ({ u: BOX.u0 + p.x * (BOX.u1 - BOX.u0), v: BOX.v0 + p.y * (BOX.v1 - BOX.v0) }));
-    });
-    const built = buildStrokes(list);
-    if (!built.length) { $('#pad-msg').textContent = 'Dibuja algo primero.'; return; }
+    const list = padStrokes.filter((s) => s.length > 2).map((s) => s.map((p, i) => {
+      const a = s[max(0, i - 1)], c = s[min(s.length - 1, i + 1)];
+      const x = (a.x + p.x + c.x) / 3, y = (a.y + p.y + c.y) / 3;
+      return { u: BOX.u0 + x * (BOX.u1 - BOX.u0), v: BOX.v0 + y * (BOX.v1 - BOX.v0) };
+    }));
+    if (!buildStrokes(list).length) { $('#pad-msg').textContent = 'Dibuja algo primero.'; return; }
     setDesign(list, 'Diseño propio');
     resetRun(); startRun();
   });
@@ -1234,13 +1506,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
       let n = 0;
       while (acc >= DT && n < 40) { step(); acc -= DT; n++; }
       if (n >= 40) acc = 0;
-      W(0, 0, skin, q);
-      if (el > 0) skinSpeed += (hypot(q.x - cprev.x, q.y - cprev.y) / el - skinSpeed) * .15;
-      cprev.x = q.x; cprev.y = q.y;
       depthBuf.push({ t: simT, d: inSkin ? depth : null });
       while (depthBuf.length && depthBuf[0].t < simT - 6.2) depthBuf.shift();
     }
-    render();
+    try { renderGL(ts); } catch (err) { console.error(err); }
+    drawDepth();
     updateStatus();
     statTimer += el;
     if (statTimer > .1) { statTimer = 0; updateStats(); }
@@ -1248,16 +1518,20 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 220px; }
   }
 
   // ---------- Arranque ----------
-  readColors();
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
-  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  sizeStage(); sizeDepth();
-  new ResizeObserver(() => { sizeStage(); sizeDepth(); sizePad(); }).observe(document.body);
   updateSkin();
   for (let i = 0; i < HN; i++) pushHist(skin);
   copyS(skin, cam.S); copyS(skin, Sest); copyS(skin, Sref);
-  syncControls();
   setDesign(fitDesign(DESIGNS.estrella.make()), DESIGNS.estrella.label);
+  redrawBase(); redrawPatch();
+  if (initGL()) {
+    vD = new THREE.Vector3(); Yup = new THREE.Vector3(0, 1, 0); Zax = new THREE.Vector3(0, 0, 1);
+    initPointer();
+  } else readColors();
+  sizeStage(); sizeDepth();
+  new ResizeObserver(() => { sizeStage(); sizeDepth(); sizePad(); }).observe(document.body);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  syncControls();
   renderHistory();
   startRun();
   requestAnimationFrame(frame);
