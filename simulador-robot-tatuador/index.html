@@ -146,6 +146,8 @@ button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 2px so
 .l-dot i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 20px; min-width: 0; }
+/* En pantalla ancha el panel se queda fijo al lado de la escena y se desplaza por dentro, así el cuerpo no se pierde de vista */
+@media (min-width: 1021px) { .panel { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; } }
 .group { display: grid; gap: 12px; }
 .group + .group { border-top: 1px solid var(--line); padding-top: 18px; }
 .group h2 { font: 800 1.25rem/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase; margin: 0; }
