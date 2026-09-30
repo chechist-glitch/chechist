@@ -290,6 +290,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         <button class="btn" id="btn-restart">Borrar y empezar</button>
         <button class="btn" id="btn-place" aria-pressed="false">Elegir sitio en el cuerpo</button>
         <button class="btn" id="btn-clean" aria-pressed="false">Ver resultado sin plantilla</button>
+        <button class="btn" id="btn-heal" aria-pressed="false">Ver curado (1 mes)</button>
         <button class="btn warn" id="btn-jerk">¡Respingo!</button>
         <button class="btn" id="btn-refill">Recargar tinta</button>
       </div>
@@ -482,6 +483,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
           <input type="range" id="rng-noise" min="0" max="100" step="1" value="12">
         </div>
         <label class="toggle" id="f-predict"><span><b>Predecir el movimiento</b><small>Adivina dónde estará la piel para compensar el retraso.</small></span><input type="checkbox" class="sw" id="sw-predict" checked></label>
+        <label class="toggle"><span><b>Repaso con la cámara al final</b><small>Con las imágenes: al acabar limpia, compara el tatuaje con la imagen y vuelve a pasar solo donde ha quedado más claro.</small></span><input type="checkbox" class="sw" id="sw-touchup" checked></label>
+        <label class="toggle"><span><b>Anillo de apoyo en la piel</b><small>Un aro alrededor de la aguja que se apoya en la piel, como la mano del tatuador, y mide cómo se mueve justo ahí mil veces por segundo. Mucha más precisión que la cámara sola.</small></span><input type="checkbox" class="sw" id="sw-ring" checked></label>
         <label class="toggle"><span><b>Sensor de fuerza en la aguja</b><small>Nota cuánto se hunde la piel y lo compensa. También detecta tirones.</small></span><input type="checkbox" class="sw" id="sw-force" checked></label>
         <label class="toggle"><span><b>Profundidad según la zona</b><small>Usa el mapa de la piel: menos profundo en piel fina, más en piel gruesa.</small></span><input type="checkbox" class="sw" id="sw-zonedepth" checked></label>
         <label class="toggle"><span><b>Parada de seguridad</b><small>Retira la aguja si algo se mueve demasiado rápido.</small></span><input type="checkbox" class="sw" id="sw-safety" checked></label>
@@ -542,6 +545,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     <section class="card" aria-label="Cosas para probar">
       <h2>Cosas para probar</h2>
       <ul class="tips">
+        <li><b>Precisión y realismo.</b> Con el «Anillo de apoyo en la piel» (en Robot y seguimiento) el error baja a la mitad; quítalo para ver cómo va con la cámara sola. Con una imagen, al terminar el robot repasa lo que ha quedado claro, y con «Ver curado (1 mes)» ves cómo queda asentado.</li>
         <li><b>Tu propio tatuaje.</b> «Subir una imagen» (o «Usar una de ejemplo»): el robot pasa cada línea por su centro con el liner de su grosor, hace el negro sólido con contorno y relleno, hace las líneas grises con tinta rebajada y aguja fina, saca las sombras del tono de la imagen (en automático, puntillismo donde hay textura y realismo en los degradados; o la técnica que elijas, y puedes pintar zonas encima de la imagen para cambiarla) y los colores de la propia imagen (llena los vasos de la segunda fila con ellos), y ajusta la máquina en cada trazo. Debajo sale lo que va a hacer y, si la imagen tiene más detalle del que cabe, a qué tamaño saldría bien.</li>
         <li><b>Sombras.</b> Elige la rosa o la luna y compara «Por presión» (medio péndulo, solo negro) con «Por dilución» (gris claro, medio y oscuro por capas).</li>
         <li><b>Letras.</b> Con «Letras góticas» o «Caligrafía» escribe tu texto: el robot hace el contorno y rellena cada trazo.</li>
@@ -1799,6 +1803,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       const c2 = labelComps(B, W, H);
       for (let i = 0; i < N; i++) if (B[i] && c2.area[c2.lab[i]] < aMin) B[i] = 0;
     }
+    // gris oscuro ancho no es negro: donde la mancha es gruesa (más de 1,3 mm) solo se rellena lo que es negro de verdad; lo demás, a sombra
+    {
+      const DB = distIn(B, W, H, true), core = .65 / mmpp, wideGrey = new Uint8Array(N);
+      for (let i = 0; i < N; i++) wideGrey[i] = B[i] && DB[i] > core && Lp[i] < .75 ? 1 : 0;
+      // se quita la zona gris ancha entera (con su borde), no solo el centro
+      const Dg = distIn(Uint8Array.from(wideGrey, (v) => 1 - v), W, H, false);
+      for (let i = 0; i < N; i++) if (B[i] && Lp[i] < .75 && Dg[i] <= core + .5) B[i] = 0;
+    }
     const Bd = dilate1(B, W, H);
     // el borde entre negro y color no es ni lo uno ni lo otro
     for (let i = 0; i < N; i++) if (colIdx[i] >= 0 && Bd[i]) colIdx[i] = -1;
@@ -1878,7 +1890,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (kind === 'fill') return c.mag ? { hz: 100, stroke: 3.8, spd: 16 } : { hz: 105, stroke: 3.5, spd: 13 };
     if (kind === 'dots') return { hz: 100, stroke: 3.2, spd: 15 };
     // realismo: mano muy ligera y máquina suave, muchas pasadas finas
-    if (kind === 'realismo') return { hz: 90, stroke: 2.8, spd: 14 };
+    if (kind === 'realismo') return { hz: 100, stroke: 2.8, spd: 22 };
     // arrastre: pocos pinchazos por segundo; lo que decide la densidad es lo rápido que corre el brazo
     if (kind === 'arrastre') return { hz: 45, stroke: 3.2, spd: 9 };
     // una sola aguja: carrera corta y brazo más lento, que la línea fina no admite huecos
@@ -1897,7 +1909,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // En presión y realismo c es la presión de la mano; en arrastre, lo despacio que va; en puntillismo, la densidad de puntos.
   const SHADE_TABS = {
     presion: [[0, 0], [.032, .057], [.061, .18], [.103, .29], [.162, .39], [.24, .49], [.345, .59], [.458, .69], [.573, .8], [.68, .9], [.782, 1]],
-    realismo: [[0, 0], [.232, .18], [.379, .28], [.5, .38], [.627, .49], [.751, .59], [.83, .69], [.885, .79], [.9, 1]],
+    realismo: [[0, 0], [.268, .18], [.447, .28], [.574, .38], [.707, .49], [.822, .59], [.881, .69], [.906, .79], [.912, 1]],
+    // realismo en filas cruzadas (el shader en lo estrecho), medido antes de pasar a círculos
+    realfilas: [[0, 0], [.232, .18], [.379, .28], [.5, .38], [.627, .49], [.751, .59], [.83, .69], [.885, .79], [.9, 1]],
     puntos: [[0, 0], [.059, .18], [.077, .28], [.111, .38], [.156, .49], [.234, .59], [.287, .69], [.367, .79], [.463, .89], [.523, 1]],
     arrastre: [[0, 0], [.116, .18], [.137, .28], [.154, .38], [.189, .49], [.213, .59], [.25, .69], [.326, .79], [.394, .89], [.596, 1]]
   };
@@ -1909,9 +1923,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // Muestreador del tono de la imagen (fine: el mapa con menos suavizado)
   function imgSampler(A, fine) {
     const { W, H, mmpp, B } = A, T = fine ? A.Tf : A.T, t0 = .07;
+    // con repaso, la primera mano se queda un poco corta (de claro a oscuro, como el tatuador) y el repaso completa lo que falte
+    const k = params.touchUp ? .88 : 1;
     const idx = (u, v) => { const x = round(u / mmpp + W / 2), y = round(v / mmpp + H / 2); return x < 0 || y < 0 || x >= W || y >= H ? -1 : y * W + x; };
     return { R: hypot(W, H) * mmpp / 2 + 2, cu: 0, cv: 0, t0,
-      tone: (u, v) => { const i = idx(u, v); return i < 0 ? -1 : T[i]; },
+      tone: (u, v) => { const i = idx(u, v); return i < 0 ? -1 : T[i] > t0 ? max(t0 + .001, T[i] * k) : T[i]; },
       // donde puede caer la huella de la aguja: en sombra o en negro, nunca en blanco ni en color
       ok: (u, v) => { const i = idx(u, v); return i >= 0 && (T[i] > t0 * .5 || B[i] === 1); } };
   }
@@ -1932,11 +1948,28 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   }
   // Filas paralelas sobre el mapa de tonos: cada punto con el mando que pide su tono.
   // Cada pasada: aguja, ángulo, paso entre filas (en anchos de aguja), si marca lo que cubre o si solo rellena lo que quedó sin cubrir
+  // Círculos pequeños (la técnica de realismo): la mano avanza por la fila dando vueltecitas; no deja dirección marcada
+  // Como una mano de verdad, ninguna vuelta es igual: el tamaño y el ritmo cambian un poco (si no, sale un moiré de rayitas)
+  const loopRnd = seeded(17);
+  function loops(run, r, pitch) {
+    const out = [];
+    let s0 = 0, th = loopRnd() * TAU, rr = r, pp = pitch;
+    for (let i = 1; i < run.length; i++) {
+      const a = run[i - 1], b = run[i], L = hypot(b.u - a.u, b.v - a.v);
+      for (let t = 0; t < L; t += .1) {
+        const f = t / L;
+        rr += (r * (.7 + .6 * loopRnd()) - rr) * .08; pp += (pitch * (.75 + .5 * loopRnd()) - pp) * .08; th += .1 / pp * TAU;
+        out.push({ u: a.u + (b.u - a.u) * f + rr * cos(th), v: a.v + (b.v - a.v) * f + rr * sin(th), w: a.w + (b.w - a.w) * f });
+      }
+      s0 += L;
+    }
+    return out;
+  }
   function toneRows(S, passes) {
     const out = [], g = .2, n = ceil(2 * S.R / g) + 1, cov = new Uint8Array(n * n);
     const ci = (u, v) => { const x = round((u - S.cu + S.R) / g), y = round((v - S.cv + S.R) / g); return x < 0 || y < 0 || x >= n || y >= n ? -1 : y * n + x; };
     for (const P of passes) {
-      const fw = CARTS[P.cart].w, sp = fw * P.k, stp = .4, m = max(0, fw / 2 - .3), ca = cos(P.ang), sa = sin(P.ang);
+      const fw = CARTS[P.cart].w, sp = fw * P.k, stp = .4, m = max(0, fw / 2 - .3) + (P.circ || 0), ca = cos(P.ang), sa = sin(P.ang);
       let row = 0;
       for (let q = -S.R; q <= S.R; q += sp, row++) {
         const runs = [];
@@ -1955,7 +1988,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         if (run) runs.push(run);
         const good = runs.filter((r) => r.length >= 3);
         if (row % 2) { good.reverse(); good.forEach((r) => r.reverse()); }
-        for (const r of good) out.push({ cart: P.cart, pts: r, drag: !!P.drag });
+        for (const r of good) out.push({ cart: P.cart, pts: P.circ ? loops(r, P.circ, P.pitch) : r, drag: !!P.drag, spin: P.spin, smooth: !!P.circ });
       }
     }
     return out;
@@ -1995,13 +2028,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       return els;
     }
     const a = .6, passes = M === 'realismo'
-      ? [{ cart: '1207M1', ang: a, k: .5, mark: true }, { cart: '1207M1', ang: a + PI / 2, k: .5 }, { cart: '1207RS', ang: a, k: .5, fill: true }, { cart: '1207RS', ang: a + PI / 2, k: .5, fill: true }]
+      // círculos donde hay sitio; en lo estrecho, el shader en filas cruzadas (los círculos no caben y se perdería el detalle)
+      ? [{ cart: '1207M1', ang: a, k: .6, mark: true, circ: .5, pitch: 1.1, spin: a + PI / 2 }, { cart: '1207RS', ang: a, k: .5, fill: true }, { cart: '1207RS', ang: a + PI / 2, k: .5, fill: true }]
       : M === 'arrastre'
         ? [{ cart: '1003RL', ang: a, k: 1.2, drag: true }]
         : [{ cart: '1211RM', ang: a, k: .5, mark: true }, { cart: '1207RS', ang: a, k: .5, fill: true }];
-    for (const P of passes) P.mode = M === 'realismo' || M === 'arrastre' ? M : 'presion';
+    for (const P of passes) P.mode = M === 'realismo' ? (P.circ ? 'realismo' : 'realfilas') : M === 'arrastre' ? M : 'presion';
     const kind = M === 'realismo' || M === 'arrastre' ? M : 'pressure';
-    for (const r of toneRows(S, passes)) els.push({ kind: 'line', pts: r.pts, cart: r.cart, ink: 'negro', shade: true, drag: r.drag, set: machineFor(kind, r.cart) });
+    for (const r of toneRows(S, passes)) els.push({ kind: 'line', pts: r.pts, cart: r.cart, ink: 'negro', shade: true, drag: r.drag, spin: r.spin, smooth: r.smooth, set: machineFor(kind, r.cart) });
     return els;
   }
   // Ancho de la línea que deja un liner a una profundidad (la aguja es cónica)
@@ -2018,6 +2052,53 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       if (!best || score < best.score) best = { cart: k, dep, score };
     }
     return best;
+  }
+  // Técnica de sombra en un punto de la imagen: lo pintado manda; si no, la elegida (glob) o, en automático, la de su zona
+  function techAt(A, u, v, glob) {
+    const pc_ = paintAt(u / (A.W * A.mmpp) + .5, v / (A.H * A.mmpp) + .5);
+    if (pc_) return pc_;
+    if (glob) return glob;
+    const x = round(u / A.mmpp + A.W / 2), y = round(v / A.mmpp + A.H / 2);
+    return x < 0 || y < 0 || x >= A.W || y >= A.H ? 0 : A.zone[y * A.W + x];
+  }
+  // Repaso: al acabar, el robot limpia, mira el tatuaje con la cámara y vuelve a pasar donde ha quedado más claro que la imagen,
+  // con la técnica de cada zona y solo lo que falta (la tinta nueva se suma a la que ya hay)
+  function planTouchUp() {
+    if (!params.touchUp || !designSrc || !designSrc.image || !imgAn) return [];
+    const A = imgAn, W = A.W, H = A.H, N = A.N, mmpp = A.mmpp, n = patchCanvas.width;
+    const tmp = document.createElement('canvas'); tmp.width = tmp.height = n;
+    const x = tmp.getContext('2d', { willReadFrequently: true });
+    for (const k of WASH_KEYS) { x.globalAlpha = INKS[k].wash; x.drawImage(LY[k].c, 0, 0); }
+    x.globalAlpha = 1; x.drawImage(LY.ink.c, 0, 0);
+    const d = x.getImageData(0, 0, n, n).data, skin = [240, 210, 184], lum = (r, g, b) => .2126 * r + .7152 * g + .0722 * b, Ls = lum(...skin);
+    const Dt = new Float32Array(N), Di = new Float32Array(N);
+    for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+      const i = yy * W + xx, X = round(px((xx - W / 2) * mmpp)), Y = round(py((yy - H / 2) * mmpp));
+      if (X < 0 || Y < 0 || X >= n || Y >= n) continue;
+      const j = 4 * (Y * n + X), a = d[j + 3] / 255;
+      Dt[i] = 1 - lum(skin[0] * (1 - a) + d[j] * a, skin[1] * (1 - a) + d[j + 1] * a, skin[2] * (1 - a) + d[j + 2] * a) / Ls;
+      Di[i] = A.colIdx[i] >= 0 ? 0 : A.Lp[i] * .92;
+    }
+    const sg = max(1, .4 / mmpp), bt = blurG(Dt, W, H, sg), bi = blurG(Di, W, H, sg), need = new Float32Array(N);
+    let nNeed = 0;
+    for (let i = 0; i < N; i++) {
+      if (A.colIdx[i] >= 0 || !(A.T[i] > .07 || A.B[i])) continue;
+      // lo que hay que añadir encima para llegar al tono (la tinta se suma: 1-(1-d)(1-añadido))
+      if (bi[i] > bt[i] + .06) { need[i] = clamp(1 - (1 - bi[i]) / max(.05, 1 - bt[i]), 0, 1) / .95; nNeed++; }
+    }
+    if (nNeed < N * .002) return [];
+    const glob = { presion: 1, realismo: 2, puntos: 3, arrastre: 4 }[params.shadeMode] || (params.shadeMode === 'dilucion' ? 2 : 0), TECH = ['', 'presion', 'realismo', 'puntos', 'arrastre'];
+    const idx = (u, v) => { const xx = round(u / mmpp + W / 2), yy = round(v / mmpp + H / 2); return xx < 0 || yy < 0 || xx >= W || yy >= H ? -1 : yy * W + xx; };
+    const els = [];
+    for (let code = 1; code <= 4; code++) {
+      const S = { R: hypot(W, H) * mmpp / 2 + 2, cu: 0, cv: 0, t0: .07,
+        tone: (u, v) => { const i = idx(u, v); return i < 0 || (techAt(A, u, v, glob) || 2) !== code ? -1 : need[i]; },
+        ok: (u, v) => { const i = idx(u, v); return i >= 0 && (A.T[i] > .035 || A.B[i] === 1); } };
+      els.push(...shadeEls(TECH[code], S));
+    }
+    const jobs = buildJobs(els).jobs;
+    for (const j of jobs) { j.touch = true; if (j.type !== 'dots') { j.hint = 0; j.ci = 0; } }
+    return jobs;
   }
   // Plan del tatuaje a partir del análisis, ya en milímetros según el tamaño elegido
   function planImage() {
@@ -2074,8 +2155,19 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     // con dilución, los grises de los vasos salen de la imagen (también los usan las líneas grises)
     if (params.shadeMode === 'dilucion') { WASH_KEYS.forEach((k, i) => { INKS[k].wash = A.ops[i]; }); updateWashCups(); }
     // 1) negro: líneas por aguja, contornos, rellenos
-    const blk = work(A.black, 'negro');
+    // las líneas negras más finas que la aguja más fina, en gris oscuro: con la aguja quedarían más gordas y más negras que en la imagen,
+    // y el gris da la misma cantidad de oscuro (como hace el tatuador en realismo)
+    const wMin = widthAt('0801RL', D_NOM - .22), thinBy = {};
+    const blk = work({ ...A.black, strokes: A.black.strokes.filter((s2) => {
+      const f = s2.w / wMin;
+      if (f >= .85) return true;
+      // el gris cuya dilución da lo mismo de oscuro que la línea fina: opacidad ≈ lo que le falta de grosor
+      const k = WASH_KEYS.reduce((b2, kk) => (abs(INKS[kk].wash - .9 * f) < abs(INKS[b2].wash - .9 * f) ? kk : b2), WASH_KEYS[0]);
+      (thinBy[k] = thinBy[k] || []).push(s2);
+      return false;
+    }) }, 'negro');
     for (const k of ORDER) emit(blk[k]);
+    for (const kk of WASH_KEYS) if (thinBy[kk]) { const Wk = work({ strokes: thinBy[kk] }, kk); for (const k of ORDER) emit(Wk[k]); }
     // 1b) líneas grises con tinta rebajada: cada una con el gris del vaso que más se le parece
     const greyBy = {};
     let nGrey = 0;
@@ -2098,13 +2190,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         if (glob && !painted) for (const e of shadeEls(params.shadeMode, imgSampler(A, params.shadeMode !== 'presion'))) pushShade(params.shadeMode, e);
         else {
           // cada punto con su técnica: lo pintado manda; si no, la elegida o, en automático, la que pide la textura de la imagen
-          const zoneAt = (u, v) => {
-            const pc_ = paintAt(u / (A.W * mmpp) + .5, v / (A.H * mmpp) + .5);
-            if (pc_) return pc_;
-            if (glob) return glob;
-            const x = round(u / mmpp + A.W / 2), y = round(v / mmpp + A.H / 2);
-            return x < 0 || y < 0 || x >= A.W || y >= A.H ? 0 : A.zone[y * A.W + x];
-          };
+          const zoneAt = (u, v) => techAt(A, u, v, glob);
           for (let code = 1; code <= 4; code++) {
             const T_ = TECH[code], S = imgSampler(A, T_ !== 'presion'), Z = { ...S, tone: (u, v) => (zoneAt(u, v) === code ? S.tone(u, v) : -1) };
             for (const e of shadeEls(T_, Z)) pushShade(T_, e);
@@ -2566,7 +2652,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       if (el.kind === 'line') {
         // las filas de sombra no se calcan en la plantilla: la sombra se hace a ojo sobre el dibujo
         if (!el.shade) sten.push({ pts: el.pts, closed: false });
-        const j = makeLine(el.pts, el.cart, el.ink, null); if (j) { if (el.shade) j.shade = true; if (el.drag) j.drag = true; if (el.dep != null) j.dep = el.dep; jobs.push(j); }
+        const j = makeLine(el.pts, el.cart, el.ink, el.spin != null ? el.spin : null);
+        // en los círculos no se frena en cada vuelta: es un movimiento continuo
+        if (j) { if (el.shade) j.shade = true; if (el.drag) j.drag = true; if (el.dep != null) j.dep = el.dep; if (el.smooth) j.corners = []; jobs.push(j); }
       } else if (el.kind === 'fill') {
         const rings = el.rings || [el.poly];
         if (!el.rings) sten.push({ pts: el.poly, closed: true });
@@ -2737,12 +2825,12 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // ESTADO DE LA SIMULACIÓN
   // =====================================================================
   const params = {
-    move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, speed: 18,
+    move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, speed: 18, ring: true,
     cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true,
-    shave: true, hydrate: true, numb: false, size: 70, rot: 0, poseMode: 'auto', shadeMode: 'auto', showStencil: true, autoMachine: true,
+    shave: true, hydrate: true, numb: false, size: 70, rot: 0, poseMode: 'auto', shadeMode: 'auto', touchUp: true, showStencil: true, autoMachine: true,
     showGhost: true, showErrors: true, showLens: true, map: 'none', tone: 1
   };
-  const BASE = { move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true, shave: true, hydrate: true, numb: false };
+  const BASE = { ring: true, move: .25, breath: .4, jerks: false, tracking: true, latency: 40, noise: .12, predict: true, safety: true, force: true, zoneDepth: true, cart: 'auto', freq: 110, capacity: 500, refillAt: .15, inkSensor: true, autoRefill: true, rinse: true, shave: true, hydrate: true, numb: false };
   const SCENARIOS = {
     tranquilo: { ...BASE, zone: 'antebrazo' },
     nervioso: { ...BASE, move: .8, breath: .7, jerks: true, latency: 50, noise: .2, zone: 'antebrazo' },
@@ -2751,7 +2839,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     blanda: { ...BASE, force: false, zone: 'abdomen' },
     fina: { ...BASE, zoneDepth: false, zone: 'antebrazoInt' },
     espalda: { ...BASE, zone: 'espalda' },
-    lenta: { ...BASE, move: .55, latency: 220, predict: false, force: false, zone: 'antebrazo' },
+    lenta: { ...BASE, ring: false, move: .55, latency: 220, predict: false, force: false, zone: 'antebrazo' },
     sinfrenos: { ...BASE, move: .5, jerks: true, latency: 50, safety: false, force: false, zone: 'antebrazo' },
     sucio: { ...BASE, rinse: false, design: 'estrella', zone: 'antebrazo' }
   };
@@ -2825,21 +2913,24 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     jerk.v.tw += sg() * (1.5 + Math.random()) * scale * MOT.amp[2] / .03;
   }
   function triggerJerk() { kick(1); showToast('¡Respingo!'); }
+  const CAM_A = .2, CAM_B = .02;
   function camSample() {
     getHist(min(HN - 1, round(params.latency / 1000 / DT)), tmpS);
     const n = params.noise;
+    // filtro de seguimiento (alfa-beta): cada foto se mezcla con lo que ya se esperaba; el ruido se va y el movimiento de verdad se queda
     for (const k of KEYS) {
       tmpS[k] += gauss() * NOISE[k] * n;
-      const raw = (tmpS[k] - cam.S[k]) / CAM_DT;
-      // la velocidad se suaviza bastante: si no, el ruido de la cámara se multiplica al predecir
-      cam.vel[k] += (raw - cam.vel[k]) * .12;
-      cam.S[k] = tmpS[k];
+      const pred = cam.S[k] + cam.vel[k] * CAM_DT, r = tmpS[k] - pred;
+      cam.S[k] = pred + CAM_A * r;
+      cam.vel[k] += CAM_B * r / CAM_DT;
     }
     cam.S.pose = tmpS.pose;
     touch(cam.S);
     cam.age = 0;
   }
   function estimate(out) {
+    // anillo de apoyo: mientras toca la piel mide su movimiento justo al lado de la aguja (1 kHz, 2 ms de retraso, centésimas de mm)
+    if (params.ring && running && (mode === 'ink' || mode === 'hold')) { getHist(1, out); for (const k of KEYS) out[k] += gauss() * NOISE[k] * .015; touch(out); return out; }
     if (!params.tracking) copyS(Sref, out);
     else if (params.predict) { const h = params.latency / 1000 + cam.age; for (const k of KEYS) out[k] = cam.S[k] + cam.vel[k] * h; out.pose = cam.S.pose; touch(out); }
     else copyS(cam.S, out);
@@ -2872,7 +2963,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   const fmt = (x, d) => x.toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
   // duración legible: 42 s, 7 min 05 s, 1 h 12 min
   const fmtDur = (t) => { t = max(0, round(t)); const h = floor(t / 3600), m = floor(t % 3600 / 60), sec = t % 60; return h ? `${h} h ${String(m).padStart(2, '0')} min` : m ? `${m} min ${String(sec).padStart(2, '0')} s` : `${sec} s`; };
-  let runWall0 = 0, runWall = 0;
+  let runWall0 = 0, runWall = 0, touchDone = false;
   function startTravel(fu, fv, tu, tv, h0) {
     const dist = hypot(tu - fu, tv - fv);
     trav.fu = fu; trav.fv = fv; trav.tu = tu; trav.tv = tv; trav.h0 = h0;
@@ -2891,6 +2982,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   const SKH = { ...SK };
   // Ajustes de la máquina en cada momento: automáticos por trazo o los de los deslizadores
   const mach = { hz: 110, stroke: 3.5, base: 18, spd: 18, depth: 0 };
+  let DRAG_K = .5;   // cuánto del arrastre calculado se adelanta (medido: el control ya va un pelín por delante)
   function jobSettings(st) {
     if (!params.autoMachine) return { hz: params.freq, stroke: 3.5, spd: params.speed };
     if (st.set) return st.set;
@@ -2963,11 +3055,17 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       else if (mode === 'dry') { ref = liftD; h = STANDOFF + 6; }
       else ref = jobPoint(cur.k, cur.s, Dp);
     }
-    let dtx = 0, dty = -1, dtz = 0;
+    let dtx = 0, dty = -1, dtz = 0, au = ref ? ref.u : 0, av = ref ? ref.v : 0;
+    // la piel se arrastra con la aguja hacia atrás: el robot apunta ese poquito por delante (lo calcula de la piel y la velocidad)
+    if (ref && mode === 'ink' && st && st.type === 'line' && params.autoMachine) {
+      pointAt(st, max(0, cur.s - .3), tanA); pointAt(st, min(st.len, cur.s + .3), tanB);
+      const tl = hypot(tanB.u - tanA.u, tanB.v - tanA.v);
+      if (tl > .05) { const sk = skinAt(ref.u, ref.v, SKH), m = DRAG_K * (.08 + .35 * sk.elast) * (1 - sk.hard * .5) * clamp(mach.spd / 18, 0, 2); au += (tanB.u - tanA.u) / tl * m; av += (tanB.v - tanA.v) / tl * m; }
+    }
     aim.ok = false;
     if (mode === 'svc') { /* ruta de la estación */ }
     else if (ref) {
-      surfB(ref.u, ref.v, Kest, SP);
+      surfB(au, av, Kest, SP);
       aim.x = SP.x; aim.y = SP.y; aim.z = SP.z; aim.ok = true;
       tgt.x = SP.x + SP.nx * h; tgt.y = SP.y + SP.ny * h; tgt.z = SP.z + SP.nz * h;
       dtx = -SP.nx; dty = -SP.ny; dtz = -SP.nz;
@@ -3081,7 +3179,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
 
     const isDots = !!(st && st.type === 'dots');
     if (running && ref && tool.cart && rob.e > .3 && (!isDots || dotPh === 'hit')) {
-      hitClock += DT * mach.hz;
+      hitClock += DT * mach.hz * (.85 + .3 * Math.random());   // la máquina no clava el ritmo: un poco de variación natural
       while (hitClock >= 1) { hitClock -= 1; if (inSkin && doHit(ref, isDots) === 2 && isDots) dotHits++; }
     } else { hitClock = 0; if (!inSkin) lastHit = null; }
 
@@ -3099,7 +3197,12 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         cur.s = floor(cur.s) + 1; dotPh = 'move'; lastHit = null;
         if (cur.s >= st.dots.length) { jobPoint(cur.k, st.dots.length - 1, liftD); cur.k++; cur.s = 0; mode = 'lift'; }
       } else if (mode === 'lift' && rob.e < .5) {
-        if (cur.k >= strokes.length) finishRun();
+        if (cur.k >= strokes.length) {
+          // antes de dar por terminado, el repaso con la cámara (una vez)
+          const extra = touchDone ? [] : (touchDone = true, planTouchUp());
+          if (extra.length) { strokes.push(...extra); totalLen += extra.reduce((a, s2) => a + (s2.type === 'dots' ? s2.len * 1.5 : s2.len), 0); stats.touch = extra.length; showToast(`Repaso: ${extra.length} pasadas donde ha quedado más claro que la imagen`); }
+          else finishRun();
+        }
         else if (tool.cart !== cartFor(cur.k) || tool.ink !== inkFor(cur.k)) startService();
         else if (params.inkSensor && params.autoRefill && tool.level <= params.refillAt) startService();
         else { jobPoint(cur.k, 0, refP); startTravel(liftD.u, liftD.v, refP.u, refP.v, STANDOFF); }
@@ -3189,6 +3292,9 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (!strokes.length || !CH) return;
     for (const s of strokes) { if (s.hint !== undefined) s.hint = 0; s.ci = 0; }
     running = true; paused = false; cur = { k: 0, s: 0 }; svc = null; pendingSvc = null; dotPh = 'move'; pendingStart = false;
+    // el repaso de la vez anterior no forma parte del diseño
+    if (touchDone) { strokes = strokes.filter((s2) => !s2.touch); totalLen = strokes.reduce((a, s2) => a + (s2.type === 'dots' ? s2.len * 1.5 : s2.len), 0); }
+    touchDone = false; stats.touch = 0;
     runWall0 = performance.now(); runWall = 0;
     if (cleanView) setClean(false);
     copyS(cam.S, Sref);
@@ -3264,12 +3370,27 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     if (h.e > TOL) dotL(LY.err.x, px(h.u), py(h.v), .2 * PPM, 'rgba(227,38,29,.5)');
     patchDirty = true;
   }
+  // Vista limpia: recién hecho, con la piel enrojecida alrededor de la tinta; o curado (1 mes): la tinta se asienta,
+  // se abre un pelín, el negro se suaviza y los colores pierden algo de fuerza
+  let healView = false, rednessC = null;
   function composePatch() {
-    pc.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
+    const n = patchCanvas.width;
+    pc.clearRect(0, 0, n, n);
     if (params.showStencil && !cleanView) pc.drawImage(LY.sten.c, 0, 0);
+    if (cleanView && !healView) {
+      if (!rednessC || rednessC.width !== n) { rednessC = document.createElement('canvas'); rednessC.width = rednessC.height = n; }
+      const rx = rednessC.getContext('2d');
+      rx.globalCompositeOperation = 'source-over'; rx.clearRect(0, 0, n, n);
+      rx.filter = `blur(${(1.1 * PPM).toFixed(1)}px)`;
+      rx.drawImage(LY.ink.c, 0, 0); for (const k of WASH_KEYS) rx.drawImage(LY[k].c, 0, 0);
+      rx.filter = 'none'; rx.globalCompositeOperation = 'source-in'; rx.fillStyle = 'rgb(214,64,64)'; rx.fillRect(0, 0, n, n); rx.globalCompositeOperation = 'source-over';
+      pc.globalAlpha = .2; pc.drawImage(rednessC, 0, 0); pc.globalAlpha = 1;
+    }
+    pc.filter = cleanView && healView ? `blur(${(.07 * PPM).toFixed(2)}px) saturate(.8) brightness(1.07)` : 'none';
     for (const k of WASH_KEYS) { pc.globalAlpha = INKS[k].wash; pc.drawImage(LY[k].c, 0, 0); }
-    pc.globalAlpha = 1;
+    pc.globalAlpha = cleanView && healView ? .93 : 1;
     pc.drawImage(LY.ink.c, 0, 0);
+    pc.globalAlpha = 1; pc.filter = 'none';
     if (params.showErrors && !cleanView) pc.drawImage(LY.err.c, 0, 0);
   }
   function redrawPatch() {
@@ -4054,7 +4175,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     else if (mode === 'svc') text = svc.steps[svc.i].label;
     else {
       text = { idle: 'Preparado', approach: 'Acercándose a la piel', travel: 'Colocándose en el trazo', ink: 'Tatuando', lift: 'Retirando la aguja', svclift: 'Retirando la aguja para ir a la estación', hold: 'Parada de seguridad', dry: 'Sin tinta · dale a «Recargar tinta»', done: 'Terminado' }[mode];
-      if (mode === 'ink' && strokes[cur.k]) { const q = strokes[cur.k]; text = q.type === 'dots' ? 'Puntillismo' : q.shade ? (INKS[q.ink].wash ? `Sombreado con ${INKS[q.ink].name}` : q.drag ? 'Puntillismo de arrastre' : params.shadeMode === 'realismo' ? 'Sombreado en realismo' : 'Sombreado a medio péndulo') : q.fill ? 'Relleno sólido' : 'Tatuando línea'; }
+      if (mode === 'ink' && strokes[cur.k]) { const q = strokes[cur.k]; text = q.touch ? 'Repaso: oscureciendo lo que ha quedado claro' : q.type === 'dots' ? 'Puntillismo' : q.shade ? (INKS[q.ink].wash ? `Sombreado con ${INKS[q.ink].name}` : q.drag ? 'Puntillismo de arrastre' : params.shadeMode === 'realismo' ? 'Sombreado en realismo' : 'Sombreado a medio péndulo') : q.fill ? 'Relleno sólido' : 'Tatuando línea'; }
     }
     if (!params.tracking && running && !paused) text += ' · a ciegas';
     const key = kind + text;
@@ -4164,7 +4285,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     size: ['#rng-size', '#out-size', (v) => v, (p) => p, (p) => `${fmt(p / 10, 1)} cm`],
     rot: ['#rng-rot', '#out-rot', (v) => v, (p) => p, (p) => `${p}°`]
   };
-  const SWITCHES = { jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', zoneDepth: '#sw-zonedepth', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', rinse: '#sw-rinse', shave: '#sw-shave', hydrate: '#sw-hydrate', numb: '#sw-numb', showGhost: '#sw-ghost', showStencil: '#sw-stencil', autoMachine: '#sw-automaq', showErrors: '#sw-errors', showLens: '#sw-lens' };
+  const SWITCHES = { touchUp: '#sw-touchup', ring: '#sw-ring', jerks: '#sw-jerks', tracking: '#sw-tracking', predict: '#sw-predict', safety: '#sw-safety', force: '#sw-force', zoneDepth: '#sw-zonedepth', inkSensor: '#sw-inksensor', autoRefill: '#sw-autorefill', rinse: '#sw-rinse', shave: '#sw-shave', hydrate: '#sw-hydrate', numb: '#sw-numb', showGhost: '#sw-ghost', showStencil: '#sw-stencil', autoMachine: '#sw-automaq', showErrors: '#sw-errors', showLens: '#sw-lens' };
   let jointSel = 'foreL';
   function syncControls() {
     for (const [k, [rid, oid, , toUI, label]] of Object.entries(RANGES)) { $(rid).value = toUI(params[k]); $(oid).textContent = label(params[k]); }
@@ -4243,7 +4364,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       auto: 'El robot mira la imagen por zonas: la textura fina (trama, grabado, pelo) la hace con puntillismo de una aguja y los degradados lisos (piel, cielos) en realismo. En la imagen puedes pintar zonas para cambiarlo. En los diseños de serie es a medio péndulo.',
       presion: 'Solo tinta negra. La máquina entra por lo oscuro y sale en abanico levantando la mano: al final de cada pasada pincha menos hondo, va más rápida y deja menos tinta. Tres tandas de pasadas, cada una más corta.',
       dilucion: 'Negro rebajado con agua en tres vasos. Primero gris claro en toda la sombra, luego el medio y al final el oscuro solo en lo más oscuro. Cada gris nunca oscurece más que su tono.',
-      realismo: 'Dos pasadas cruzadas con magnum 1207M1 y la mano muy ligera (90 Hz, carrera corta), y el shader 1207RS en lo estrecho. El tono sale de la imagen con menos suavizado: degradado sin rayas y con más definición.',
+      realismo: 'Círculos pequeños, como en el realismo de verdad: el magnum 1207M1 avanza dando vueltecitas con la mano muy ligera (100 Hz, carrera corta), y el shader 1207RS en lo estrecho. No deja rayas ni dirección, y el tono sale de la imagen con menos suavizado: más definición.',
       puntos: 'Punto a punto con una sola aguja (1001RL), repartidos sin filas ni grumos: más juntos donde es oscuro y más sueltos donde es claro. En lo oscuro, dos o tres pinchazos por punto. Es lo más definido y lo más lento.',
       arrastre: 'El liner 1003RL corre en filas a pocos pinchazos por segundo (45 Hz) y deja un rastro de puntitos. Donde es claro el brazo va rápido y los puntos quedan sueltos; donde es oscuro va despacio y casi hacen línea.'
     }[params.shadeMode];
@@ -4389,7 +4510,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     const ns = P.nShade || {}, SH = {
       presion: `<b>Sombras por presión:</b> ${ns['1211RM'] || 0} pasadas con 1211RM donde cabe y ${ns['1207RS'] || 0} con 1207RS en lo estrecho, todo con tinta negra. Cada punto lleva la presión que pide el tono de la imagen.`,
       dilucion: `<b>Sombras por dilución:</b> 1207M1 en tres capas: ${P.washTxt} (el resto, agua).`,
-      realismo: `<b>Sombras en realismo:</b> ${ns['1207M1'] || 0} pasadas con 1207M1 en dos direcciones cruzadas y ${ns['1207RS'] || 0} con 1207RS en lo estrecho, mano muy ligera y máquina suave (90 Hz, carrera 2,8 mm). Tono con más definición.`,
+      realismo: `<b>Sombras en realismo:</b> ${ns['1207M1'] || 0} pasadas en círculos pequeños con 1207M1 y ${ns['1207RS'] || 0} con 1207RS en lo estrecho, mano muy ligera y máquina suave (100 Hz, carrera 2,8 mm). Sin rayas y con más definición.`,
       puntos: `<b>Puntillismo:</b> ${ns['1001RL'] || 0} puntos con una sola aguja (1001RL), más juntos donde la imagen es más oscura; en lo oscuro, dos o tres pinchazos por punto.`,
       arrastre: `<b>Puntillismo de arrastre:</b> ${ns['1003RL'] || 0} pasadas con 1003RL a 45 Hz: donde es claro el brazo corre y los pinchazos quedan sueltos; donde es oscuro va despacio y casi hacen línea.`
     };
@@ -4415,8 +4536,12 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     clearTimeout(textTimer); textTimer = setTimeout(() => { buildDesign(); resetRun(); }, 350);
   });
   $('#btn-clean').addEventListener('click', () => setClean(!cleanView));
+  $('#btn-heal').addEventListener('click', () => { healView = !healView; setClean(true); });
   function setClean(on) {
     cleanView = on; patchDirty = true;
+    if (!on) healView = false;
+    $('#btn-heal').setAttribute('aria-pressed', String(healView));
+    $('#btn-heal').textContent = healView ? 'Ver recién hecho' : 'Ver curado (1 mes)';
     $('#btn-clean').setAttribute('aria-pressed', String(on));
     $('#btn-clean').textContent = on ? 'Volver a poner la plantilla' : 'Ver resultado sin plantilla';
     if (on) { $$('.view').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.view === 'zona'))); setView('zona'); }
