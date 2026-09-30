@@ -2036,13 +2036,14 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     return R.map((r) => ({ kind: 'line', pts: r.concat([r[0]]), cart: outCart, ink: 'negro' })).concat([{ kind: 'fill', rings: R, cart: '1205RL', ink: 'negro', angle: .9 }]);
   };
   const DESIGNS = {
-    estrella: { label: 'Estrella náutica', note: 'Contorno 1209RL, líneas 1205RL, mitades en negro y en rojo con relleno sólido de 1207M1.', make() {
+    estrella: { label: 'Estrella náutica', note: 'Contorno 1209RL, líneas del centro a cada vértice con 1205RL, mitades en negro y en rojo con relleno sólido de 1207M1.', make() {
       const O = (i) => [cos(-PI / 2 + i * 2 * PI / 5), sin(-PI / 2 + i * 2 * PI / 5)];
       const I = (i) => [.4 * cos(-PI / 2 + PI / 5 + i * 2 * PI / 5), .4 * sin(-PI / 2 + PI / 5 + i * 2 * PI / 5)];
       const ring = [];
       for (let i = 0; i <= 5; i++) { ring.push(O(i % 5)); if (i < 5) ring.push(I(i)); }
       const els = [{ kind: 'line', pts: ring, cart: '1209RL', ink: 'negro' }];
       for (let i = 0; i < 5; i++) els.push({ kind: 'line', pts: [[0, 0], O(i)], cart: '1205RL', ink: 'negro' });
+      for (let i = 0; i < 5; i++) els.push({ kind: 'line', pts: [[0, 0], I(i)], cart: '1205RL', ink: 'negro' });
       for (let i = 0; i < 5; i++) els.push({ kind: 'fill', poly: [[0, 0], O(i), I((i + 4) % 5)], cart: '1207M1', ink: 'negro' });
       for (let i = 0; i < 5; i++) els.push({ kind: 'fill', poly: [[0, 0], O(i), I(i)], cart: '1207M1', ink: 'rojo' });
       return els;
@@ -2160,28 +2161,58 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   // Pasadas de relleno en zigzag dentro de uno o varios contornos (par-impar: los huecos de las letras se respetan)
   function hatch(rings, sp, ang, cart, soft) {
     const c = cos(ang), s = sin(ang), cc = cart ? CARTS[cart] : null, mag = !cc || cc.mag;
-    // el relleno se queda metido media huella de agujas (más un pelín) para que no asome por fuera del contorno;
-    // en las sombras (soft) el borde es suave y basta con no pasarse mucho
-    const inset = soft ? .15 : cc ? (mag ? cc.t : cc.w) / 2 + .1 : .3, edge = soft ? sp / 2 : cc ? cc.w / 2 + .1 : sp / 2, minL = soft ? .6 : 2 * inset + .05;
+    // Huella de la aguja vista desde la fila: medio largo a lo largo de la fila (ax) y de través (ay).
+    // El magnum va de lado (su largo cruza la fila); el liner es redondo. La huella entera tiene que caber
+    // dentro de la forma: así el final de cada fila no asoma en los bordes inclinados (dientes de sierra).
+    // En las sombras (soft) el borde es suave y basta con no pasarse mucho.
+    const ax = soft ? .15 : cc ? (mag ? cc.t : cc.w) / 2 + .1 : .3, minL = soft ? .6 : .3;
+    let ay = soft || !cc ? 0 : max(0, cc.w / 2 - .08);
+    // el liner es redondo: a cada distancia de través le toca recortar lo que mide el círculo ahí (no un rectángulo, que frena de más en los bordes inclinados)
+    const disk = !!cc && !mag && !soft, rD = cc ? cc.w / 2 + .05 : 0;
+    if (disk) ay = rD;
     const R = rings.map((poly) => poly.map((p) => ({ x: p.u * c + p.v * s, y: -p.u * s + p.v * c })));
     const back = (x, y) => ({ u: x * c - y * s, v: x * s + y * c });
     // ¿está dentro de la forma? (par-impar, respetando huecos)
     const inside = (x, y) => { let n = 0; for (const ring of R) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const a = ring[i], b = ring[j]; if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) n++; } return n % 2 === 1; };
-    // el paso de una fila a la siguiente sin levantar la aguja solo vale si no se sale del contorno
-    const joinOK = (x0, y0_, x1, y1_) => { for (const t of [.25, .5, .75]) if (!inside(x0 + (x1 - x0) * t, y0_ + (y1_ - y0_) * t)) return false; return true; };
+    // tramos de una línea que caen dentro de la forma (par-impar)
+    const spans = (y) => {
+      const xs = [];
+      for (const ring of R) for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) xs.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y)); }
+      xs.sort((p, q) => p - q);
+      const out = [];
+      for (let i = 0; i + 1 < xs.length; i += 2) out.push([xs[i], xs[i + 1]]);
+      return out;
+    };
+    const cut = (A, B) => { const out = []; let i = 0, j = 0; while (i < A.length && j < B.length) { const a = max(A[i][0], B[j][0]), b = min(A[i][1], B[j][1]); if (b > a) out.push([a, b]); if (A[i][1] < B[j][1]) i++; else j++; } return out; };
+    const nOff = ay > 0 ? max(3, ceil(2 * ay / .2)) + 1 : 1, offs = [];
+    for (let k = 0; k < nOff; k++) offs.push(nOff > 1 ? -ay + 2 * ay * k / (nOff - 1) : 0);
+    // tramos donde cabe la huella entera: dentro en todas las líneas de través, y recortados medio largo por cada punta
+    const shrink = (S, e) => S.map(([a, b]) => [a + e, b - e]).filter(([a, b]) => b > a);
+    const footSpans = (y) => {
+      if (disk) {
+        let S = null;
+        for (const d of offs) { const e = sqrt(max(0, rD * rD - d * d)); const Sd = shrink(spans(y + d), e); S = S ? cut(S, Sd) : Sd; if (!S.length) break; }
+        return S.filter(([a, b]) => b - a > minL);
+      }
+      let S = spans(y + offs[0]);
+      for (let k = 1; k < offs.length && S.length; k++) S = cut(S, spans(y + offs[k]));
+      return shrink(S, ax).filter(([a, b]) => b - a > minL);
+    };
+    // el paso de una fila a la siguiente sin levantar la aguja solo vale si la huella no se sale por el camino
+    const joinOK = (x0, y0_, x1, y1_) => {
+      for (const t of [.2, .4, .6, .8]) {
+        const x = x0 + (x1 - x0) * t, y = y0_ + (y1_ - y0_) * t;
+        if (!inside(x - ax + .1, y) || !inside(x + ax - .1, y)) return false;
+        for (const d of offs) if (!inside(x, y + d)) return false;
+      }
+      return true;
+    };
     let y0 = Infinity, y1 = -Infinity;
     for (const ring of R) for (const p of ring) { y0 = min(y0, p.y); y1 = max(y1, p.y); }
     const paths = [];
     let curPath = null, prevEnd = null, dir = 1;
-    for (let y = y0 + max(sp / 2, edge); y < y1 - max(sp / 2, edge) + 1e-6; y += sp) {
-      const xs = [];
-      for (const ring of R) for (let i = 0; i < ring.length; i++) {
-        const a = ring[i], b = ring[(i + 1) % ring.length];
-        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) xs.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
-      }
-      xs.sort((p, q) => p - q);
-      const segs = [];
-      for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > minL) segs.push([xs[i] + inset, xs[i + 1] - inset]);
+    for (let y = y0 + sp / 2; y < y1; y += sp) {
+      const segs = footSpans(y);
       if (segs.length !== 1) { curPath = null; prevEnd = null; for (const [a, b] of segs) paths.push(dir > 0 ? [back(a, y), back(b, y)] : [back(b, y), back(a, y)]); dir = -dir; continue; }
       const [a, b] = segs[0], pa = dir > 0 ? a : b, pb = dir > 0 ? b : a;
       if (curPath && prevEnd && hypot(pa - prevEnd[0], y - prevEnd[1]) < sp * 3 && joinOK(prevEnd[0], prevEnd[1], pa, y)) curPath.push(back(pa, y), back(pb, y));
@@ -2189,6 +2220,83 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       prevEnd = [pb, y]; dir = -dir;
     }
     return paths;
+  }
+  // Contornos metidos d mm hacia dentro de una forma (par-impar), partidos en las esquinas cerradas.
+  // Es la pasada del magnum por el borde: de lado y siguiendo la forma, deja el filo lleno y limpio.
+  // Una forma (anillos en mm, par-impar) pasada a píxeles de 0,1 mm, con su distancia al borde; se guarda por si se vuelve a pedir
+  const rasterCache = new WeakMap();
+  function fillRaster(rings) {
+    if (rasterCache.has(rings)) return rasterCache.get(rings);
+    const res = .1;
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const r of rings) for (const p of r) { u0 = min(u0, p.u); u1 = max(u1, p.u); v0 = min(v0, p.v); v1 = max(v1, p.v); }
+    const W = ceil((u1 - u0) / res) + 6, H = ceil((v1 - v0) / res) + 6, N = W * H;
+    let G = null;
+    if (N > 0 && N <= 8e6) {
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const x = cv.getContext('2d', { willReadFrequently: true }), X = (u) => (u - u0) / res + 3, Y = (v) => (v - v0) / res + 3;
+      x.beginPath();
+      for (const r of rings) { r.forEach((p, i) => (i ? x.lineTo(X(p.u), Y(p.v)) : x.moveTo(X(p.u), Y(p.v)))); x.closePath(); }
+      x.fillStyle = '#000'; x.fill('evenodd');
+      const img = x.getImageData(0, 0, W, H).data, M = new Uint8Array(N);
+      for (let i = 0; i < N; i++) M[i] = img[4 * i + 3] > 127 ? 1 : 0;
+      // de píxeles a mm (el píxel x tiene su centro en x + 0,5 del lienzo)
+      G = { M, D: distIn(M, W, H, true), W, H, N, res, X, Y, mm: ([px_, py_]) => ({ u: (px_ + .5 - 3) * res + u0, v: (py_ + .5 - 3) * res + v0 }) };
+    }
+    rasterCache.set(rings, G);
+    return G;
+  }
+  function insetPaths(rings, d) {
+    const G = fillRaster(rings);
+    if (!G) return [];
+    const { D, W, H, N, res } = G, In = new Uint8Array(N), lvl = d / res + .5;
+    for (let i = 0; i < N; i++) In[i] = D[i] >= lvl ? 1 : 0;
+    const out = [];
+    for (const P0 of ringsOf(In, W, H, 1.2, 3)) {
+      const P = P0.map(G.mm), n = P.length;
+      if (n < 3) continue;
+      // en las esquinas cerradas se levanta y se vuelve a entrar: el magnum no puede girar de golpe sobre la piel
+      const turn = (i) => { const a = P[(i - 1 + n) % n], b = P[i], c2 = P[(i + 1) % n]; return abs(wrapA(atan2(c2.v - b.v, c2.u - b.u) - atan2(b.v - a.v, b.u - a.u))); };
+      const cuts = [];
+      for (let i = 0; i < n; i++) if (turn(i) > .9) cuts.push(i);
+      if (!cuts.length) { out.push(P.concat([P[0]])); continue; }
+      for (let k = 0; k < cuts.length; k++) {
+        const a = cuts[k], len = (cuts[(k + 1) % cuts.length] - a + n) % n || n, seg = [];
+        for (let m = 0; m <= len; m++) seg.push(P[(a + m) % n]);
+        out.push(seg);
+      }
+    }
+    return out.filter((p) => { let L = 0; for (let i = 1; i < p.length; i++) L += hypot(p[i].u - p[i - 1].u, p[i].v - p[i - 1].v); return L > .8; });
+  }
+  // Lo que el magnum no alcanza sin salirse (puntas estrechas, cuellos finos): se repasa con un liner.
+  // Se dibuja la huella de verdad de cada pasada del magnum (de lado: todo su largo de través, solo su grueso a lo largo)
+  // y lo que queda sin tapar se cubre con trazos por el centro de donde cabe el liner. Un solo punto es un punto.
+  function leftoverStrokes(rings, fillCart, liner, ownPaths, done) {
+    const G = fillRaster(rings);
+    if (!G) return [];
+    const { M, D, W, H, N, res } = G, rl = (CARTS[liner].w / 2 - .05) / res + .5;   // el liner puede rozar el borde 0,05 mm: no se nota y llega más adentro de las puntas
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const x = cv.getContext('2d', { willReadFrequently: true });
+    x.lineJoin = 'round'; x.strokeStyle = x.fillStyle = '#000';
+    const draw = (P, cart) => { const c = CARTS[cart]; x.lineWidth = (c.w - .1) / res; x.lineCap = c.mag ? 'butt' : 'round'; x.beginPath(); P.forEach((p, i) => (i ? x.lineTo(G.X(p.u), G.Y(p.v)) : x.moveTo(G.X(p.u), G.Y(p.v)))); x.stroke(); };
+    // lo ya planeado con esta tinta (contornos, líneas, otros rellenos) también tapa
+    for (const j of done) {
+      if (j.type === 'dots') { for (const d of j.dots) { x.beginPath(); x.arc(G.X(d.u), G.Y(d.v), (CARTS[j.cart].w / 2 - .05) / res, 0, TAU); x.fill(); } }
+      else draw(j.pts, j.cart);
+    }
+    for (const P of ownPaths) draw(P, fillCart);
+    const cov = x.getImageData(0, 0, W, H).data, L = new Uint8Array(N);
+    let nL = 0;
+    for (let i = 0; i < N; i++) if (M[i] && D[i] > 1.5 && cov[4 * i + 3] < 128) { L[i] = 1; nL++; }
+    if (nL * res * res < .04) return [];
+    // sitios donde cabe el liner y que quedan a su alcance de lo que falta
+    const notL = new Uint8Array(N);
+    for (let i = 0; i < N; i++) notL[i] = L[i] ? 0 : 1;
+    const DL = distIn(notL, W, H, false), Z = new Uint8Array(N);
+    let nZ = 0;
+    for (let i = 0; i < N; i++) if (D[i] >= rl && DL[i] <= rl) { Z[i] = 1; nZ++; }
+    if (!nZ) return [];
+    return traceSkel(thin(Z, W, H), W, H, D, 2).map((c) => c.P.map(G.mm));
   }
   // Recorta un polígono con otro convexo (Sutherland-Hodgman)
   function clipConvex(poly, clip) {
@@ -2351,7 +2459,7 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
     return { type: 'line', pts: clean, cum, len: cum[cum.length - 1], hint: 0, cart, ink, spin, hasW: clean.some((p) => p.w != null), corners, ci: 0 };
   }
   function buildJobs(els) {
-    const jobs = [], sten = [];
+    const jobs = [], sten = [], defer = [];
     for (const el of els) {
       const n0 = jobs.length;
       if (el.kind === 'line') {
@@ -2363,7 +2471,25 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
         if (!el.rings) sten.push({ pts: el.poly, closed: true });
         if (el.outline) for (const r of rings) sten.push({ pts: r, closed: true });
         const c = CARTS[el.cart], sp = c.mag ? c.w * .55 : c.w * .7, ang = el.angle || 0;
-        for (const path of hatch(rings, sp, ang, el.cart, el.soft)) { const j = makeLine(path, el.cart, el.ink, c.mag ? ang + PI / 2 : null); if (j) { j.fill = true; j.region = rings; if (el.shade) j.shade = true; jobs.push(j); } }
+        // magnum: antes de las filas, una pasada por el borde, de lado y siguiendo el contorno, que deja el filo limpio
+        const rows = hatch(rings, sp, ang, el.cart, el.soft), n0f = jobs.length, edge = c.mag && !el.soft ? insetPaths(rings, c.w / 2 + .1) : [];
+        // magnum: antes de las filas, una pasada por el borde, de lado y siguiendo el contorno, que deja el filo limpio
+        for (const path of edge) { const j = makeLine(path, el.cart, el.ink, null); if (j) { j.fill = true; j.region = rings; if (el.shade) j.shade = true; jobs.push(j); } }
+        if (!el.soft) {
+          // lo que no tapan ni las filas ni lo ya planeado con esa tinta (puntas, cuellos, trazos más finos que la aguja del relleno)
+          // se repasa con el liner más fino que ya use esa tinta, y se hace junto a ese trabajo para no cambiar de cartucho otra vez
+          let lc = c.mag ? '1205RL' : el.cart;
+          for (let i = 0; i < n0f; i++) { const k = jobs[i].cart; if (jobs[i].ink === el.ink && CARTS[k].cfg === 'RL' && CARTS[k].w < CARTS[lc].w) lc = k; }
+          const prev = defer.find((d) => d.ink === el.ink && d.cart === lc), done = jobs.filter((j) => j.ink === el.ink), set = machineFor('fill', lc), lj = [];
+          for (const d of defer) if (d.ink === el.ink) done.push(...d.jobs);
+          for (const P of leftoverStrokes(rings, el.cart, lc, edge.concat(rows), done)) {
+            let len = 0; for (let i = 1; i < P.length; i++) len += hypot(P[i].u - P[i - 1].u, P[i].v - P[i - 1].v);
+            if (len < .3) lj.push({ type: 'dots', dots: [{ u: P[0].u, v: P[0].v, hits: 2 }], len: 1, cart: lc, ink: el.ink, set, region: rings });
+            else { const j = makeLine(P, lc, el.ink, null); if (j) { j.fill = true; j.region = rings; j.set = set; lj.push(j); } }
+          }
+          if (lj.length) { if (prev) prev.jobs.push(...lj); else defer.push({ at: n0f, cart: lc, ink: el.ink, jobs: lj }); }
+        }
+        for (const path of rows) { const j = makeLine(path, el.cart, el.ink, c.mag ? ang + PI / 2 : null); if (j) { j.fill = true; j.region = rings; if (el.shade) j.shade = true; jobs.push(j); } }
       } else if (el.kind === 'wfill') {
         // sombra por presión sobre un mapa de tonos: filas con la presión que pide cada punto de la imagen
         const c = CARTS[el.cart];
@@ -2384,6 +2510,11 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
       }
       if (el.set) for (let i = n0; i < jobs.length; i++) jobs[i].set = el.set;
     }
+    // cada repaso va detrás del último trabajo de su mismo liner y tinta (sin cambiar de cartucho otra vez) o, si no hay, justo antes de su relleno;
+    // se meten de atrás adelante para que no se muevan los sitios
+    const ins = defer.map((d, k) => { let at = d.at; for (let i = d.at - 1; i >= 0; i--) if (jobs[i].ink === d.ink && jobs[i].cart === d.cart) { at = i + 1; break; } return [at, k, d]; });
+    ins.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+    for (const [at, , d] of ins) jobs.splice(at, 0, ...d.jobs);
     return { jobs, sten };
   }
   let designSrc = null, strokes = [], stencil = [], totalLen = 0;
@@ -3004,6 +3135,8 @@ td.cfg { color: var(--muted); font-size: 12.5px; min-width: 240px; }
   function WF(w) { return w >= 1 ? 1 : w >= .04 ? .06 + .94 * w ** 1.8 : 1.5 * max(0, w); }
   function stamp(h) {
     const L = LAYOUT[h.c], dia = CARTS[h.c].dia, cs = cos(h.s), sn = sin(h.s), r = dia * .58 * PPM * h.spread;
+    // donde se pisan dos tintas manda la más oscura, como en la piel (el rojo no tapa una línea negra)
+    LY.ink.x.globalCompositeOperation = 'darken';
     const X = h.wash ? LY[h.wash].x : LY.ink.x, wf = WF(h.w);
     for (const p of L) {
       const x = px(h.u + cs * p.a - sn * p.b), y = py(h.v + sn * p.a + cs * p.b), dn = h.d - p.z;
