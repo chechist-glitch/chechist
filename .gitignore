@@ -3,3 +3,9 @@ snapshots/
 renders/
 .hyperframes/
 fotogramas/
+frames/
+media/
+__pycache__/
+output/
+experimentos/alternativas/*/*.mp4
+package-lock.json
