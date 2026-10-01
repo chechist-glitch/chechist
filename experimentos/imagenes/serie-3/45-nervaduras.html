@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #0c1406; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Nervaduras por colonización del espacio: se reparten "hormonas" por la hoja y las venas
+    // crecen hacia ellas; cuando llegan, la hormona desaparece. El grosor sale del modelo de tuberías
+    // (Murray): cada rama es tan gruesa como la suma de las que alimenta.
+    (async () => {
+      await M.fuentes('italic 26px "Fraunces"');
+      const ctx = canvas2d();
+      const r = rng(1753);
+      const n = makeNoise(1753);
+      // contorno de hoja de higuera simplificado (polar con lóbulos)
+      const CX = 540, CY = 690;
+      const radio = (a) => {
+        const lob = 0.68 + 0.32 * Math.pow(Math.abs(Math.cos(a * 2.5 + 0.0)), 0.6);
+        const base = a > 0.7 && a < 2.45 ? 0.55 + 0.45 * Math.abs(a - 1.57) / 0.88 : 1;
+        return 470 * lob * base * (1 + 0.04 * Math.sin(a * 23));
+      };
+      const dentro = (x, y) => {
+        const a = Math.atan2(y - CY, x - CX);
+        return Math.hypot(x - CX, y - CY) < radio(a < -Math.PI ? a + 2 * Math.PI : a) * 0.98;
+      };
+      let auxinas = M.poisson(15, r).filter(([x, y]) => dentro(x, y));
+      const nodos = [{ x: CX, y: CY + 210, padre: -1, grosor: 0 }];
+      // tallo
+      for (let k = 1; k <= 8; k++) nodos.push({ x: CX, y: CY + 210 - k * 12, padre: k - 1, grosor: 0 });
+      const D = 8, RADIO_INFLU = 90, MATA = 9;
+      for (let it = 0; it < 400 && auxinas.length; it++) {
+        const dir = new Map();
+        for (const [ax, ay] of auxinas) {
+          let mejor = -1, dm = RADIO_INFLU;
+          for (let i = 0; i < nodos.length; i++) {
+            const d = Math.hypot(nodos[i].x - ax, nodos[i].y - ay);
+            if (d < dm) { dm = d; mejor = i; }
+          }
+          if (mejor < 0) continue;
+          const v = dir.get(mejor) || [0, 0, 0];
+          v[0] += (ax - nodos[mejor].x) / dm; v[1] += (ay - nodos[mejor].y) / dm; v[2]++;
+          dir.set(mejor, v);
+        }
+        if (!dir.size) break;
+        for (const [i, [dx, dy]] of dir) {
+          const m = Math.hypot(dx, dy) || 1;
+          nodos.push({ x: nodos[i].x + (dx / m) * D, y: nodos[i].y + (dy / m) * D, padre: i, grosor: 0 });
+        }
+        auxinas = auxinas.filter(([ax, ay]) => !nodos.some((nd) => Math.hypot(nd.x - ax, nd.y - ay) < MATA));
+      }
+      // grosor: de las hojas hacia la raíz
+      for (let i = nodos.length - 1; i >= 0; i--) {
+        const nd = nodos[i];
+        if (nd.grosor === 0) nd.grosor = 1;
+        if (nd.padre >= 0) nodos[nd.padre].grosor = Math.pow(Math.pow(nodos[nd.padre].grosor, 2.5) + Math.pow(nd.grosor, 2.5), 1 / 2.5);
+      }
+      // Fondo oscuro con desenfoque de luz verde (hoja a contraluz)
+      M.porPixel(ctx, (x, y) => {
+        const b = n(x * 0.004, y * 0.004, 3);
+        return [8 + b * 20, 16 + b * 30, 6 + b * 10];
+      });
+      for (let i = 0; i < 26; i++) {
+        const bx = r() * W, by = r() * H;
+        const g = ctx.createRadialGradient(bx, by, 0, bx, by, 60 + r() * 90);
+        g.addColorStop(0, `rgba(${180 + r() * 60},${220},${120},${0.08 + r() * 0.1})`);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
+      // Lámina: verde translúcido con células
+      const hoja = M.lienzo();
+      const h = hoja.x;
+      M.porPixel(h, (x, y) => {
+        if (!dentro(x, y)) return [0, 0, 0];
+        const d = Math.hypot(x - CX, y - CY) / 470;
+        const cel = n(x * 0.12, y * 0.12, 2);
+        const k = 0.75 + 0.25 * cel + 0.25 * (1 - d);
+        return [110 * k, 170 * k, 40 * k];
+      });
+      const mascara = M.lienzo();
+      mascara.x.fillStyle = "#fff";
+      mascara.x.beginPath();
+      for (let a = -Math.PI; a <= Math.PI; a += 0.01) mascara.x.lineTo(CX + Math.cos(a) * radio(a) * 0.98, CY + Math.sin(a) * radio(a) * 0.98);
+      mascara.x.fill();
+      h.globalCompositeOperation = "destination-in";
+      h.drawImage(mascara.c, 0, 0);
+      h.globalCompositeOperation = "source-over";
+      // venas: más claras (amarillentas) y con un halo oscuro a los lados
+      h.lineCap = "round";
+      for (const pasada of [0, 1]) for (const nd of nodos) {
+        if (nd.padre < 0) continue;
+        const p = nodos[nd.padre];
+        const w = 0.8 + Math.pow(nd.grosor, 0.62) * 0.9;
+        h.strokeStyle = pasada ? `rgba(230,240,150,${Math.min(0.95, 0.4 + w * 0.08)})` : "rgba(40,70,10,.35)";
+        h.lineWidth = pasada ? w : w + 2.5;
+        h.beginPath();
+        h.moveTo(p.x, p.y);
+        h.lineTo(nd.x, nd.y);
+        h.stroke();
+      }
+      // borde y algún agujerito de oruga
+      h.strokeStyle = "rgba(200,220,110,.6)";
+      h.lineWidth = 2;
+      h.beginPath();
+      for (let a = -Math.PI; a <= Math.PI; a += 0.01) h.lineTo(CX + Math.cos(a) * radio(a) * 0.98, CY + Math.sin(a) * radio(a) * 0.98);
+      h.closePath();
+      h.stroke();
+      h.globalCompositeOperation = "destination-out";
+      for (const [x, y, rr] of [[700, 480, 16], [380, 820, 11], [720, 500, 7]]) { h.beginPath(); h.ellipse(x, y, rr, rr * 0.7, 0.5, 0, 6.28); h.fill(); }
+      h.globalCompositeOperation = "source-over";
+      ctx.save();
+      ctx.shadowColor = "rgba(190,240,80,.35)";
+      ctx.shadowBlur = 50;
+      ctx.drawImage(hoja.c, 0, 0);
+      ctx.restore();
+      ctx.fillStyle = "rgba(220,240,180,.8)";
+      ctx.font = 'italic 26px "Fraunces"';
+      ctx.fillText(`Ficus carica · ${nodos.length.toLocaleString("es-ES")} segmentos de vena crecidos hacia la luz`, 60, H - 44);
+      M.grano(ctx, 7, 5);
+      listo();
+    })();
+  </script>
+</body>
+</html>

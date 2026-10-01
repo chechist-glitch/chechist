@@ -203,6 +203,8 @@ const A = {
       const reflejo = brillo * Math.exp(-Math.pow((u + v * 0.6 - 0.5) / 0.12, 2));
       let aa = 1;
       if (borde) aa = Math.min(1, Math.min(u, v, 1 - u, 1 - v) * Math.min(sw, sh) * 1.2);
+      aa *= src[(y0 * sw + x0) * 4 + 3] / 255;
+      if (aa <= 0) continue;
       for (let c = 0; c < 3; c++) {
         const p00 = src[(y0 * sw + x0) * 4 + c], p10 = src[(y0 * sw + x0 + 1) * 4 + c];
         const p01 = src[((y0 + 1) * sw + x0) * 4 + c], p11 = src[((y0 + 1) * sw + x0 + 1) * 4 + c];

@@ -56,6 +56,15 @@
   .texto { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .nombre { font-size: 15px; font-weight: 700; margin: 0; }
   .receta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.5; background: var(--caja); border-radius: 6px; padding: 10px 12px; margin: 0; flex: 1; user-select: all; }
+  .nota { margin: -6px 0 0; color: var(--suave); font-size: 15px; line-height: 1.5; max-width: 70ch; }
+  .tabla { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .alt { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+  .alt h3 { margin: 0; font-size: 16px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .alt h3 a { color: var(--acento); text-decoration: none; }
+  .alt h3 a:hover { text-decoration: underline; }
+  .alt h3 small { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; font-weight: 400; color: var(--suave); white-space: nowrap; }
+  .alt p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--suave); }
+  .alt p b { color: var(--tinta); font-weight: 500; }
   button {
     align-self: flex-start; font: inherit; font-size: 13px; font-weight: 500;
     color: var(--acento); background: none; border: 1px solid var(--acento);
@@ -72,7 +81,7 @@
   </header>
 
   <section>
-    <h2>Vídeos <small>3</small></h2>
+    <h2>Vídeos <small>5</small></h2>
     <div class="rejilla videos" id="videos"></div>
   </section>
 
@@ -85,6 +94,24 @@
     <h2>Hiperrealismo, ilustración y experimentos <small>15</small></h2>
     <div class="rejilla" id="serie2"></div>
   </section>
+
+  <section>
+    <h2>Que parezcan de verdad <small>8</small></h2>
+    <p class="nota">Simulan el material y luego lo «fotografían»: papel con relieve, pigmento que se embolsa, luz rasante, película con grano.</p>
+    <div class="rejilla" id="serie4"></div>
+  </section>
+
+  <section>
+    <h2>50 estilos mezclados <small>50</small></h2>
+    <p class="nota">Mezclas raras y técnicas distintas: SVG, CSS puro, Canvas, shaders, Three.js, simulaciones y dos hechas solo con ffmpeg.</p>
+    <div class="rejilla" id="serie3"></div>
+  </section>
+
+  <section>
+    <h2>Alternativas a HyperFrames <small>sin IA generativa</small></h2>
+    <p class="nota">Herramientas para hacer vídeo con código, nodos o reglas. Ninguna es «mejor» en todo: depende de lo que quieras hacer.</p>
+    <div class="tabla" id="alternativas"></div>
+  </section>
 </main>
 
 <script>
@@ -92,6 +119,8 @@
     ["primer-video", "Intro andaluza", "Hazme una intro animada de 13 segundos con HyperFrames, estilo andaluz moderno: fondo de azulejos, un sol que sale y se pone, tipografía serif gorda y el texto «¡Quillo!»."],
     ["feria-3d", "Feria en 3D", "Hazme un vídeo 3D con Three.js en HyperFrames: la cámara vuela por una calle de feria llena de farolillos de lunares, con casetas y albero, y al final aparece «Todo esto es HTML»."],
     ["red-en-capas", "Red en capas", "Hazme un vídeo de un tramado de líneas finas que se deshila en la red neuronal de una persona, se abre en capas con las funciones del cerebro rotuladas y vuelve a cerrarse. Muy fino y bien hilado."],
+    ["fagos", "Virus al microscopio electrónico", "Hazme un vídeo con estética de microscopio electrónico de barrido (SEM, color falso): bacteriófagos T4 sobre una E. coli, con un zoom continuo desde la bacteria hasta los átomos de la cápside, barra de escala que cambia y la vaina de un fago contrayéndose."],
+    ["cuarta-dimension", "El tiempo hecho espacio (4D)", "Hazme un vídeo matemático de la cuarta dimensión: un péndulo doble cuyo recorrido en el tiempo se convierte en una escultura 3D, un conjunto de Julia en cuaterniones que se corta y gira en 4D, un hipercubo y la fibración de Hopf, con las fórmulas en pantalla."],
   ];
   const RAPIDOS = [
     ["01-cartel-suizo", "Cartel suizo", "Hazme un cartel de estilo suizo: rejilla, tipografía condensada gigante, un bloque rojo y un círculo negro. Solo CSS."],
@@ -141,6 +170,93 @@
     ["13-comic-pop", "Cómic pop art", "Hazme unas viñetas de cómic pop art estilo Lichtenstein: puntos Ben-Day, una explosión con «¡QUILLO!» y un ojo con lágrima."],
     ["14-lamina-botanica", "Lámina botánica", "Hazme una lámina botánica antigua de un naranjo: grabado coloreado a mano, con rótulos en latín."],
     ["15-puntillismo", "Puntillismo", "Hazme un cuadro puntillista estilo Seurat: playa al atardecer con faro, barca y sombrillas."],
+  ];
+
+  const SERIE4 = [
+    ["01-acuarela-vejer", "Acuarela de verdad", "Hazme una acuarela que parezca real: simula cómo se difunde el pigmento en el papel mojado, el borde oscuro al secar, la granulación, los blancos reservados y el boceto a lápiz debajo; luego fotografíala sobre una mesa con cinta de carrocero."],
+    ["02-oleo-empaste", "Óleo con empaste", "Hazme un óleo con empaste real: cada pincelada deja relieve y se ilumina con luz rasante y brillo de aceite, sobre lienzo con trama. Atardecer en el río con una barca."],
+    ["03-carboncillo", "Carboncillo y tiza", "Hazme un dibujo a carboncillo y tiza blanca sobre papel gris que solo se agarre al grano del papel, con difuminos, líneas de encaje y borrones; fotografiado en un tablero con pinzas."],
+    ["04-polaroids", "Polaroids en la mesa", "Haz que mis imágenes parezcan Polaroids reales tiradas sobre una mesa: química instantánea, colores lavados, marco blanco con letra a rotulador, perspectiva y sombras."],
+    ["05-azulejo-triana", "Azulejos de Triana", "Hazme azulejos de Triana pintados a mano y fotografiados en la pared: pigmento embolsado en el esmalte, craquelado, cantos desconchados, llagas de mortero y brillo de ventana."],
+    ["06-bordado-bastidor", "Bordado en bastidor", "Hazme un bordado a mano de un clavel en un bastidor de madera: puntada de satén hilo a hilo con brillo de seda, nudos franceses y tela de lino."],
+    ["07-boli-cuaderno", "Boli bic en cuaderno", "Hazme un boceto a boli azul en un cuaderno de cuadros, con la tinta que salta en el grano, rayado de sombras, notas a mano y el boli encima, como una foto."],
+    ["08-linograbado", "Linograbado a dos tintas", "Hazme un linograbado a dos planchas (naranja y negro) con desregistro, tinta irregular del rodillo, marcas de gubia y papel de algodón con barbas, firmado a lápiz."],
+  ];
+  const SERIE3 = [
+    ["01-ukiyoe-neon", "Hokusai ciberpunk", "Hazme la gran ola de Hokusai en estilo xilografía japonesa pero en una ciudad ciberpunk de neón, con sol a franjas, cartela vertical y sello rojo."],
+    ["02-alhambra-neon", "Alhambra de neón", "Hazme una lacería nazarí de ocho puntas (método de Hankin) hecha con tubos de neón dentro de un arco de herradura."],
+    ["03-roseton-circuito", "Rosetón de circuito", "Hazme un rosetón gótico de vidriera donde el plomo sean pistas de una placa de circuito, con vías, componentes y serigrafía."],
+    ["04-art-deco", "Art déco", "Hazme un cartel art déco en SVG: zigurat escalonado, rayos de sol dorados, abanicos y tipografía alta, oro sobre negro."],
+    ["05-constructivista", "Constructivismo", "Hazme un cartel constructivista ruso con cuña roja, círculo negro, texto en diagonal y textura de imprenta con filtros SVG."],
+    ["06-vaporwave-win95", "Vaporwave Windows 95", "Hazme una escena vaporwave con ventanas de Windows 95 hechas en CSS puro, sol a franjas, suelo en perspectiva y palmeras."],
+    ["07-art-nouveau", "Modernismo", "Hazme un cartel modernista a lo Mucha con halo de mosaico, latigazos en los lados, rama de naranjo y tipografía decorativa."],
+    ["08-3d-a-lapiz", "3D dibujado a lápiz", "Hazme una escena 3D real (Three.js) convertida en dibujo a lápiz con un shader: contornos y sombreado por capas de tramado."],
+    ["09-girasoles-gouache", "Gouache con Kuwahara", "Hazme un paisaje de girasoles y pásalo por un filtro Kuwahara para que parezca pintado al gouache."],
+    ["10-mac-1bit", "Macintosh 1 bit", "Hazme una escena 3D trazada con rayos y reducida a 1 bit con tramado Atkinson, dentro de una ventana de un Macintosh de 1984."],
+    ["11-punto-de-cruz", "Punto de cruz", "Hazme un dechado de punto de cruz sobre tela de Aida con abecedario, maceta de claveles y pájaros, cada puntada con volumen."],
+    ["12-mosaico-romano", "Mosaico romano", "Hazme un mosaico romano de peces con teselas que siguen los contornos (opus vermiculatum) y cenefa de olas."],
+    ["13-piezas-de-juguete", "Mosaico de piezas", "Hazme un mosaico de piezas de plástico con tetones de un faro al atardecer, con paleta limitada."],
+    ["14-jersey-de-punto", "Jersey de punto", "Hazme un tejido de punto con cenefas nórdicas, cada punto una V de lana con pelusa, y el texto «Feliz siesta»."],
+    ["15-marqueteria", "Marquetería", "Hazme una marquetería con rosa de los vientos en maderas distintas con vetas procedurales, parqué alrededor y brillo de barniz."],
+    ["16-kilim", "Kilim", "Hazme un kilim tejido pasada a pasada con medallones escalonados, ranuras entre colores, franjas de tinte y flecos."],
+    ["17-sashiko", "Sashiko y boro", "Hazme parches de algodón índigo cosidos con puntada sashiko blanca: olas, cáñamo, círculos y hexágonos."],
+    ["18-plastilina", "Plastilina", "Hazme un diorama de plastilina por raymarching: cactus en maceta, mariquita y nube colgando, con huellas y luz suave."],
+    ["19-tiza-pizarra", "Pizarra de clase", "Hazme una pizarra con dibujos y fórmulas a tiza (una lección sobre la paella), con borrones, polvo y marco de madera."],
+    ["20-grafiti", "Grafiti", "Hazme un grafiti sobre ladrillo: letras con extrusión 3D, degradado de spray, chorretones, brillos y firmas."],
+    ["21-cianotipia", "Cianotipia", "Hazme una cianotipia de helechos, olivo y puntilla con azul de Prusia y bordes de brocha."],
+    ["22-colodion-faro", "Placa de colodión", "Hazme una foto antigua en colodión húmedo de un faro: cielo quemado, mar de seda, bordes del vertido y polvo."],
+    ["23-camara-termica", "Cámara térmica", "Hazme una imagen de cámara térmica de un gato dormido en el sofá junto a un café humeante, con la interfaz de la cámara."],
+    ["24-rayos-x", "Rayos X", "Hazme una radiografía de un guitarrista: los huesos de la mano sobre el mástil y las clavijas metálicas brillando."],
+    ["25-tilt-shift-pueblo", "Pueblo en miniatura", "Hazme un pueblo blanco visto desde arriba con efecto maqueta (tilt-shift) y desenfoque de lente real."],
+    ["26-anaglifo-mezquita", "Anáglifo 3D", "Hazme un anáglifo rojo-cian de la Mezquita de Córdoba para ver con gafas 3D."],
+    ["27-estereograma", "Estereograma", "Hazme un autoestereograma (ojo mágico) con una palabra escondida en un patrón de colores."],
+    ["28-offset-paella", "Cuatricromía con lupa", "Hazme una paella impresa en offset CMYK con tramas a sus ángulos, desregistro, marcas de imprenta y una lupa que enseña las rosetas."],
+    ["29-pixel-sorting", "Pixel sorting", "Hazme un atardecer con palmeras y ordénale los píxeles por columnas (pixel sorting)."],
+    ["30-slit-scan-noria", "Slit-scan", "Hazme una noria de feria en slit-scan: cada fila de la imagen es un instante distinto y la rueda se retuerce."],
+    ["31-xilografia", "Xilografía", "Hazme una xilografía de una sierra con líneas de grosor variable que siguen el terreno, olivo en negro y sello rojo."],
+    ["32-espiral-una-linea", "Una sola línea", "Hazme un retrato de la Giralda con una sola línea en espiral que tiembla más donde la imagen es más oscura."],
+    ["33-string-art-ojo", "Hilo y clavos", "Hazme un ojo en string art: un solo hilo entre 240 clavos, calculado con un algoritmo voraz."],
+    ["34-sumi-e", "Sumi-e", "Hazme bambú y montañas a tinta china (sumi-e) con pincel seco, aguadas y sello rojo."],
+    ["35-patente-cafetera", "Dibujo de patente", "Hazme un dibujo de patente de 1930 de una cafetera italiana, con alzado sombreado, sección rayada y referencias numeradas."],
+    ["36-manuscrito-iluminado", "Manuscrito iluminado", "Hazme una página de códice con letra gótica, inicial en pan de oro, rúbricas en rojo y orla de acantos."],
+    ["37-armonografo", "Armonógrafo", "Hazme un dibujo de armonógrafo con tres péndulos amortiguados, a tinta azul, roja y negra."],
+    ["38-op-art", "Op art", "Hazme un op art a lo Vasarely: tablero que se abomba como una esfera."],
+    ["39-agujero-negro", "Agujero negro", "Hazme un agujero negro realista con rayos de luz curvados por la gravedad, disco de acreción con Doppler y anillo de fotones."],
+    ["40-nubes-volumetricas", "Nubes volumétricas", "Hazme cúmulos volumétricos al atardecer, con dispersión de la luz dentro de las nubes."],
+    ["41-burbujas-jabon", "Pompas de jabón", "Hazme pompas de jabón con colores de interferencia de película fina reales y reflejo de ventana."],
+    ["42-causticas-piscina", "Cáusticas de piscina", "Hazme el fondo de una piscina con cáusticas calculadas de verdad y un flotador encima."],
+    ["43-copos-de-nieve", "Copos de nieve", "Hazme copos de nieve que crezcan solos con el autómata celular de Reiter en rejilla hexagonal, cuatro variantes."],
+    ["44-coral-dla", "Coral DLA", "Hazme un arrecife que crezca por agregación limitada por difusión (DLA), con agua y rayos de luz."],
+    ["45-nervaduras", "Nervaduras de hoja", "Hazme una hoja de higuera a contraluz con las venas crecidas por colonización del espacio."],
+    ["46-wfc-pueblo", "Wave Function Collapse", "Hazme un mapa de pueblo en pixel art generado con Wave Function Collapse: caminos, río, puentes, casas y huertos."],
+    ["47-diatomeas", "Diatomeas", "Hazme una preparación victoriana de diatomeas en campo oscuro, colocadas en roseta."],
+    ["48-relieve-suizo", "Relieve sombreado", "Hazme un mapa en relieve sombreado al estilo suizo con tintas de altura, curvas de nivel y rotulación."],
+    ["49-ffmpeg-mandelbrot", "Mandelbrot con ffmpeg", "Hazme una imagen de Mandelbrot usando solo los filtros de ffmpeg y recolorea con geq."],
+    ["50-ffmpeg-vida", "Juego de la vida con ffmpeg", "Hazme el juego de la vida de Conway usando solo ffmpeg, con estela y moho."],
+  ];
+  const ALTERNATIVAS = [
+    ["Remotion", "https://www.remotion.dev", "React → MP4", "El rival directo de HyperFrames. <b>Mejor si piensas en componentes y datos</b>: vídeos con plantillas, subtítulos automáticos, render en la nube."],
+    ["Motion Canvas", "https://motioncanvas.io", "TypeScript", "Animación con generadores y editor en vivo. <b>Brutal para vídeos explicativos</b> con código, diagramas y fórmulas."],
+    ["Revideo / Midrender", "https://github.com/redotvideo/revideo", "TypeScript", "Fork de Motion Canvas para renderizar sin editor y por API; ahora vive dentro de Midrender."],
+    ["Manim", "https://www.manim.community", "Python", "El de 3Blue1Brown. <b>Lo mejor para matemáticas animadas</b>: fórmulas en LaTeX que se transforman, gráficas, geometría."],
+    ["Blender + Python", "https://www.blender.org", "Python · nodos", "3D de verdad: física, humo, telas, Cycles fotorrealista. Con scripts y Geometry Nodes todo es procedural. <b>Lo más potente para 3D</b>."],
+    ["Houdini Apprentice", "https://www.sidefx.com", "nodos · VEX", "El estándar del cine para efectos procedurales (agua, destrucción, multitudes). Versión gratis para aprender."],
+    ["Godot · Movie Maker", "https://godotengine.org", "GDScript", "Motor de juegos libre que graba cualquier escena a vídeo fotograma a fotograma, sin tirones. <b>Joya escondida</b> para 3D interactivo."],
+    ["TouchDesigner", "https://derivative.ca", "nodos", "Visuales en tiempo real por nodos (conciertos, instalaciones). Gratis para uso no comercial."],
+    ["OPENRNDR", "https://openrndr.org", "Kotlin", "Framework de creative coding con exportación de vídeo integrada y muy buen 2D/3D. <b>Poco conocido y muy fino</b>."],
+    ["nannou", "https://nannou.cc", "Rust", "Creative coding rápido en Rust; renderiza fotogramas a disco sin problema."],
+    ["openFrameworks / Cinder", "https://openframeworks.cc", "C++", "Los clásicos del arte generativo en C++: máximo rendimiento, mucho addon."],
+    ["p5.js / canvas-sketch", "https://github.com/mattdesl/canvas-sketch", "JavaScript", "Bocetos en el navegador que exportan secuencias o MP4 con ffmpeg. Lo más directo para arte generativo 2D."],
+    ["Theatre.js", "https://www.theatrejs.com", "JavaScript", "Editor de línea de tiempo y keyframes para animar Three.js y la web a mano, con curvas."],
+    ["Cavalry", "https://cavalry.studio", "app · procedural", "Motion design procedural (tipo After Effects con reglas y datos). Ahora gratis para particulares; exporta Lottie."],
+    ["Rive / Lottie", "https://rive.app", "vectores", "Animaciones vectoriales interactivas y ligeras para webs y apps."],
+    ["POV-Ray", "https://www.povray.org", "lenguaje de escenas", "Trazador de rayos clásico: la escena se escribe como texto y se anima con una variable de reloj. Muy de la vieja escuela."],
+    ["Mitsuba 3", "https://www.mitsuba-renderer.org", "Python", "Renderizador de investigación espectral y diferenciable: luz física de verdad (cáusticas, dispersión)."],
+    ["Taichi", "https://www.taichi-lang.org", "Python", "Simulaciones en GPU (fluidos, arena, telas) escritas en Python; ideal para luego sacar vídeo."],
+    ["ffmpeg (filtros)", "https://ffmpeg.org/ffmpeg-filters.html", "línea de comandos", "Además de convertir, genera imagen (fractales, vida, ruido) y monta efectos con filtergraphs. Lo usamos en las piezas 49 y 50."],
+    ["MoviePy / Editly", "https://zulko.github.io/moviepy/", "Python · Node", "Edición de vídeo por código: cortar, montar clips, títulos y transiciones de forma declarativa."],
+    ["Natron", "https://natrongithub.github.io", "nodos", "Compositor por nodos libre, estilo Nuke, para retocar y componer planos."],
+    ["Nuestro motor propio", "#", "shaders + Playwright", "Lo que he montado aquí (videos/rodaje.mjs): shaders con muestreo acumulado, fotograma a fotograma en Chromium. Sin límites de complejidad, a cambio de tiempo de render."],
   ];
 
   function tarjeta(media, nombre, receta) {
@@ -202,4 +318,22 @@
   };
   pintar(RAPIDOS, "a", "rapidos");
   pintar(SERIE2, "b", "serie2");
+  pintar(SERIE4, "d", "serie4");
+  pintar(SERIE3, "c", "serie3");
+  const cajaAlt = document.getElementById("alternativas");
+  for (const [nombre, url, tipo, texto] of ALTERNATIVAS) {
+    const d = document.createElement("article");
+    d.className = "alt";
+    const h = document.createElement("h3");
+    const a = document.createElement(url === "#" ? "span" : "a");
+    a.textContent = nombre;
+    if (url !== "#") { a.href = url; a.target = "_blank"; a.rel = "noopener"; }
+    const t = document.createElement("small");
+    t.textContent = tipo;
+    h.append(a, t);
+    const p = document.createElement("p");
+    p.innerHTML = texto;
+    d.append(h, p);
+    cajaAlt.appendChild(d);
+  }
 </script>

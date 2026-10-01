@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<script src="../assets/analogico.js"></script>
+<style>body { background: #2a1d14; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Página de códice: pergamino con manchas, pautado a punta seca, texto en letra gótica
+    // con rúbricas en rojo, gran inicial con pan de oro bruñido y orla de acantos.
+    (async () => {
+      await M.fuentes('40px "Fraktur"', '200px "Fraktur"');
+      const r = rng(1605);
+      const n = makeNoise(1605);
+      const PW = 940, PH = 1220;
+      const pag = M.lienzo(PW, PH);
+      const g = pag.x;
+      // Pergamino
+      M.porPixel(g, (x, y) => {
+        const v = 0.9 + n(x * 0.004, y * 0.004, 4) * 0.16 + (n(x * 0.05, y * 0.05, 2) - 0.5) * 0.05;
+        const mancha = n(x * 0.002 + 4, y * 0.002, 3) > 0.62 ? 0.9 : 1;
+        const borde = 1 - 0.25 * Math.pow(Math.max(0, 1 - Math.min(x, y, PW - x, PH - y) / 60), 2);
+        return [232 * v * mancha * borde, 214 * v * mancha * borde, 172 * v * mancha * borde];
+      });
+      // Pautado
+      const X0 = 300, X1 = PW - 90, Y0 = 108;
+      g.strokeStyle = "rgba(150,110,80,.25)";
+      g.lineWidth = 1;
+      for (let y = Y0 + 46; y < PH - 120; y += 46) { g.beginPath(); g.moveTo(80, y); g.lineTo(PW - 80, y); g.stroke(); }
+      for (const x of [80, X0 - 20, X1]) { g.beginPath(); g.moveTo(x, 60); g.lineTo(x, PH - 60); g.stroke(); }
+      // Texto (Cervantes, dominio público), con calderones y rúbricas
+      const texto = ("En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero, adarga antigua, rocín flaco y galgo corredor. Una olla de algo más vaca que carnero, salpicón las más noches, duelos y quebrantos los sábados, lantejas los viernes, algún palomino de añadidura los domingos, consumían las tres partes de su hacienda. El resto della concluían sayo de velarte, calzas de velludo para las fiestas con sus pantuflos de lo mismo, y los días de entre semana se honraba con su vellorí de lo más fino. Tenía en su casa una ama que pasaba de los cuarenta, y una sobrina que no llegaba a los veinte, y un mozo de campo y plaza, que así ensillaba el rocín como tomaba la podadera. Frisaba la edad de nuestro hidalgo con los cincuenta años; era de complexión recia, seco de carnes, enjuto de rostro, gran madrugador y amigo de la caza.");
+      g.font = '36px "Fraktur"';
+      const palabras = texto.split(" ");
+      let x = 530, y = Y0 + 38, linea = 0;
+      const anchoLinea = (l) => (l < 9 ? X1 - 530 : X1 - 120);
+      for (const p of palabras) {
+        const w = g.measureText(p + " ").width;
+        const xIni = linea < 9 ? 530 : 120;
+        if (x + w > xIni + anchoLinea(linea)) { linea++; y += 46; x = linea < 9 ? 530 : 120; }
+        if (y > PH - 150) break;
+        const rubrica = /Mancha|hidalgo|olla|sábados|viernes|domingos/.test(p);
+        g.fillStyle = rubrica ? "rgba(168,30,28,.92)" : "rgba(28,20,16,.9)";
+        g.fillText(p, x + (r() - 0.5) * 1.2, y + (r() - 0.5) * 1.2);
+        x += w;
+      }
+      // calderón rojo
+      g.fillStyle = "#a81e1c";
+      g.font = '40px "Fraktur"';
+      g.fillText("¶", 82, Y0 + 38 + 46 * 15);
+
+      // Inicial: marco azul y rojo, pan de oro con brillo, filigrana blanca
+      const IX = 104, IY = 96, IS = 404;
+      g.fillStyle = "#1d3c8f";
+      g.fillRect(IX, IY, IS, IS);
+      g.fillStyle = "#b5262a";
+      g.fillRect(IX + 22, IY + 22, IS - 44, IS - 44);
+      for (let k = 0; k < 140; k++) {
+        const a = r() * 6.28, rr = 30 + r() * 150;
+        g.strokeStyle = "rgba(255,245,230,.75)";
+        g.lineWidth = 1.4;
+        const cx = IX + IS / 2 + Math.cos(a) * rr, cy = IY + IS / 2 + Math.sin(a) * rr;
+        g.beginPath();
+        for (let t = 0; t < 7; t += 0.25) g.lineTo(cx + Math.cos(t + a) * t * 1.6, cy + Math.sin(t + a) * t * 1.6);
+        g.stroke();
+      }
+      // letra Q dorada: máscara + relleno de oro con ruido bruñido y relieve
+      const mq = M.lienzo(PW, PH);
+      mq.x.font = '330px "Fraktur"';
+      mq.x.fillStyle = "#fff";
+      mq.x.textAlign = "center";
+      mq.x.fillText("Q", IX + IS / 2 - 10, IY + IS - 92);
+      const md = mq.x.getImageData(0, 0, PW, PH).data;
+      const mb = A.filtrado(mq.c, "blur(3px)").x.getImageData(0, 0, PW, PH).data;
+      const img = g.getImageData(0, 0, PW, PH);
+      for (let yy = IY + 22; yy < IY + IS - 22; yy++) for (let xx = IX + 22; xx < IX + IS - 22; xx++) {
+        const i = (yy * PW + xx) * 4;
+        const a = md[i] / 255;
+        if (a < 0.02) continue;
+        const gx = (mb[i + 4] - mb[i - 4]) / 255, gy = (mb[i + PW * 4] - mb[i - PW * 4]) / 255;
+        const luzOro = M.clamp(0.55 + gx * -1.6 + gy * -1.6);
+        const brunido = n(xx * 0.08, yy * 0.02, 2);
+        const k = 0.55 + luzOro * 0.7 + (brunido - 0.5) * 0.35;
+        const oro = [235 * k, 182 * k, 70 * k].map((v) => Math.min(255, v + Math.pow(Math.max(0, luzOro - 0.75), 2) * 900));
+        for (let c = 0; c < 3; c++) img.data[i + c] = img.data[i + c] * (1 - a) + oro[c] * a;
+      }
+      g.putImageData(img, 0, 0);
+      g.strokeStyle = "#3a2410";
+      g.lineWidth = 2.5;
+      g.font = '330px "Fraktur"';
+      g.textAlign = "center";
+      g.save();
+      g.beginPath(); g.rect(IX + 22, IY + 22, IS - 44, IS - 44); g.clip();
+      g.strokeText("Q", IX + IS / 2 - 10, IY + IS - 92);
+      g.restore();
+      g.textAlign = "left";
+      // Orla de acantos por el margen izquierdo e inferior
+      function rama(x0, y0, dir, largo, prof) {
+        let x = x0, y = y0, a = dir;
+        g.strokeStyle = "#2f5a2a";
+        g.lineWidth = 3 * prof;
+        g.beginPath();
+        g.moveTo(x, y);
+        for (let i = 0; i < largo; i++) {
+          a = dir + Math.sin(i * 0.22) * 0.28;
+          x += Math.cos(a) * 6; y += Math.sin(a) * 6;
+          g.lineTo(x, y);
+          if (i % 14 === 7 && prof > 0.5) {
+            g.stroke();
+            const lado = (i / 14) % 2 ? 1 : -1;
+            // hoja enroscada
+            g.fillStyle = lado > 0 ? "#3f7a38" : "#1d3c8f";
+            g.beginPath();
+            const hx = x, hy = y;
+            for (let t = 0; t < 4.5; t += 0.3) g.lineTo(hx + Math.cos(a + lado * t) * (22 - t * 4) + lado * t * 2, hy + Math.sin(a + lado * t) * (22 - t * 4));
+            g.fill();
+            g.strokeStyle = "#20140c";
+            g.lineWidth = 1.2;
+            g.stroke();
+            g.fillStyle = "#e9b84a";
+            g.beginPath(); g.arc(hx + lado * 10, hy, 4, 0, 6.28); g.fill();
+            g.strokeStyle = "#2f5a2a";
+            g.lineWidth = 3 * prof;
+            g.beginPath();
+            g.moveTo(x, y);
+          }
+        }
+        g.stroke();
+      }
+      rama(52, PH - 60, -Math.PI / 2 + 0.03, 105, 0.9);
+      rama(52, PH - 60, -0.02, 110, 0.9);
+      // un caracol de drôlerie en la esquina
+      g.fillStyle = "#b5262a";
+      g.beginPath();
+      for (let t = 0; t < 14; t += 0.2) g.lineTo(780 + Math.cos(t) * t * 2.4, PH - 95 + Math.sin(t) * t * 2.4);
+      g.fill();
+      g.strokeStyle = "#20140c"; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = "#d9b98a";
+      g.beginPath(); g.ellipse(745, PH - 70, 50, 9, 0, 0, 6.28); g.fill(); g.stroke();
+      // relieve del pergamino
+      A.iluminar(g, A.relieve(PW, PH, 9, { grano: 0.6, fibras: 0.3 }), { fuerza: 0.6 });
+
+      // Foto en el atril
+      const ctx = canvas2d();
+      A.mesaMadera(ctx, 4, [90, 58, 36]);
+      A.colocar(ctx, pag.c, [[78, 60], [1006, 78], [1000, 1300], [70, 1286]], { sombra: 0.6, curva: 14, brillo: 0.03 });
+      A.pelicula(ctx, { grano: 0.035, halo: 0.25, vineta: 0.5, polvo: 0.3, calido: 1.4, saturacion: 0.92 });
+      listo();
+    })();
+  </script>
+</body>
+</html>

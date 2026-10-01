@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Fagos</title>
+<script src="../comun/motor.js"></script>
+<style>
+  @font-face { font-family: "Plex Mono"; src: url("../../imagenes/assets/fonts/ibm-plex-mono-latin-400-normal.woff2"); }
+  @font-face { font-family: "Plex Mono"; font-weight: 700; src: url("../../imagenes/assets/fonts/ibm-plex-mono-latin-700-normal.woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 800; src: url("../../imagenes/assets/fonts/inter-latin-800-normal.woff2"); }
+  @font-face { font-family: "Fraunces"; font-style: italic; src: url("../../imagenes/assets/fonts/fraunces-latin-400-italic.woff2"); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; background: #000; color: #fff; }
+  canvas { position: absolute; inset: 0; width: 1280px; height: 720px; }
+  #capa { position: absolute; inset: 0; pointer-events: none; }
+  .barra { position: absolute; left: 0; right: 0; bottom: 0; height: 46px; background: #050505; border-top: 1px solid #2a2a2a;
+    display: flex; align-items: center; gap: 28px; padding: 0 22px; font: 14px "Plex Mono"; color: #e8e8e8; letter-spacing: .5px; }
+  .barra b { font-weight: 700; color: #fff; }
+  .escala { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .escala i { display: block; height: 7px; background: #fff; border: 1px solid #000; }
+  .titulo { position: absolute; left: 34px; top: 30px; transition: none; }
+  .titulo h1 { font: 800 30px "Inter"; letter-spacing: 1px; text-shadow: 0 2px 12px #000; }
+  .titulo p { font: italic 20px "Fraunces"; color: #ddd; margin-top: 4px; text-shadow: 0 2px 10px #000; }
+  .et { position: absolute; font: 15px "Plex Mono"; color: #fff; white-space: nowrap; text-shadow: 0 1px 6px #000, 0 0 2px #000; }
+  .et span { display: inline-block; background: rgba(0, 0, 0, .55); padding: 4px 9px; border-left: 2px solid #fff; }
+  svg { position: absolute; inset: 0; }
+  .leyenda { position: absolute; right: 30px; top: 30px; font: 15px "Plex Mono"; background: rgba(0,0,0,.55); padding: 10px 14px; line-height: 1.7; }
+  .leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
+  #negro { position: absolute; inset: 0; background: #000; opacity: 0; }
+</style>
+</head>
+<body>
+  <canvas id="c" width="960" height="540"></canvas>
+  <div id="capa">
+    <svg id="lineas" width="1280" height="720"></svg>
+    <div class="titulo" id="titulo"><h1>BACTERIÓFAGOS T4 SOBRE E. COLI</h1><p>del micrómetro al átomo, en un solo zoom</p></div>
+    <div id="etiquetas"></div>
+    <div class="leyenda" id="leyenda"><i style="background:#8c8c90"></i>carbono<br /><i style="background:#f2453a"></i>oxígeno<br /><i style="background:#4b6bff"></i>nitrógeno<br /><i style="background:#ffd23a"></i>azufre</div>
+    <div class="barra"><span id="modo">SEM</span><span>HV <b>5.0 kV</b></span><span>WD <b>4.1 mm</b></span><span>det <b>ETD</b></span><span>mag <b id="mag">×0</b></span><span class="escala"><i id="barrita"></i><b id="escala">1 µm</b></span></div>
+    <div id="negro"></div>
+  </div>
+  <script>
+    const W = 1280, H = 720, F = 1.6;
+    // ---------- Geometría compartida con el shader (para la cámara y las etiquetas) ----------
+    const V = [[.57735, .57735, .57735], [-.57735, .57735, .57735], [.57735, -.57735, .57735], [.57735, .57735, -.57735],
+      [0, .35682, .93417], [0, -.35682, .93417], [.93417, 0, .35682], [-.93417, 0, .35682], [.35682, .93417, 0], [-.35682, .93417, 0]];
+    const v3 = { add: (a, b) => a.map((x, i) => x + b[i]), sub: (a, b) => a.map((x, i) => x - b[i]), mul: (a, s) => a.map((x) => x * s),
+      dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len: (a) => Math.hypot(...a), norm: (a) => { const l = Math.hypot(...a); return a.map((x) => x / l); },
+      cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], mix: (a, b, t) => a.map((x, i) => x + (b[i] - x) * t) };
+    const R0 = 0.42;
+    const cabezaObjetivo = [0.19, 2 * R0 + 0.178, 0];
+    // cara de la cápside que mira hacia donde queremos acabar
+    const deseo = v3.norm([0.45, 0.4, 0.8]);
+    let mejor = null;
+    for (const v of V) for (const s of [1, -1]) {
+      const u = [v[0] * s, (v[1] * 0.8507 + v[2] * 0.5257) * s, (-v[1] * 0.5257 + v[2] * 0.8507) * s];
+      const w = [u[0], u[1] / 1.25, u[2]];
+      const nw = v3.norm(w);
+      const k = v3.dot(nw, deseo);
+      if (!mejor || k > mejor.k) mejor = { k, nw, centro: v3.mul(w, 38 / v3.dot(w, w)) };
+    }
+    const objetivoFinal = v3.add(cabezaObjetivo, v3.mul(v3.add(mejor.centro, v3.mul(mejor.nw, 3.4)), 0.001));
+    const tang = v3.norm(v3.cross(mejor.nw, v3.norm(v3.cross([0, 1, 0], mejor.nw))));
+    const dirFinal = v3.norm(v3.add(mejor.nw, v3.mul(tang, 0.75)));
+    const ease = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+    const sm = (a, b, x) => ease((x - a) / (b - a));
+    const lerpLog = (a, b, t) => Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * t);
+
+    function camara(t) {
+      let d;
+      if (t < 3) d = 6.5 - 0.7 * (t / 3);
+      else if (t < 9) d = lerpLog(5.8, 0.55, ease((t - 3) / 6));
+      else if (t < 13) d = 0.55 - 0.15 * ((t - 9) / 4);
+      else if (t < 21) d = lerpLog(0.4, 0.0056, ease((t - 13) / 8));
+      else d = 0.0056 - 0.0012 * ((t - 21) / 3);
+      const ld = Math.log(d);
+      const wT = sm(Math.log(5.8), Math.log(0.3), ld);
+      const wD = sm(Math.log(1.2), Math.log(0.015), ld);
+      const az = 0.35 + 0.05 * t, el = 0.78 - 0.1 * wT;
+      const dirAncha = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
+      let dir = v3.norm(v3.mix(dirAncha, dirFinal, wD));
+      // en los átomos, una órbita lenta
+      if (t > 20) { const a = (t - 20) * 0.06; dir = v3.norm(v3.add(dir, v3.mul(v3.norm(v3.cross(dir, [0, 1, 0])), a))); }
+      const mira = v3.mix([0.15, 0.35, 0.05], objetivoFinal, wT);
+      return { pos: v3.add(mira, v3.mul(dir, d)), mira, d };
+    }
+    function proyecta(P, cam) {
+      const w = v3.norm(v3.sub(cam.mira, cam.pos)), u = v3.norm(v3.cross(w, [0, 1, 0])), v = v3.cross(u, w);
+      const d = v3.sub(P, cam.pos), z = v3.dot(d, w);
+      if (z <= 0) return null;
+      return [(v3.dot(d, u) / z) * F * H + W / 2, H / 2 - (v3.dot(d, v) / z) * F * H];
+    }
+
+    // ---------- Shader ----------
+    const frag = `
+    const vec3 V[10] = vec3[10](vec3(.57735,.57735,.57735), vec3(-.57735,.57735,.57735), vec3(.57735,-.57735,.57735), vec3(.57735,.57735,-.57735),
+      vec3(0.,.35682,.93417), vec3(0.,-.35682,.93417), vec3(.93417,0.,.35682), vec3(-.93417,0.,.35682), vec3(.35682,.93417,0.), vec3(-.35682,.93417,0.));
+    const float R0 = .42;
+    float gModo = 0.;   // 0 avanzar el rayo · 1 normales · 2 oclusión
+    float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+    float h31(vec3 p) { p = fract(p * .1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+    float vn3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+      return mix(mix(mix(h31(i), h31(i + vec3(1,0,0)), f.x), mix(h31(i + vec3(0,1,0)), h31(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(h31(i + vec3(0,0,1)), h31(i + vec3(1,0,1)), f.x), mix(h31(i + vec3(0,1,1)), h31(i + vec3(1,1,1)), f.x), f.y), f.z); }
+    float sdCap(vec3 p, vec3 a, vec3 b, float r) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.); return length(pa - ba * h) - r; }
+    float hexPrisma(vec3 p, vec2 h) {
+      const vec3 k = vec3(-.8660254, .5, .57735);
+      p = abs(p);
+      p.xz -= 2. * min(dot(k.xy, p.xz), 0.) * k.xy;
+      vec2 d = vec2(length(p.xz - vec2(clamp(p.x, -k.z * h.x, k.z * h.x), h.x)) * sign(p.z - h.x), p.y - h.y);
+      return min(max(d.x, d.y), 0.) + length(max(d, 0.));
+    }
+    vec2 hexOff(vec2 p) { const vec2 s = vec2(1., 1.7320508); vec2 h = s * .5; vec2 a = mod(p, s) - h; vec2 b = mod(p - h, s) - h; return dot(a, a) < dot(b, b) ? a : b; }
+
+    // Átomos de la cápside: rejilla 3D con jitter; se dibuja un átomo si su centro cae dentro de la proteína
+    float atomos(vec3 c, float dSup, vec3 nw, out float tipo) {
+      const float S = .36;
+      vec3 id0 = floor(c / S - .5);
+      float best = 1e9; tipo = 0.;
+      for (int k = 0; k < 8; k++) {
+        vec3 id = id0 + vec3(float(k & 1), float((k >> 1) & 1), float((k >> 2) & 1));
+        vec3 hh = vec3(h31(id), h31(id + 17.3), h31(id + 41.7));
+        vec3 cen = (id + .5 + (hh - .5) * .55) * S;
+        float dc = dSup + dot(cen - c, nw);
+        if (dc > -.05 || dc < -1.4) continue;
+        float t = h31(id * 1.37 + 7.1);
+        float rad = t < .62 ? .17 : (t < .8 ? .152 : (t < .97 ? .155 : .18));
+        float d = length(c - cen) - rad;
+        if (d < best) { best = d; tipo = t; }
+      }
+      return best;
+    }
+
+    // Un fago T4 en nanómetros, de pie sobre la superficie (y hacia arriba)
+    vec2 fago(vec3 q, float contr, float pfnm) {
+      float bb = length(q - vec3(0., 110., 0.)) - 175.;
+      if (bb > 6.) return vec2(gModo < .5 ? bb : 1e9, 0.);
+      float L = 98. * (1. - .55 * contr);
+      float rs = 10.5 + 4. * contr;
+      float y0 = 16., y1 = y0 + L, yh = y1 + 4. + 62.;
+      vec2 m = vec2(1e9, 0.);
+      // Cabeza: icosaedro alargado con capsómeros y, muy de cerca, átomos
+      vec3 c = q - vec3(0., yh, 0.);
+      if (length(c) < 110.) {
+        vec3 qe = vec3(c.x, c.y / 1.25, c.z);
+        vec3 qi = vec3(qe.x, qe.y * .8507 - qe.z * .5257, qe.y * .5257 + qe.z * .8507);
+        float mx = -1e9; vec3 nf = vec3(0., 1., 0.);
+        for (int i = 0; i < 10; i++) { float dd = dot(qi, V[i]); if (abs(dd) > mx) { mx = abs(dd); nf = V[i] * sign(dd); } }
+        float dh = mx - 38.;
+        float wd = smoothstep(3.5, 1.2, pfnm);
+        if (wd > 0. && dh < 8.) {
+          vec3 t1 = normalize(cross(nf, abs(nf.y) < .9 ? vec3(0., 1., 0.) : vec3(1., 0., 0.)));
+          vec3 t2 = cross(nf, t1);
+          vec2 uv = vec2(dot(qi, t1), dot(qi, t2)) / 13.;
+          vec2 o = hexOff(uv);
+          float d = length(o) * 13.;
+          float ang = atan(o.y, o.x);
+          float anillo = smoothstep(7., 4.2, d) * (.5 + .5 * smoothstep(1., 3.6, d)) * (.85 + .15 * cos(ang * 6.));
+          float hoc = smoothstep(3., .4, d);
+          dh -= wd * (2. * anillo + 2.6 * hoc);
+          dh *= mix(1., .45, wd);
+        }
+        float mat = 3.;
+        float wa = smoothstep(.095, .04, pfnm);
+        if (wa > 0. && dh < 2.5 && dh > -2.) {
+          vec3 u = vec3(nf.x, nf.y * .8507 + nf.z * .5257, -nf.y * .5257 + nf.z * .8507);
+          vec3 nw = normalize(vec3(u.x, u.y / 1.25, u.z));
+          float tipo;
+          float da = atomos(c, dh, nw, tipo);
+          if (da < 1e8) { dh = mix(dh, da, wa); if (wa > .5) mat = 7. + tipo * .99; }
+          else dh = mix(dh, max(dh, .4), wa);
+        }
+        if (dh < m.x) m = vec2(dh, mat);
+      } else m = vec2(length(c) - 75., 3.);
+      // Vaina contráctil con anillos y estrías helicoidales
+      if (length(q.xz) > 40. && q.y > 64.) return vec2(min(m.x, min(length(q.xz) - 25., q.y - 62.)), m.y);
+      float wdT = smoothstep(3.5, 1.2, pfnm);
+      float a = atan(q.z, q.x);
+      float an = .5 + .5 * cos((q.y - y0) * 6.2832 / (4.1 * (1. - .45 * contr)));
+      float rr = rs + wdT * (1.1 * an + .35 * cos(a * 6. + q.y * .25));
+      float vaina = max(length(q.xz) - rr, abs(q.y - (y0 + y1) * .5) - L * .5);
+      float collar = max(length(q.xz) - 17., abs(q.y - y1 - 2.) - 2.) - .8;
+      float placa = hexPrisma(q - vec3(0., 11., 0.), vec2(19., 3.5)) - .8;
+      float cola = min(min(vaina, collar), placa);
+      if (contr > .01) { float yt0 = 16. - 34. * contr; cola = min(cola, max(length(q.xz) - 4.5, abs(q.y - (yt0 + y1) * .5) - (y1 - yt0) * .5)); }
+      if (cola < m.x) m = vec2(cola, 4.);
+      // Seis fibras de la cola con su codo
+      float fib = 1e9;
+      if (q.y < 64. && length(q.xz) < 118.) for (int k = 0; k < 6; k++) {
+        float ak = float(k) * 1.0472 + .5;
+        vec3 B = vec3(cos(ak) * 15., 11., sin(ak) * 15.);
+        vec3 K = vec3(cos(ak + .1) * 64., 50. - 14. * contr, sin(ak + .1) * 64.);
+        vec3 P = vec3(cos(ak + .3) * 104., 1.5, sin(ak + .3) * 104.);
+        fib = min(fib, min(sdCap(q, B, K, 2.3), sdCap(q, K, P, 1.9)));
+      }
+      if (fib < m.x) m = vec2(fib, 5.);
+      return m;
+    }
+
+    // Fagos repartidos por la superficie de una bacteria (coordenadas locales de la bacteria, µm)
+    vec2 fagosBac(vec3 pl, float R, float hl, float bid, float pfnm) {
+      float th = atan(pl.z, pl.y);
+      float gx = pl.x / .19, gt = th / .5;
+      float ix0 = floor(gx), it0 = floor(gt);
+      vec2 res = vec2(1e9, 0.);
+      for (int k = 0; k < 4; k++) {
+        float ix = ix0 + float(k & 1), it = it0 + float(k >> 1);
+        vec2 cid = vec2(ix, it) + bid * 37.;
+        bool obj = bid == 0. && ix == 1. && it == 0.;
+        bool vecn = bid == 0. && ix == 0. && it == 0.;
+        float dens = bid == 0. ? .72 : .28;
+        if (!obj && !vecn && (h21(cid) > dens || abs(it) * .5 > 1.6 || abs(ix) * .19 > hl - .12)) continue;
+        bool fijo = obj || vecn;
+        float xc = ix * .19 + (fijo ? 0. : (h21(cid + 3.1) - .5) * .09);
+        float tc = it * .5 + (fijo ? 0. : (h21(cid + 5.7) - .5) * .22);
+        vec3 nrm = vec3(0., cos(tc), sin(tc));
+        vec3 base = vec3(xc, R * cos(tc), R * sin(tc));
+        vec3 d = pl - base;
+        if (dot(d, d) > .09) continue;
+        float inc = fijo ? 0. : (h21(cid + 9.3) - .5) * .5;
+        vec3 up = normalize(nrm + vec3(inc, 0., 0.));
+        vec3 ex = normalize(vec3(1., 0., 0.) - up * up.x);
+        vec3 ez = cross(ex, up);
+        vec3 q = vec3(dot(d, ex), dot(d, up), dot(d, ez)) * 1000.;
+        float yaw = fijo ? 0. : h21(cid + 2.2) * 6.2832;
+        q.xz = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw)) * q.xz;
+        float contr = vecn ? uContr : (obj ? 0. : step(.55, h21(cid + 8.8)));
+        vec2 f = fago(q, contr, pfnm);
+        f.x *= .001;
+        if (f.x < res.x) res = f;
+      }
+      return res;
+    }
+
+    const vec4 BAC[5] = vec4[5](vec4(0., 0., 0., 1.), vec4(-1.55, 1.35, .7, .85), vec4(1.75, -1.3, -.35, 1.15), vec4(2.35, 1.25, 1.9, .8), vec4(-2.5, -1.45, 2.4, 1.));
+    const float BR[5] = float[5](.42, .38, .4, .37, .4);
+
+    vec2 escena(vec3 p, float pf) {
+      float pfnm = pf * 1000.;
+      // Sustrato: filtro de policarbonato con poros
+      vec2 cel = floor(p.xz / .5);
+      vec2 pc = (cel + .5 + (vec2(h21(cel), h21(cel + 7.)) - .5) * .5) * .5;
+      float rp = .05 + .06 * h21(cel + 3.);
+      float suelo = p.y + .004 * vn3(p * 40.);
+      if (h21(cel + 9.) > .35) suelo = max(suelo, -(length(p.xz - pc) - rp));
+      vec2 m = vec2(suelo, 1.);
+      // Flagelos tumbados sobre el filtro
+      for (int k = 0; k < 3; k++) {
+        float fk = float(k);
+        vec3 o = vec3(-1.05, 0., -.15 + fk * .15);
+        float a = 2.6 + fk * .35;
+        vec3 l = p - o;
+        l.xz = mat2(cos(a), sin(a), -sin(a), cos(a)) * l.xz;
+        float x = clamp(l.x, 0., 3.2);
+        float A = .1, kk = 6.;
+        float z = l.z - A * sin(kk * x) * smoothstep(0., .3, x);
+        float dz = z / sqrt(1. + pow(A * kk * cos(kk * x), 2.));
+        float fl = length(vec3(l.x - x, l.y - .011, dz)) - .011;
+        if (fl < m.x) m = vec2(fl, 6.);
+      }
+      // Bacterias y sus fagos
+      for (int b = 0; b < 5; b++) {
+        vec4 bb = BAC[b];
+        float R = BR[b];
+        vec3 pl = p - vec3(bb.x, R, bb.y);
+        float ca = cos(bb.z), sa = sin(bb.z);
+        pl.xz = mat2(ca, sa, -sa, ca) * pl.xz;
+        float db = length(vec3(pl.x - clamp(pl.x, -bb.w, bb.w), pl.y, pl.z)) - R;
+        if (db < .02) db -= .006 * vn3(p * 55. + float(b)) + .003 * vn3(p * 160.) * smoothstep(.004, .001, pf);
+        if (db < m.x) m = vec2(db, 2.);
+        // fuera de la capa de fagos no se calculan, pero el paso no puede saltársela
+        if (b < 2 && db >= .31 && gModo < .5) m.x = min(m.x, db - .27);
+        if (b < 2 && db < .31 && gModo < 1.5) {
+          vec2 f = fagosBac(pl, R, bb.w, float(b), pfnm);
+          if (gModo < .5) f.x = min(f.x, .05);
+          if (f.x < m.x) m = vec2(f.x, f.y > 0. ? f.y : m.y);
+        }
+      }
+      return m;
+    }
+
+    vec3 muestra(vec2 px) {
+      vec2 uv = (px - uRes * .5) / uRes.y;
+      vec3 ro = uCam;
+      vec3 w = normalize(uMira - ro), u = normalize(cross(w, vec3(0, 1, 0))), v = cross(u, w);
+      vec3 rd = normalize(uv.x * u + uv.y * v + 1.6 * w);
+      float pix = 1. / (1.6 * uRes.y);
+      float t = 0., tmax = uDist * 8. + 6.;
+      vec2 h = vec2(0.);
+      bool ok = false;
+      for (int i = 0; i < 170; i++) {
+        vec3 p = ro + rd * t;
+        h = escena(p, t * pix);
+        if (h.x < t * pix * .4) { ok = true; break; }
+        t += h.x * .9;
+        if (t > tmax) break;
+      }
+      vec3 fondo = vec3(.04);
+      if (!ok) return fondo;
+      vec3 p = ro + rd * t;
+      float pf = t * pix;
+      gModo = 1.;
+      float ep = pf * .6;
+      const vec2 kk = vec2(1., -1.);
+      vec3 n = normalize(kk.xyy * escena(p + kk.xyy * ep, pf).x + kk.yyx * escena(p + kk.yyx * ep, pf).x + kk.yxy * escena(p + kk.yxy * ep, pf).x + kk.xxx * escena(p + kk.xxx * ep, pf).x);
+      // Oclusión ambiental relativa al tamaño en pantalla
+      gModo = 2.;
+      float ao = 0., s = 1.;
+      for (int i = 1; i <= 3; i++) { float dd = t * .009 * float(i); ao += (dd - escena(p + n * dd, pf).x) * s; s *= .6; }
+      ao = clamp(1. - ao / (t * .009) * .6, 0., 1.);
+      // Contraste del microscopio electrónico: los bordes y las pendientes emiten más electrones
+      float ndv = clamp(dot(n, -rd), 0., 1.);
+      float borde = pow(1. - ndv, 2.2);
+      vec3 det = normalize(vec3(-.45, .75, .5));
+      float lado = clamp(dot(n, det), 0., 1.);
+      float I = (.1 + .62 * borde + .42 * lado) * mix(.25, 1., ao);
+      vec3 tinte;
+      float mat = h.y;
+      if (mat < 1.5) tinte = vec3(.52, .58, .68);
+      else if (mat < 2.5) tinte = vec3(1., .74, .32);
+      else if (mat < 3.5) tinte = vec3(.78, .5, 1.);
+      else if (mat < 4.5) tinte = vec3(.45, .7, 1.);
+      else if (mat < 5.5) tinte = vec3(.6, .85, 1.);
+      else if (mat < 6.5) tinte = vec3(.95, .9, .7);
+      else {
+        float ti = (mat - 7.) / .99;
+        tinte = ti < .62 ? vec3(.55, .55, .58) : (ti < .8 ? vec3(.95, .27, .23) : (ti < .97 ? vec3(.3, .42, 1.) : vec3(1., .82, .23)));
+        I = (.18 + .35 * borde + .7 * lado) * mix(.2, 1., ao);
+      }
+      vec3 col = I * mix(vec3(1.), tinte * 1.25, uColor);
+      // La distancia lejana se va a negro (profundidad de campo del SEM y viñeta)
+      col *= exp(-max(0., t - uDist * 1.6) / (uDist * 2.5));
+      // Ruido de barrido: grano y líneas horizontales
+      col *= 1. + (h21(vec2(floor(px.y), uFotograma)) - .5) * .07 + (rnd() - .5) * .22;
+      return col;
+    }`;
+
+    const canvas = document.getElementById("c");
+    const motor = crearMotor({ canvas, frag, muestras: 1, expo: 1.15, grano: 0.025, tono: true, uniformes: ["vec3 uCam", "vec3 uMira", "float uDist", "float uContr", "float uColor"] });
+    const etiquetas = document.getElementById("etiquetas"), lineas = document.getElementById("lineas");
+    const escalas = [5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005];
+    const fmt = (um) => (um >= 1 ? `${um} µm` : um >= 0.001 ? `${Math.round(um * 1000 * 10) / 10} nm`.replace(".", ",") : `${um * 1000} nm`);
+    const vis = (t, a, b, f = 0.6) => Math.min(sm(a, a + f, t), 1 - sm(b - f, b, t));
+    const contraccion = (t) => sm(9.4, 11.6, t);
+
+    window.pintar = async (t, f) => {
+      const cam = camara(t);
+      await motor(t, f, { uCam: cam.pos, uMira: cam.mira, uDist: cam.d, uContr: contraccion(t), uColor: 0.82 });
+      // Barra del microscopio
+      const altoCampo = cam.d / F;
+      const umPorPx = altoCampo / H;
+      const esc = escalas.find((s) => s / umPorPx < 260) || 0.0005;
+      document.getElementById("barrita").style.width = `${Math.round(esc / umPorPx)}px`;
+      document.getElementById("escala").textContent = fmt(esc);
+      document.getElementById("mag").textContent = "×" + Math.round(127000 / (altoCampo * W / H)).toLocaleString("es-ES");
+      document.getElementById("modo").textContent = cam.d < 0.03 ? "SIMULACIÓN ATÓMICA" : "SEM · color falso";
+      document.getElementById("titulo").style.opacity = vis(t, -1, 5.5);
+      document.getElementById("leyenda").style.opacity = vis(t, 19.5, 30);
+      document.getElementById("negro").style.opacity = sm(23.2, 24, t);
+      // Etiquetas ancladas a puntos 3D
+      const marcas = [
+        [[-0.55, 0.85, 0.15], "E. coli · 2 µm de largo", vis(t, 1, 6.5)],
+        [v3.add(cabezaObjetivo, [0, 0.05, 0]), "bacteriófago T4 · 0,2 µm", vis(t, 6.2, 11.5)],
+        [[0, 2 * R0 + 0.06 - 0.03 * contraccion(t), 0.012], "la vaina se contrae e inyecta el ADN", vis(t, 9.6, 13.4)],
+        [v3.add(objetivoFinal, v3.mul(tang, 0.012)), "cápside: hexámeros de gp23 con la proteína Hoc", vis(t, 15, 18.6)],
+        [v3.add(objetivoFinal, v3.mul(tang, 0.0016)), "cada bolita es un átomo", vis(t, 20.2, 23.2)],
+      ];
+      let html = "", svg = "";
+      for (const [P, texto, a] of marcas) {
+        if (a <= 0.01) continue;
+        const s = proyecta(P, cam);
+        if (!s) continue;
+        const [x, y] = s;
+        const lx = x + 70, ly = y - 60;
+        svg += `<g opacity="${a}"><circle cx="${x}" cy="${y}" r="4" fill="none" stroke="#fff" stroke-width="1.5"/><polyline points="${x + 3},${y - 3} ${lx},${ly} ${lx + 18},${ly}" fill="none" stroke="#fff" stroke-width="1.2"/></g>`;
+        html += `<div class="et" style="left:${lx + 22}px;top:${ly - 14}px;opacity:${a}"><span>${texto}</span></div>`;
+      }
+      etiquetas.innerHTML = html;
+      lineas.innerHTML = svg;
+    };
+    document.fonts.ready.then(() => (window.__listo = true));
+  </script>
+</body>
+</html>

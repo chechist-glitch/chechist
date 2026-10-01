@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Cuarta dimensión</title>
+<script src="../comun/motor.js"></script>
+<script type="importmap">
+  { "imports": { "three": "../../red-en-capas/assets/vendor/three.module.js", "three/addons/": "../../red-en-capas/assets/vendor/jsm/" } }
+</script>
+<style>
+  @font-face { font-family: "Plex Mono"; src: url("../../imagenes/assets/fonts/ibm-plex-mono-latin-400-normal.woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 800; src: url("../../imagenes/assets/fonts/inter-latin-800-normal.woff2"); }
+  @font-face { font-family: "Fraunces"; font-style: italic; src: url("../../imagenes/assets/fonts/fraunces-latin-400-italic.woff2"); }
+  @font-face { font-family: "Fraunces"; font-weight: 900; src: url("../../imagenes/assets/fonts/fraunces-latin-900-normal.woff2"); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; background: #04050a; color: #fff; }
+  canvas { position: absolute; inset: 0; width: 1280px; height: 720px; }
+  .cap { position: absolute; left: 56px; top: 44px; }
+  .cap small { font: 15px "Plex Mono"; letter-spacing: 4px; color: #b8c8e8; text-shadow: 0 1px 8px #000, 0 0 3px #000; }
+  .cap h2, .reloj, .formula { text-shadow: 0 2px 14px #000, 0 0 4px #000; }
+  .cap h2 { font: 900 40px "Fraunces"; margin-top: 6px; letter-spacing: -.5px; }
+  .formula { position: absolute; left: 56px; bottom: 50px; font: italic 27px "Fraunces"; line-height: 1.5; color: #eef3ff; text-shadow: 0 0 18px rgba(80, 140, 255, .5); }
+  .formula span { font: 15px "Plex Mono"; color: #b8c8e8; font-style: normal; display: block; letter-spacing: 1px; }
+  .reloj { position: absolute; right: 56px; top: 50px; font: 18px "Plex Mono"; color: #c9d6f2; text-align: right; line-height: 1.6; }
+  .fin { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .fin h1 { font: 900 64px "Fraunces"; letter-spacing: -1px; }
+  .fin p { font: italic 26px "Fraunces"; color: #b9c7e6; margin-top: 10px; }
+  #negro { position: absolute; inset: 0; background: #000; }
+</style>
+</head>
+<body>
+  <canvas id="rm" width="960" height="540"></canvas>
+  <canvas id="tres" width="1280" height="720"></canvas>
+  <div id="negro"></div>
+  <div id="capas"></div>
+  <script type="module">
+    import * as THREE from "three";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+    import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+    const W = 1280, H = 720;
+    const ease = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+    const sm = (a, b, x) => ease((x - a) / (b - a));
+    const vis = (t, a, b, f = 0.7) => Math.min(sm(a, a + f, t), 1 - sm(b - f, b, t));
+
+    // ================= Capítulo 1: péndulo doble (integración RK4) =================
+    const G = 9.81, L1 = 1, L2 = 1, M1 = 1, M2 = 1;
+    function deriv([a1, a2, w1, w2]) {
+      const d = a1 - a2, den = 2 * M1 + M2 - M2 * Math.cos(2 * d);
+      const dw1 = (-G * (2 * M1 + M2) * Math.sin(a1) - M2 * G * Math.sin(a1 - 2 * a2) - 2 * Math.sin(d) * M2 * (w2 * w2 * L2 + w1 * w1 * L1 * Math.cos(d))) / (L1 * den);
+      const dw2 = (2 * Math.sin(d) * (w1 * w1 * L1 * (M1 + M2) + G * (M1 + M2) * Math.cos(a1) + w2 * w2 * L2 * M2 * Math.cos(d))) / (L2 * den);
+      return [w1, w2, dw1, dw2];
+    }
+    const SUB = 240, PASO = 1 / 2400;
+    const hist = [];
+    let s = [2.3, 2.9, 0, 0];
+    for (let i = 0; i <= 12 * SUB; i++) {
+      hist.push(s.slice());
+      for (let k = 0; k < 10; k++) {
+        const k1 = deriv(s), k2 = deriv(s.map((v, j) => v + (k1[j] * PASO) / 2)), k3 = deriv(s.map((v, j) => v + (k2[j] * PASO) / 2)), k4 = deriv(s.map((v, j) => v + k3[j] * PASO));
+        s = s.map((v, j) => v + ((k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]) * PASO) / 6);
+      }
+    }
+    const ESC = 0.8, PIV = new THREE.Vector3(0, 0.55, 0), KT = 0.85;
+    const bolas = (i) => {
+      const [a1, a2] = hist[Math.min(hist.length - 1, i)];
+      const b1 = new THREE.Vector3(PIV.x + Math.sin(a1) * ESC, PIV.y - Math.cos(a1) * ESC, 0);
+      const b2 = new THREE.Vector3(b1.x + Math.sin(a2) * ESC, b1.y - Math.cos(a2) * ESC, 0);
+      return [b1, b2];
+    };
+
+    // ================= Escena Three.js =================
+    const canvas = document.getElementById("tres");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(W, H, false);
+    renderer.setPixelRatio(1);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    const escena = new THREE.Scene();
+    escena.background = new THREE.Color(0x04050a);
+    escena.fog = new THREE.FogExp2(0x04050a, 0.035);
+    const camara = new THREE.PerspectiveCamera(38, W / H, 0.05, 200);
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(escena, camara));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.85, 0.55, 0.12));
+    composer.addPass(new OutputPass());
+    escena.add(new THREE.AmbientLight(0x8899cc, 0.6));
+    const luz = new THREE.DirectionalLight(0xffffff, 1.6);
+    luz.position.set(3, 5, 4);
+    escena.add(luz);
+
+    const grupo1 = new THREE.Group(), grupo3 = new THREE.Group(), grupo4 = new THREE.Group();
+    escena.add(grupo1, grupo3, grupo4);
+    // plano del "ahora"
+    const ahora = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.2), new THREE.MeshBasicMaterial({ color: 0x3355ff, transparent: true, opacity: 0.035, side: THREE.DoubleSide, depthWrite: false }));
+    ahora.position.set(0, -0.15, 0);
+    const marco = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(4.6, 4.2)), new THREE.LineBasicMaterial({ color: 0x6f8cff, transparent: true, opacity: 0.7 }));
+    marco.position.copy(ahora.position);
+    grupo1.add(ahora, marco);
+    // hojas de tiempo (una por segundo) y eje t
+    const hojas = [];
+    for (let k = 0; k < 13; k++) {
+      const h = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(4.6, 4.2)), new THREE.LineBasicMaterial({ color: 0x33406a, transparent: true, opacity: 0.35 }));
+      grupo1.add(h);
+      hojas.push(h);
+    }
+    const ejeT = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 12, 6), new THREE.MeshBasicMaterial({ color: 0x8fa3c7 }));
+    ejeT.rotation.x = Math.PI / 2;
+    ejeT.position.set(-2.3, -1.9, -6);
+    grupo1.add(ejeT);
+    const matVara = new THREE.MeshStandardMaterial({ color: 0xdfe7ff, emissive: 0x334466, metalness: 0.6, roughness: 0.3 });
+    const vara1 = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1, 12), matVara);
+    const vara2 = vara1.clone();
+    const bola = (c) => new THREE.Mesh(new THREE.SphereGeometry(0.075, 32, 16), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 1.6 }));
+    const bola1 = bola(0x39d8ff), bola2 = bola(0xff4fd8);
+    const pivote = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 8), matVara);
+    pivote.position.copy(PIV);
+    grupo1.add(vara1, vara2, bola1, bola2, pivote);
+    let tubos = [];
+    const ponVara = (m, a, b) => {
+      m.position.copy(a).add(b).multiplyScalar(0.5);
+      m.scale.set(1, a.distanceTo(b), 1);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    };
+    function tuboColor(puntos, color, radio) {
+      const curva = new THREE.CatmullRomCurve3(puntos);
+      const seg = puntos.length * 2, rad = 10;
+      const geo = new THREE.TubeGeometry(curva, seg, radio, rad, false);
+      const n = geo.attributes.position.count;
+      const col = new Float32Array(n * 3);
+      const c0 = new THREE.Color(color), c1 = new THREE.Color(0x10162e);
+      for (let i = 0; i < n; i++) {
+        const t = Math.floor(i / (rad + 1)) / seg;
+        const c = c1.clone().lerp(c0, Math.pow(t, 1.6));
+        col.set([c.r, c.g, c.b], i * 3);
+      }
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffffff, emissiveMap: null, emissiveIntensity: 0.0, roughness: 0.35, metalness: 0.1, onBeforeCompile: undefined }));
+    }
+    function capitulo1(t) {
+      const tau = Math.max(0, t) * 1.0;
+      const i = Math.round(tau * SUB);
+      const [b1, b2] = bolas(i);
+      ponVara(vara1, PIV, b1);
+      ponVara(vara2, b1, b2);
+      bola1.position.copy(b1);
+      bola2.position.copy(b2);
+      for (const tb of tubos) { grupo1.remove(tb); tb.geometry.dispose(); }
+      tubos = [];
+      const ini = Math.max(0, i - 9 * SUB);
+      for (const [cual, color, radio] of [[0, 0x39d8ff, 0.022], [1, 0xff4fd8, 0.03]]) {
+        const pts = [];
+        for (let k = ini; k <= i; k += 3) {
+          const p = bolas(k)[cual];
+          pts.push(new THREE.Vector3(p.x, p.y, -((i - k) / SUB) * KT));
+        }
+        if (pts.length > 3) {
+          const tb = tuboColor(pts, color, radio);
+          tb.material.emissive = new THREE.Color(color);
+          tb.material.emissiveIntensity = 0.55;
+          grupo1.add(tb);
+          tubos.push(tb);
+        }
+      }
+      hojas.forEach((h, k) => {
+        const z = -(tau - Math.floor(tau) + k) * KT;
+        h.position.set(0, -0.15, z);
+        h.material.opacity = 0.3 * (1 - k / 13);
+      });
+      // cámara: de frente (se ve un péndulo plano) a lateral (se ve la escultura del tiempo)
+      const g = sm(1.8, 7.5, t);
+      const az = -0.05 + g * 1.15 + Math.max(0, t - 7.5) * 0.06;
+      const r = 7.4 + g * 1.4;
+      const mira = new THREE.Vector3(0, -0.35, -g * 3.2);
+      camara.position.set(Math.sin(az) * r, -0.1 + g * 2.2, Math.cos(az) * r + mira.z * 0.4);
+      camara.lookAt(mira);
+      return tau;
+    }
+
+    // ================= Capítulo 3: hipercubo y fibración de Hopf =================
+    const verts4 = [];
+    for (let i = 0; i < 16; i++) verts4.push([i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1, i & 8 ? 1 : -1]);
+    const aristas = [];
+    for (let i = 0; i < 16; i++) for (let j = i + 1; j < 16; j++) { const d = i ^ j; if ((d & (d - 1)) === 0) aristas.push([i, j]); }
+    const rot = (p, i, j, a) => { const c = Math.cos(a), s = Math.sin(a), q = p.slice(); q[i] = p[i] * c - p[j] * s; q[j] = p[i] * s + p[j] * c; return q; };
+    const varasH = aristas.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.38, transparent: true })); grupo3.add(m); return m; });
+    const nudos = verts4.map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe2b0, emissiveIntensity: 0.8, transparent: true })); grupo3.add(m); return m; });
+    const cIn = new THREE.Color(0x39d8ff), cOut = new THREE.Color(0xff9a3c);
+    function capitulo3(t, alfa) {
+      const a = (t - 20) * 0.55, b = (t - 20) * 0.32;
+      const P = verts4.map((v) => {
+        let p = rot(v, 0, 3, a);
+        p = rot(p, 1, 2, b);
+        p = rot(p, 2, 3, a * 0.4);
+        const k = 2.6 / (3.2 - p[3]);
+        return [new THREE.Vector3(p[0] * k, p[1] * k, p[2] * k), p[3]];
+      });
+      aristas.forEach(([i, j], n) => {
+        ponVara(varasH[n], P[i][0], P[j][0]);
+        const w = (P[i][1] + P[j][1]) / 2;
+        varasH[n].material.color.copy(cIn).lerp(cOut, (w + 1.6) / 3.2);
+        varasH[n].material.emissive.copy(varasH[n].material.color);
+        varasH[n].material.opacity = alfa;
+      });
+      P.forEach(([p], n) => { nudos[n].position.copy(p); nudos[n].material.opacity = alfa; });
+      grupo3.visible = alfa > 0.01;
+      return a;
+    }
+    let fibras = [];
+    function capitulo4(t, alfa) {
+      for (const f of fibras) { grupo4.remove(f); f.geometry.dispose(); f.material.dispose(); }
+      fibras = [];
+      grupo4.visible = alfa > 0.01;
+      if (!grupo4.visible) return 0;
+      const giro = (t - 24) * 0.42;
+      const NETA = 4, NDEL = 11, NP = 120;
+      for (let e = 0; e < NETA; e++) for (let d = 0; d < NDEL; d++) {
+        const eta = (Math.PI / 2) * ((e + 0.5) / NETA) * 0.92 + 0.05;
+        const del = (2 * Math.PI * d) / NDEL + e * 0.25;
+        const pts = [];
+        let roto = false;
+        for (let k = 0; k <= NP; k++) {
+          const sA = (2 * Math.PI * k) / NP;
+          let p = [Math.cos(sA) * Math.cos(eta), Math.sin(sA) * Math.cos(eta), Math.cos(sA - del) * Math.sin(eta), Math.sin(sA - del) * Math.sin(eta)];
+          p = rot(p, 0, 3, giro);
+          p = rot(p, 1, 2, giro * 0.6);
+          const den = 1.0001 - p[3];
+          const q = new THREE.Vector3(p[0] / den, p[1] / den, p[2] / den).multiplyScalar(0.9);
+          if (q.length() > 5.5) { roto = true; break; }
+          pts.push(q);
+        }
+        if (roto || pts.length < 10) continue;
+        const color = new THREE.Color().setHSL(d / NDEL, 0.85, 0.42 + 0.12 * e / NETA);
+        const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), NP, 0.016 + 0.006 * e, 6, true);
+        const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.32, roughness: 0.4, transparent: true, opacity: alfa }));
+        grupo4.add(m);
+        fibras.push(m);
+      }
+      return giro;
+    }
+
+    // ================= Capítulo 2: Julia de cuaterniones (raymarching) =================
+    const fragJulia = `
+    vec4 qmul(vec4 a, vec4 b) { return vec4(a.x * b.x - dot(a.yzw, b.yzw), a.x * b.yzw + b.x * a.yzw + cross(a.yzw, b.yzw)); }
+    vec4 qsq(vec4 a) { return vec4(a.x * a.x - dot(a.yzw, a.yzw), 2. * a.x * a.yzw); }
+    float gTrap;
+    vec4 corte(vec3 p) {
+      // el espacio 3D que vemos es un corte de 4D que gira con el tiempo en el plano z–w
+      float a = uAng;
+      return vec4(p.x, p.y, p.z * cos(a), p.z * sin(a) + uW);
+    }
+    float julia(vec3 p) {
+      vec4 z = corte(p);
+      float md2 = 1., mz2 = dot(z, z);
+      vec4 trap = vec4(abs(z.xyz), dot(z, z));
+      for (int i = 0; i < 12; i++) {
+        md2 *= 4. * mz2;
+        z = qsq(z) + uC;
+        trap = min(trap, vec4(abs(z.xyz), dot(z, z)));
+        mz2 = dot(z, z);
+        if (mz2 > 256.) break;
+      }
+      gTrap = trap.w;
+      return .25 * sqrt(mz2 / md2) * log(mz2);
+    }
+    vec3 normalJ(vec3 p) { const vec2 k = vec2(1., -1.); float e = .0008;
+      return normalize(k.xyy * julia(p + k.xyy * e) + k.yyx * julia(p + k.yyx * e) + k.yxy * julia(p + k.yxy * e) + k.xxx * julia(p + k.xxx * e)); }
+    vec3 muestra(vec2 px) {
+      vec2 uv = (px - uRes * .5) / uRes.y;
+      float ca = uT * .21;
+      vec3 ro = vec3(3.5 * sin(ca), .7 + .3 * sin(uT * .13), 3.5 * cos(ca));
+      vec3 w = normalize(-ro), u = normalize(cross(w, vec3(0, 1, 0))), v = cross(u, w);
+      vec3 rd = normalize(uv.x * u + uv.y * v + 1.9 * w);
+      vec3 fondo = mix(vec3(.02, .025, .05), vec3(.08, .05, .14), uv.y + .5);
+      // esfera de recorte para no marchar en vacío
+      float b = dot(ro, rd), c = dot(ro, ro) - 1.6 * 1.6, hh = b * b - c;
+      if (hh < 0.) return fondo;
+      float t = max(0., -b - sqrt(hh)), tf = -b + sqrt(hh);
+      bool ok = false;
+      float glow = 0.;
+      for (int i = 0; i < 140; i++) {
+        float d = julia(ro + rd * t);
+        glow += exp(-d * 30.) * .012;
+        if (d < .0006 * t) { ok = true; break; }
+        t += d * .9;
+        if (t > tf) break;
+      }
+      vec3 halo = vec3(.3, .45, 1.) * glow;
+      if (!ok) return fondo + halo;
+      vec3 p = ro + rd * t;
+      julia(p);
+      float trap = gTrap;
+      vec3 n = normalJ(p);
+      vec3 L = normalize(vec3(.6, .8, .3));
+      float dif = clamp(dot(n, L), 0., 1.);
+      float sh = 1.; float st = .01;
+      for (int i = 0; i < 28; i++) { float hd = julia(p + n * .002 + L * st); sh = min(sh, 9. * hd / st); st += clamp(hd, .01, .2); if (sh < .02 || st > 2.) break; }
+      sh = clamp(sh, 0., 1.);
+      float ao = 0., s2 = 1.;
+      for (int i = 1; i <= 4; i++) { float dd = .025 * float(i); ao += (dd - julia(p + n * dd)) * s2; s2 *= .6; }
+      ao = clamp(1. - ao * 9., 0., 1.);
+      // color por la trampa de órbita: iridiscente
+      vec3 alb = .62 + .38 * cos(6.2832 * (vec3(0., .33, .67) + sqrt(trap) * .45 + .55 + .12 * n.y));
+      float fres = pow(1. - max(dot(n, -rd), 0.), 4.);
+      vec3 col = alb * (dif * sh * vec3(1.3, 1.2, 1.05) + ao * vec3(.18, .22, .35) * (.6 + .4 * n.y));
+      col += fres * vec3(.4, .55, 1.) * ao;
+      col += pow(max(dot(reflect(rd, n), L), 0.), 40.) * sh * .6;
+      return col + halo * .5;
+    }`;
+    const motorJ = crearMotor({ canvas: document.getElementById("rm"), frag: fragJulia, muestras: 2, expo: 1.1, grano: 0.012, tono: true, uniformes: ["vec4 uC", "float uAng", "float uW"] });
+
+    // ================= Textos =================
+    const capas = document.getElementById("capas");
+    const bloques = {
+      c1: `<div class="cap"><small>I · EL TIEMPO COMO DIMENSIÓN</small><h2>Un péndulo doble es una escultura</h2></div>
+           <div class="formula"><span>ecuaciones de Euler–Lagrange · integradas con Runge–Kutta 4</span>L = T − V &nbsp;&nbsp;⟶&nbsp;&nbsp; d/dt (∂L/∂θ̇ᵢ) = ∂L/∂θᵢ<br/>(x, y, t) &nbsp;⟶&nbsp; el tiempo se vuelve el eje z</div>`,
+      c2: `<div class="cap"><small>II · UN OBJETO DE CUATRO DIMENSIONES</small><h2>Conjunto de Julia en los cuaterniones</h2></div>
+           <div class="formula"><span>q = a + b·i + c·j + d·k &nbsp;·&nbsp; i² = j² = k² = ijk = −1</span>q &nbsp;⟵&nbsp; q² + c<br/>vemos un corte 3D que gira en el plano z–w con el tiempo</div>`,
+      c3: `<div class="cap"><small>III · GIRAR DONDE NO HAY HUECO</small><h2>Hipercubo rotando en el plano X–W</h2></div>
+           <div class="formula"><span>16 vértices (±1, ±1, ±1, ±1) · 32 aristas · proyección en perspectiva</span>(x, y, z, w) &nbsp;⟶&nbsp; k·(x, y, z), &nbsp; k = d / (d − w)</div>`,
+      c4: `<div class="cap"><small>IV · CÍRCULOS QUE NUNCA SE TOCAN</small><h2>Fibración de Hopf</h2></div>
+           <div class="formula"><span>cada punto de la esfera S² es un círculo de S³ · todos enlazados entre sí</span>(z₁, z₂) &nbsp;⟼&nbsp; (2 z₁ z̄₂, &nbsp;|z₁|² − |z₂|²)<br/>proyección estereográfica: &nbsp;(x, y, z, w) ⟶ (x, y, z) / (1 − w)</div>`,
+      fin: `<div class="fin"><div><h1>El tiempo, hecho espacio</h1><p>cuatro coordenadas · treinta segundos · cero cámaras</p></div></div>`,
+    };
+    capas.innerHTML = Object.entries(bloques).map(([k, v]) => `<div id="${k}" style="position:absolute;inset:0;opacity:0">${v}</div>`).join("") + `<div class="reloj" id="reloj"></div>`;
+    const op = (id, v) => (document.getElementById(id).style.opacity = v);
+
+    window.pintar = async (t, f) => {
+      const a1 = vis(t, -1, 10.2), a2 = vis(t, 10, 20.2), a3 = vis(t, 20, 25.8), a4 = vis(t, 24.6, 29.4);
+      document.getElementById("negro").style.opacity = 1 - Math.max(a1, a2, a3, a4);
+      op("c1", vis(t, 0.6, 9.8)); op("c2", vis(t, 10.8, 19.6)); op("c3", vis(t, 20.6, 25.2)); op("c4", vis(t, 25.4, 29.2)); op("fin", sm(29.2, 29.8, t));
+      const reloj = document.getElementById("reloj");
+      if (t < 20 && t >= 10) {
+        // capítulo 2: Julia
+        const T = t - 10;
+        const mezcla = 0.5 - 0.5 * Math.cos((T / 10) * Math.PI);
+        const C = [-0.45, -0.5, 0.45, 0.0].map((v, k) => v + ([-0.125, -0.256, 0.847, 0.0895][k] - v) * mezcla);
+        const ang = T * 0.32, w = 0.15 * Math.sin(T * 0.4);
+        await motorJ(T, f, { uC: C, uAng: ang, uW: w });
+        document.getElementById("rm").style.opacity = 1;
+        canvas.style.opacity = 0;
+        reloj.innerHTML = `ángulo del corte z–w = ${(ang * 57.3).toFixed(1).replace(".", ",")}°<br/>c = (${C.map((v) => v.toFixed(2).replace(".", ",")).join("; ")})`;
+      } else {
+        document.getElementById("rm").style.opacity = 0;
+        canvas.style.opacity = 1;
+        grupo1.visible = t < 10.5;
+        if (grupo1.visible) {
+          const tau = capitulo1(t);
+          reloj.innerHTML = `t = ${tau.toFixed(2).replace(".", ",")} s<br/>θ₁ = ${(hist[Math.round(tau * SUB)][0] * 57.3 % 360).toFixed(0)}° · θ₂ = ${(hist[Math.round(tau * SUB)][1] * 57.3 % 360).toFixed(0)}°`;
+        }
+        if (t >= 19.5) {
+          const a = capitulo3(t, a3 > 0 ? Math.min(1, a3 * 1.4) : 0);
+          const g = capitulo4(t, Math.min(1, a4 * 1.4));
+          const az = (t - 20) * 0.18;
+          const r = 7.2 + Math.min(1, Math.max(0, t - 24.5) / 2) * 3.4;
+          camara.position.set(Math.sin(az) * r, 1.6 + Math.sin(t * 0.3) * 0.4, Math.cos(az) * r);
+          camara.lookAt(0, 0, 0);
+          reloj.innerHTML = t < 25 ? `giro en X–W = ${((a * 57.3) % 360).toFixed(0)}°` : `giro en 4D = ${((g * 57.3) % 360).toFixed(0)}°`;
+        } else { grupo3.visible = false; grupo4.visible = false; }
+        composer.render();
+      }
+      reloj.style.opacity = Math.max(vis(t, 0.6, 9.8), vis(t, 10.8, 19.6), vis(t, 20.6, 29.2));
+    };
+    document.fonts.ready.then(() => (window.__listo = true));
+  </script>
+</body>
+</html>

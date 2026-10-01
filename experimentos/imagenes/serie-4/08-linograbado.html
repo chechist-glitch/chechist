@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<script src="../assets/analogico.js"></script>
+<style>body { background: #3a3430; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Linograbado a dos planchas: primero el naranja, luego el negro, con un poco de desregistro.
+    // La tinta no cubre igual (el rodillo deja zonas con poca carga y el papel asoma),
+    // las gubias dejan marcas en el fondo y el papel de algodón tiene barbas en el borde.
+    (async () => {
+      await M.fuentes('26px "Fraunces"', 'italic 24px "Fraunces"');
+      const r = rng(1898);
+      const n = makeNoise(1898);
+      const PW = 920, PH = 1220, IX = 110, IY = 110, IW = 700, IH = 860;
+      const papel = A.relieve(PW, PH, 41, { grano: 1.3, fibras: 0.5, escala: 0.6 });
+      // planchas: máscaras de lo que imprime
+      const plancha = () => { const p = M.lienzo(PW, PH); p.x.fillStyle = "#fff"; p.x.strokeStyle = "#fff"; p.x.lineCap = "round"; return p; };
+      const naranja = plancha(), negro = plancha();
+      const o = naranja.x, k = negro.x;
+      // plancha naranja: sol grande y franjas del cielo
+      o.beginPath(); o.arc(IX + 470, IY + 300, 150, 0, Math.PI * 2); o.fill();
+      for (let i = 0; i < 6; i++) o.fillRect(IX, IY + 470 + i * 26, IW, 10 - i);
+      // plancha negra: marco, chumbera en maceta, suelo y gubiadas
+      k.fillRect(IX, IY, IW, IH);
+      k.globalCompositeOperation = "destination-out";
+      // cielo vaciado con gubia en líneas horizontales irregulares (dejando trazos negros)
+      for (let y = IY + 18; y < IY + 640; y += 9) {
+        k.lineWidth = 6.5 - (y - IY) / 160;
+        k.beginPath();
+        k.moveTo(IX + 16 + r() * 20, y + (r() - 0.5) * 2);
+        for (let x = IX + 30; x < IX + IW - 20; x += 30) k.lineTo(x, y + (n(x * 0.01, y * 0.05, 2) - 0.5) * 5);
+        k.stroke();
+      }
+      // halo del sol vaciado entero
+      k.beginPath(); k.arc(IX + 470, IY + 300, 170, 0, Math.PI * 2); k.fill();
+      k.globalCompositeOperation = "source-over";
+      // rayos del sol en negro
+      for (let i = 0; i < 18; i++) {
+        const a = (i / 18) * Math.PI * 2;
+        k.lineWidth = 5;
+        k.beginPath(); k.moveTo(IX + 470 + Math.cos(a) * 185, IY + 300 + Math.sin(a) * 185); k.lineTo(IX + 470 + Math.cos(a) * 225, IY + 300 + Math.sin(a) * 225); k.stroke();
+      }
+      // maceta y chumbera (palas ovaladas) en negro con líneas vaciadas de luz
+      const pala = (x, y, rx, ry, a) => {
+        k.save(); k.translate(x, y); k.rotate(a);
+        k.beginPath(); k.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); k.fill();
+        k.globalCompositeOperation = "destination-out";
+        k.lineWidth = 3.5;
+        for (let s = -rx * 0.7; s < rx * 0.2; s += 9) { k.beginPath(); k.moveTo(s, -ry * 0.7); k.quadraticCurveTo(s - 6, 0, s, ry * 0.7); k.stroke(); }
+        for (let i = 0; i < 9; i++) { k.beginPath(); k.arc((r() - 0.3) * rx * 1.2, (r() - 0.5) * ry * 1.5, 3, 0, Math.PI * 2); k.fill(); }
+        k.globalCompositeOperation = "source-over";
+        k.restore();
+      };
+      pala(IX + 300, IY + 560, 70, 100, -0.1);
+      pala(IX + 210, IY + 430, 52, 76, -0.6);
+      pala(IX + 390, IY + 420, 56, 80, 0.5);
+      pala(IX + 300, IY + 360, 40, 62, 0.05);
+      pala(IX + 160, IY + 330, 34, 52, -0.9);
+      // maceta
+      k.beginPath(); k.moveTo(IX + 200, IY + 650); k.lineTo(IX + 400, IY + 650); k.lineTo(IX + 375, IY + 800); k.lineTo(IX + 225, IY + 800); k.closePath(); k.fill();
+      k.globalCompositeOperation = "destination-out";
+      k.lineWidth = 4;
+      for (let y = IY + 670; y < IY + 790; y += 14) { k.beginPath(); k.moveTo(IX + 222, y); k.lineTo(IX + 300 - (y - IY - 650) * 0.15, y); k.stroke(); }
+      k.globalCompositeOperation = "source-over";
+      k.fillRect(IX + 188, IY + 640, 224, 22);
+      // suelo con baldosas: negro con líneas de gubia en V
+      k.globalCompositeOperation = "destination-out";
+      for (let y = IY + 800; y < IY + IH - 20; y += 22) { k.lineWidth = 3 + (y - IY - 800) / 30; k.beginPath(); k.moveTo(IX + 20, y); k.lineTo(IX + IW - 20, y + (r() - 0.5) * 4); k.stroke(); }
+      k.globalCompositeOperation = "source-over";
+      // marco con bordes irregulares (la plancha cortada a mano)
+      k.globalCompositeOperation = "destination-out";
+      k.fillRect(0, 0, PW, IY); k.fillRect(0, IY + IH, PW, PH); k.fillRect(0, 0, IX, PH); k.fillRect(IX + IW, 0, PW, PH);
+      k.globalCompositeOperation = "source-over";
+      const md = [naranja.x.getImageData(0, 0, PW, PH).data, negro.x.getImageData(0, 0, PW, PH).data];
+      // Estampación
+      const hoja = M.lienzo(PW, PH);
+      const img = hoja.x.createImageData(PW, PH);
+      const d = img.data;
+      const des = [[0, 0], [5, -3]]; // desregistro de la segunda plancha
+      const tintas = [[232, 112, 38], [22, 20, 24]];
+      for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+        const i = y * PW + x;
+        let c = [242, 236, 222].map((v) => v * (0.97 + (papel[i] - 0.5) * 0.06));
+        for (let p = 0; p < 2; p++) {
+          const sx = x - des[p][0], sy = y - des[p][1];
+          if (sx < 0 || sy < 0 || sx >= PW || sy >= PH) continue;
+          const m = md[p][(sy * PW + sx) * 4] / 255;
+          if (m < 0.05) continue;
+          // carga del rodillo: bandas horizontales más claras + el papel asoma en los valles
+          const carga = 0.78 + 0.25 * n(x * 0.003, y * 0.04 + p * 9, 2) - 0.1 * n(x * 0.05, y * 0.05, 2);
+          const cubre = M.clamp((papel[i] - (1 - carga) * 0.9) * 3.2) * m;
+          c = M.mezcla(c, tintas[p], cubre * (p ? 0.96 : 0.9));
+        }
+        // barbas del papel de algodón (borde irregular)
+        const bord = Math.min(x, y, PW - x, PH - y) + (n(x * 0.05, y * 0.05, 2) - 0.5) * 18;
+        const a = M.clamp(bord / 3);
+        d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255 * a;
+      }
+      hoja.x.putImageData(img, 0, 0);
+      // firma a lápiz bajo la estampa
+      const hx = hoja.x;
+      hx.fillStyle = "rgba(70,70,74,.85)";
+      hx.font = 'italic 24px "Fraunces"';
+      hx.fillText("3/20", IX, IY + IH + 50);
+      hx.fillText("«Chumbera al sol»", IX + 250, IY + IH + 50);
+      hx.fillText("J. M. 2026", IX + IW - 120, IY + IH + 50);
+      A.iluminar(hx, papel, { fuerza: 0.9 });
+      const ctx = canvas2d();
+      A.mesaMadera(ctx, 9, [104, 86, 70]);
+      A.colocar(ctx, hoja.c, [[90, 70], [1004, 60], [1012, 1290], [82, 1300]], { sombra: 0.45, curva: 10, brillo: 0.03, borde: false });
+      A.pelicula(ctx, { grano: 0.035, halo: 0.2, vineta: 0.4, polvo: 0.25, calido: 1.15 });
+      listo();
+    })();
+  </script>
+</body>
+</html>
