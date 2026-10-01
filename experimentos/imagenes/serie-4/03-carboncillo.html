@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<script src="../assets/analogico.js"></script>
+<style>body { background: #59544c; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Carboncillo y tiza blanca sobre papel de color: el carbón solo se agarra a las crestas
+    // del grano del papel; donde se aprieta más, llega también a los valles. Difuminos con el dedo,
+    // líneas de encaje, borrones de goma y el papel sujeto con pinzas a un tablero.
+    (async () => {
+      await M.fuentes('26px "Pacifico"');
+      const r = rng(1504);
+      const n = makeNoise(1504);
+      const PW = 920, PH = 1180;
+      const papel = A.relieve(PW, PH, 33, { grano: 1.4, fibras: 0.2, escala: 0.55 });
+      // Iluminación de un bodegón (botijo, dos limones y un paño) hecha a mano en 2D
+      const luz = [-0.6, -0.55, 0.58];
+      function esferoide(x, y, cx, cy, rx, ry) {
+        const u = (x - cx) / rx, v = (y - cy) / ry, d = u * u + v * v;
+        if (d > 1) return null;
+        const nz = Math.sqrt(1 - d);
+        return Math.max(0, u * luz[0] + v * luz[1] + nz * luz[2]);
+      }
+      function tono(x, y) {
+        // fondo: más oscuro a la derecha, sombra proyectada en la mesa
+        let L = 0.55 - (x / PW) * 0.25 + 0.05 * n(x * 0.004, y * 0.004, 2);
+        const mesa = 840;
+        if (y > mesa) L = 0.62 - (y - mesa) / 1400;
+        // sombras proyectadas (hacia la derecha y abajo)
+        const sb = Math.hypot((x - 560) / 260, (y - 880) / 60);
+        if (y > mesa && sb < 1) L *= 0.55 + 0.45 * sb * sb;
+        const sl = Math.hypot((x - 320) / 110, (y - 900) / 30);
+        if (y > mesa && sl < 1) L *= 0.6 + 0.4 * sl;
+        // botijo: cuerpo, cuello, asa y pitorro
+        let s = esferoide(x, y, 470, 640, 210, 230);
+        if (s !== null) L = 0.08 + 0.85 * Math.pow(s, 1.3) + 0.1 * Math.max(0, (x - 600) / 100);
+        if (Math.abs(x - 470) < 46 - (y - 300) * 0.05 && y > 330 && y < 440) L = 0.15 + 0.6 * M.clamp(1 - (x - 430) / 90);
+        const asa = Math.abs(Math.hypot((x - 470) / 150, (y - 420) / 120) - 1);
+        if (asa < 0.09 && y < 430) L = 0.25 + 0.5 * M.clamp((470 - x) / 150 + 0.5);
+        if (Math.abs((y - 380) - (x - 620) * -0.8) < 14 && x > 600 && x < 700) L = 0.3;
+        // limones
+        for (const [cx, cy, rx, ry] of [[260, 860, 95, 70], [380, 890, 88, 64]]) {
+          const t = esferoide(x, y, cx, cy, rx, ry);
+          if (t !== null) L = 0.2 + 0.8 * Math.pow(t, 1.1);
+        }
+        return M.clamp(L);
+      }
+
+      // Papel gris azulado (Canson) con su grano
+      const obra = M.lienzo(PW, PH);
+      const img = obra.x.createImageData(PW, PH);
+      const D = new Float32Array(PW * PH);
+      for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+        const i = y * PW + x;
+        // el dibujo se deshace hacia los bordes
+        const borde = M.smooth(0.5, 0.36, Math.hypot((x - PW / 2) / PW, (y - PH * 0.55) / PH) + (n(x * 0.01, y * 0.01, 3) - 0.5) * 0.15);
+        const t = tono(x, y);
+        D[i] = (1 - t) * borde;
+      }
+      // trazos de carbón dirigidos (sombreado a 35º) que modulan la presión
+      const rayado = (x, y) => 0.75 + 0.25 * Math.sin((x * 0.42 + y * 0.6) + n(x * 0.02, y * 0.02, 2) * 4);
+      // difuminado con el dedo en las sombras grandes
+      const Ds = (() => {
+        const l = M.lienzo(PW, PH); const im = l.x.createImageData(PW, PH);
+        for (let i = 0; i < PW * PH; i++) { im.data[i * 4] = D[i] * 255; im.data[i * 4 + 3] = 255; }
+        l.x.putImageData(im, 0, 0);
+        return A.filtrado(l.c, "blur(5px)").x.getImageData(0, 0, PW, PH).data;
+      })();
+      for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+        const i = y * PW + x;
+        const difu = n(x * 0.006, y * 0.006, 2) > 0.5 ? 0.7 : 0.15;
+        const d = D[i] * (1 - difu) + (Ds[i * 4] / 255) * difu;
+        // el carbón se agarra a las crestas: umbral según la presión
+        const presion = d * rayado(x, y) * 1.25;
+        const carbon = M.clamp((presion - (1 - papel[i]) * 0.9 + 0.12) * 2.4) * Math.min(1, presion * 1.6);
+        // tiza blanca en las luces
+        const luzT = M.clamp((tono(x, y) - 0.78) * 4) * (D[i] > 0 || tono(x, y) > 0.8 ? 1 : 0);
+        const tiza = M.clamp((luzT - (1 - papel[i]) * 0.7) * 2) * M.smooth(0.5, 0.36, Math.hypot((x - PW / 2) / PW, (y - PH * 0.55) / PH));
+        const base = [148, 152, 150].map((c) => c * (0.97 + (papel[i] - 0.5) * 0.06));
+        let c = M.mezcla(base, [22, 21, 24], carbon * 0.95);
+        c = M.mezcla(c, [238, 234, 224], tiza * 0.85);
+        img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 255;
+      }
+      obra.x.putImageData(img, 0, 0);
+      // líneas de encaje y rectificaciones
+      const g = obra.x;
+      g.strokeStyle = "rgba(25,24,28,.45)";
+      g.lineWidth = 1.4;
+      for (const [cx, cy, rx, ry] of [[470, 640, 214, 234], [260, 860, 98, 72], [380, 890, 92, 66], [470, 640, 200, 40]]) {
+        for (let k = 0; k < 2; k++) {
+          g.beginPath();
+          for (let a = 0; a <= Math.PI * 2.05; a += 0.05) g.lineTo(cx + Math.cos(a) * (rx + (r() - 0.5) * 6), cy + Math.sin(a) * (ry + (r() - 0.5) * 6));
+          g.stroke();
+        }
+      }
+      g.beginPath(); g.moveTo(470, 260); g.lineTo(472, 900); g.stroke();
+      g.beginPath(); g.moveTo(60, 842); g.lineTo(PW - 60, 836); g.stroke();
+      // borrones de goma (claros con grano)
+      g.globalCompositeOperation = "lighter";
+      for (let k = 0; k < 3; k++) {
+        const x = 150 + r() * 600, y = 200 + r() * 800;
+        g.save(); g.translate(x, y); g.rotate(r() * 3);
+        const gr = g.createLinearGradient(0, -12, 0, 12);
+        gr.addColorStop(0, "rgba(30,30,30,0)"); gr.addColorStop(0.5, "rgba(30,30,30,.5)"); gr.addColorStop(1, "rgba(30,30,30,0)");
+        g.fillStyle = gr; g.fillRect(-60, -12, 120, 24);
+        g.restore();
+      }
+      g.globalCompositeOperation = "source-over";
+      // huellas de dedo con carbón en el margen
+      for (const [fx, fy] of [[90, 1090], [840, 140]]) {
+        for (let k = 0; k < 14; k++) {
+          g.strokeStyle = `rgba(30,30,32,${0.12 - k * 0.006})`;
+          g.lineWidth = 1.2;
+          g.beginPath(); g.ellipse(fx, fy, 6 + k * 2.2, 8 + k * 2.8, 0.4, 0, Math.PI * 2); g.stroke();
+        }
+      }
+      g.fillStyle = "rgba(30,30,34,.7)";
+      g.font = '26px "Pacifico"';
+      g.fillText("J.M. 26", PW - 160, PH - 50);
+      A.iluminar(g, papel, { fuerza: 0.9 });
+
+      // Tablero con pinzas
+      const ctx = canvas2d();
+      A.mesaMadera(ctx, 11, [176, 140, 98]);
+      A.colocar(ctx, obra.c, [[80, 90], [1000, 82], [1006, 1270], [74, 1276]], { sombra: 0.4, curva: 10, brillo: 0.02 });
+      for (const x of [300, 780]) {
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 10; ctx.shadowOffsetX = 6; ctx.shadowOffsetY = 10;
+        const gm = ctx.createLinearGradient(x - 50, 0, x + 50, 0);
+        gm.addColorStop(0, "#5e5e64"); gm.addColorStop(0.5, "#d6d6dc"); gm.addColorStop(1, "#4a4a50");
+        ctx.fillStyle = gm;
+        ctx.beginPath(); ctx.roundRect(x - 50, 50, 100, 70, 8); ctx.fill();
+        ctx.fillStyle = "#2a2a2e";
+        ctx.fillRect(x - 40, 30, 80, 14);
+        ctx.restore();
+      }
+      // barrita de carbón en la mesa
+      ctx.save();
+      ctx.translate(140, 1300); ctx.rotate(-0.25);
+      ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 6;
+      ctx.fillStyle = "#1c1b1d";
+      ctx.beginPath(); ctx.roundRect(0, -7, 150, 14, 5); ctx.fill();
+      ctx.restore();
+      A.pelicula(ctx, { grano: 0.04, halo: 0.12, vineta: 0.35, polvo: 0.3, calido: 0.6, saturacion: 0.85 });
+      listo();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #2a1d14; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Hilo y clavos: 240 clavos en círculo y un solo hilo que va de clavo en clavo.
+    // Algoritmo voraz: en cada paso se elige el clavo cuyo tramo tapa más "oscuridad" pendiente
+    // de la imagen objetivo (un ojo), y esa oscuridad se da por cubierta.
+    (async () => {
+      await M.fuentes('italic 24px "Fraunces"', '18px "Plex Mono"');
+      const ctx = canvas2d();
+      const n = makeNoise(1510);
+      const G = 300, NC = 240, PASOS = 4200;
+      const CX = 540, CY = 610, RC = 470;
+      const K = RC / (G / 2 - 3);
+
+      // Imagen objetivo en una rejilla de 300×300 (0 = blanco, 1 = negro)
+      const obj = new Float32Array(G * G);
+      for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
+        const u = x - 150, v = y - 158;
+        let d = 0.03;
+        // párpados: almendra
+        const arriba = -Math.sqrt(Math.max(0, 1 - (u / 118) ** 2)) * 62;
+        const abajo = Math.sqrt(Math.max(0, 1 - (u / 118) ** 2)) * 46;
+        const dentro = v > arriba && v < abajo && Math.abs(u) < 118;
+        if (dentro) {
+          d = 0.02;
+          const ri = Math.hypot(u, v + 4);
+          if (ri < 50) {
+            const a = Math.atan2(v + 4, u);
+            d = 0.6 + 0.3 * Math.abs(Math.sin(a * 23 + n(a * 3, ri * 0.1, 2) * 4)) * (ri / 50) + 0.2 * (ri > 44);
+            if (ri < 20) d = 1;
+            if (Math.hypot(u + 14, v + 18) < 9) d = 0;
+          }
+          d = Math.max(d, 0.5 * M.smooth(10, 0, v - arriba));
+        } else if (Math.abs(u) < 124) {
+          const bordeSup = Math.abs(v - arriba);
+          if (v < arriba && bordeSup < 8) d = 0.95;
+          else if (v > abajo && Math.abs(v - abajo) < 4) d = 0.5;
+          // pliegue del párpado
+          const pliegue = -Math.sqrt(Math.max(0, 1 - (u / 128) ** 2)) * 84;
+          if (Math.abs(v - pliegue) < 3) d = 0.45;
+        }
+        // pestañas
+        for (let k = 0; k < 17; k++) {
+          const t = -1 + (k / 16) * 2;
+          const bx = t * 112, by = -Math.sqrt(Math.max(0, 1 - t * t)) * 62;
+          const ang = -Math.PI / 2 + t * 1.2;
+          const ex = bx + Math.cos(ang) * 30, ey = by + Math.sin(ang) * 30 - 6;
+          const L = Math.hypot(ex - bx, ey - by);
+          const s = M.clamp(((u - bx) * (ex - bx) + (v - by) * (ey - by)) / (L * L));
+          if (Math.hypot(u - bx - (ex - bx) * s, v - by - (ey - by) * s) < 2 && v < arriba) d = 1;
+        }
+        // ceja
+        const ceja = -118 + (u / 140) ** 2 * 26;
+        if (Math.abs(v - ceja) < 12 * (1 - Math.abs(u) / 170) && Math.abs(u) < 150) d = Math.max(d, 0.8);
+        obj[y * G + x] = d;
+      }
+      const clavos = Array.from({ length: NC }, (_, i) => {
+        const a = (i / NC) * Math.PI * 2 - Math.PI / 2;
+        return [G / 2 + Math.cos(a) * (G / 2 - 3), G / 2 + Math.sin(a) * (G / 2 - 3)];
+      });
+      function recorre(i, j, fn) {
+        const [x0, y0] = clavos[i], [x1, y1] = clavos[j];
+        const L = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
+        let s = 0;
+        for (let k = 0; k <= L; k++) {
+          const x = (x0 + ((x1 - x0) * k) / L) | 0, y = (y0 + ((y1 - y0) * k) / L) | 0;
+          s += fn(y * G + x);
+        }
+        return s / (L + 1);
+      }
+      const camino = [0];
+      let actual = 0;
+      for (let p = 0; p < PASOS; p++) {
+        let mejor = -1, valor = -1;
+        for (let j = 0; j < NC; j++) {
+          const dist = Math.min(Math.abs(j - actual), NC - Math.abs(j - actual));
+          if (dist < 12) continue;
+          const v = recorre(actual, j, (k) => obj[k]);
+          if (v > valor) { valor = v; mejor = j; }
+        }
+        recorre(actual, mejor, (k) => { obj[k] = Math.max(0, obj[k] - 0.14); return 0; });
+        camino.push(mejor);
+        actual = mejor;
+      }
+
+      // Tabla de madera redonda
+      M.porPixel(ctx, (x, y) => {
+        const d = Math.hypot(x - CX, y - CY);
+        if (d > RC + 40) {
+          const v = 0.8 + n(x * 0.01, y * 0.01, 3) * 0.3;
+          return [42 * v, 29 * v, 20 * v];
+        }
+        const veta = n(x * 0.004, y * 0.06, 4);
+        const v = 0.85 + 0.2 * veta + 0.05 * Math.sin(veta * 40);
+        const borde = d > RC + 30 ? 0.7 : 1;
+        return [214 * v * borde, 184 * v * borde, 140 * v * borde];
+      });
+      // Hilo
+      ctx.strokeStyle = "rgba(18,16,22,.26)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      camino.forEach((i, k) => {
+        const [gx, gy] = clavos[i];
+        const x = CX + (gx - G / 2) * K, y = CY + (gy - G / 2) * K;
+        k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+      // Clavos
+      clavos.forEach(([gx, gy]) => {
+        const x = CX + (gx - G / 2) * K, y = CY + (gy - G / 2) * K;
+        ctx.fillStyle = "rgba(0,0,0,.35)";
+        ctx.beginPath(); ctx.arc(x + 1.5, y + 2, 3.4, 0, Math.PI * 2); ctx.fill();
+        const g = ctx.createRadialGradient(x - 1, y - 1, 0.5, x, y, 3.4);
+        g.addColorStop(0, "#f4f4f4");
+        g.addColorStop(1, "#6f6f73");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.fillStyle = "#e9d8bd";
+      ctx.font = 'italic 26px "Fraunces"';
+      ctx.textAlign = "center";
+      ctx.fillText("un hilo, 240 clavos, 4.200 vueltas", 540, 1210);
+      ctx.font = '18px "Plex Mono"';
+      ctx.fillStyle = "rgba(233,216,189,.7)";
+      ctx.fillText("0 → " + camino.slice(1, 9).join(" → ") + " → …", 540, 1250);
+      listo();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<script src="../assets/analogico.js"></script>
+<style>body { background: #6b4a33; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Acuarela con física sencilla: cada aguada difunde el pigmento dentro de la zona mojada,
+    // al secarse lo arrastra al borde (borde oscuro), algunos pigmentos granulan en los valles
+    // del papel y los colores se mezclan por absorción (como capas de cristal tintado).
+    // Debajo hay un boceto a lápiz. Luego se fotografía sobre la mesa con su cinta de carrocero.
+    (async () => {
+      await M.fuentes('28px "Pacifico"');
+      const r = rng(1307);
+      const n = makeNoise(1307);
+      const PW = 980, PH = 1240; // papel
+      const N = PW * PH;
+      const papelH = A.relieve(PW, PH, 21, { grano: 1, fibras: 0.4, escala: 0.7 });
+      const OD = [new Float32Array(N), new Float32Array(N), new Float32Array(N)];
+      const PIG = {
+        ultramar: [1.6, 1.0, 0.25], ceruleo: [1.3, 0.42, 0.18], siena: [0.32, 1.0, 1.55], ocre: [0.18, 0.42, 1.25],
+        verde: [1.15, 0.38, 1.3], rosa: [0.2, 1.25, 0.65], gris: [1.35, 1.3, 1.15], violeta: [0.9, 1.25, 0.35],
+      };
+      // utilidades de mapas en lienzo (para usar el desenfoque rápido del canvas)
+      const aLienzo = (arr, esc = 1) => {
+        const l = M.lienzo(PW, PH);
+        const img = l.x.createImageData(PW, PH);
+        for (let i = 0; i < N; i++) { const v = Math.min(255, arr[i] * 255 * esc); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; }
+        l.x.putImageData(img, 0, 0);
+        return l.c;
+      };
+      const deLienzo = (c, esc = 1) => {
+        const d = c.getContext("2d").getImageData(0, 0, PW, PH).data;
+        const a = new Float32Array(N);
+        for (let i = 0; i < N; i++) a[i] = (d[i * 4] / 255) * esc;
+        return a;
+      };
+      const borroso = (arr, px, esc = 1) => deLienzo(A.filtrado(aLienzo(arr, 1 / esc), `blur(${px}px)`).c, esc);
+      // máscara a partir de un dibujo con borde tembloroso
+      function mascara(dibuja) {
+        const l = M.lienzo(PW, PH);
+        l.x.fillStyle = "#000";
+        l.x.fillRect(0, 0, PW, PH);
+        l.x.fillStyle = "#fff";
+        l.x.strokeStyle = "#fff";
+        dibuja(l.x);
+        return deLienzo(l.c);
+      }
+      const temblor = (pts, a = 7) => pts.map(([x, y]) => [x + (n(x * 0.03, y * 0.03, 2) - 0.5) * a * 2, y + (n(x * 0.03 + 9, y * 0.03, 2) - 0.5) * a * 2]);
+      const poli = (g, pts) => { g.beginPath(); temblor(pts).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
+
+      // Una aguada completa
+      function aguada(m0, pig, { cantidad = () => 0.6, difusion = 6, oscurecer = 1.2, granula = 0, flores = [], reservar = true } = {}) {
+        const m = new Float32Array(N);
+        for (let i = 0; i < N; i++) m[i] = m0[i] * zona[i] * (reservar ? 1 - reserva[i] : 1);
+        const c0 = new Float32Array(N);
+        for (let i = 0; i < N; i++) if (m[i] > 0.01) { const x = i % PW, y = (i / PW) | 0; c0[i] = m[i] * cantidad(x, y) * (0.85 + 0.3 * n(x * 0.01, y * 0.01, 3)); }
+        // difusión normalizada: el pigmento se mueve dentro de lo mojado sin salirse
+        const cb = borroso(c0, difusion, 2), mb = borroso(m, difusion);
+        const mb5 = borroso(m, 5);
+        for (let i = 0; i < N; i++) {
+          if (m[i] < 0.01) continue;
+          let c = (cb[i] / Math.max(mb[i], 0.05)) * m[i];
+          // borde oscuro al secar
+          const borde = Math.max(0, m[i] - mb5[i]);
+          c *= 1 + borde * oscurecer * 2.2;
+          // granulación: se queda en los valles del papel
+          c *= 1 + granula * (0.5 - papelH[i]) * 2.4;
+          for (const [fx, fy, fr] of flores) {
+            const x = i % PW, y = (i / PW) | 0;
+            const d = Math.hypot(x - fx, y - fy) / (fr * (0.8 + 0.4 * n(Math.atan2(y - fy, x - fx) * 3, fx, 2)));
+            if (d < 1) c *= 0.45 + 0.9 * Math.pow(d, 6);
+          }
+          for (let k = 0; k < 3; k++) OD[k][i] += c * PIG[pig][k];
+        }
+      }
+
+      // Zona pintada: la acuarela no llega a los bordes, se deshace en el papel
+      const zona = mascara((g) => {
+        const pts = [];
+        for (let k = 0; k < 120; k++) {
+          const a = (k / 120) * Math.PI * 2;
+          const rx = 400 + 70 * n(Math.cos(a) * 2 + 5, Math.sin(a) * 2, 3), ry = 530 + 80 * n(Math.cos(a) * 2, Math.sin(a) * 2 + 7, 3);
+          const sq = (t) => Math.sign(t) * Math.pow(Math.abs(t), 0.45);
+          pts.push([PW / 2 + sq(Math.cos(a)) * rx, PH / 2 - 10 + sq(Math.sin(a)) * ry]);
+        }
+        g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill();
+      });
+      {
+        // el borde se deshace en pincel seco: solo pinta en las crestas del papel
+        const zb = borroso(zona, 26);
+        for (let i = 0; i < N; i++) {
+          const x = i % PW, y = (i / PW) | 0;
+          const t = zb[i] + (n(x * 0.03, y * 0.03, 3) - 0.5) * 0.5;
+          zona[i] = M.clamp((t - 0.45) * 5) * (t < 0.75 ? (papelH[i] > 0.5 - (t - 0.45) ? 1 : 0.25) : 1);
+        }
+      }
+
+      // Pueblo blanco en la loma: paredes = papel reservado
+      const loma = (x) => 600 - 170 * Math.exp(-Math.pow((x - 500) / 330, 2)) - 25 * n(x * 0.01, 2, 2);
+      const casas = [];
+      for (let fila = 0; fila < 9; fila++) for (let x = 150 + (fila % 2) * 30; x < 840; x += 52 + r() * 40) {
+        const y0 = loma(x) + 40 + fila * 42 + r() * 12;
+        if (y0 > 960) continue;
+        const w = 44 + r() * 50, h = 30 + r() * 26;
+        if (y0 - h < loma(x) + 4) continue;
+        casas.push([x, y0, w, h, r()]);
+      }
+      casas.sort((a, b) => a[1] - b[1]);
+      const TX = 470, TY = loma(470) + 70;
+      const reserva = mascara((g) => {
+        for (const [x, y, w, h] of casas) poli(g, [[x, y], [x + (r() - 0.5) * 6, y - h], [x + w, y - h + (r() - 0.5) * 6], [x + w + (r() - 0.5) * 6, y]]);
+        g.fillRect(TX, TY - 190, 46, 190);
+        g.beginPath(); g.arc(TX + 23, TY - 190, 26, Math.PI, 0); g.fill();
+      });
+
+      // bordes perdidos: en algunas zonas la aguada de la loma se come el blanco
+      for (let i = 0; i < N; i++) { const x = i % PW, y = (i / PW) | 0; reserva[i] *= M.clamp((n(x * 0.012, y * 0.012, 3) - 0.28) * 5); }
+      // --- Boceto a lápiz (se ve a través de la pintura) ---
+      const grafito = M.lienzo(PW, PH);
+      const gl = grafito.x;
+      gl.fillStyle = "#000";
+      gl.fillRect(0, 0, PW, PH);
+      gl.strokeStyle = "rgba(255,255,255,.5)";
+      gl.lineWidth = 1.1;
+      const linea = (pts) => { gl.beginPath(); temblor(pts, 1.5).forEach(([x, y], i) => (i ? gl.lineTo(x, y) : gl.moveTo(x, y))); gl.stroke(); };
+      for (const [x, y, w, h] of casas) { linea([[x - 3, y], [x, y - h], [x + w + 4, y - h + 1]]); linea([[x + w, y - h - 3], [x + w + 1, y + 2]]); }
+      linea([[TX, TY], [TX, TY - 190], [TX + 46, TY - 190], [TX + 46, TY]]);
+      linea(Array.from({ length: 50 }, (_, i) => [80 + i * 17, loma(80 + i * 17)]));
+      const gd = deLienzo(grafito.c);
+
+      // --- Aguadas, de claro a oscuro ---
+      // 1. Cielo húmedo sobre húmedo, nubes levantadas con papel
+      const nube = (x, y) => M.smooth(0.5, 0.64, n(x * 0.0035, y * 0.007, 4));
+      const cielo = mascara((g) => poli(g, [[0, 0], [PW, 0], [PW, 760], [0, 760]]));
+      aguada(cielo, "ultramar", { cantidad: (x, y) => Math.max(0, 0.42 - y / 1500) * (1 - nube(x, y) * 0.9), difusion: 18, oscurecer: 0.15, granula: 0.35 });
+      aguada(cielo, "ceruleo", { cantidad: (x, y) => Math.max(0, (y - 250) / 1400) * (1 - nube(x, y)), difusion: 20, oscurecer: 0.1 });
+      aguada(cielo, "rosa", { cantidad: (x, y) => M.smooth(380, 640, y) * 0.1, difusion: 22, oscurecer: 0 });
+      // 2. Sierra lejana
+      const sierra = mascara((g) => poli(g, [[0, 700], ...Array.from({ length: 50 }, (_, i) => [i * 20, 560 - 60 * n(i * 0.15, 4, 3)]), [PW, 700], [PW, 640], [0, 640]]));
+      aguada(sierra, "violeta", { cantidad: () => 0.2, difusion: 5, oscurecer: 1.4, granula: 0.8 });
+      // 3. Loma: ocre suelto con verde que se cuela mojado
+      const lomaM = mascara((g) => poli(g, [[0, PH], ...Array.from({ length: 60 }, (_, i) => [i * 17, loma(i * 17)]), [PW, PH]]));
+      aguada(lomaM, "ocre", { cantidad: (x, y) => 0.32 + 0.22 * n(x * 0.006, y * 0.006, 2), difusion: 9, oscurecer: 1.3, granula: 0.4, flores: [[780, 1010, 70], [210, 1080, 55]] });
+      aguada(lomaM, "verde", { cantidad: (x, y) => M.smooth(900, 1150, y) * 0.55 * n(x * 0.008, y * 0.008, 3), difusion: 14, oscurecer: 0.6 });
+      // 4. Sombras de las casas (azul violáceo) y tejados
+      // todas las sombras en una sola pasada (si no, se oscurecen donde se solapan)
+      const sombras = mascara((g) => {
+        for (const [x, y, w, h] of casas) {
+          poli(g, [[x + w * 0.66, y], [x + w * 0.64, y - h], [x + w, y - h + 2], [x + w + 1, y]]);
+          poli(g, [[x, y - h], [x + w, y - h], [x + w, y - h + 7], [x + 3, y - h + 5]]);
+        }
+      });
+      aguada(sombras, "ultramar", { cantidad: (x, y) => 0.15 + 0.06 * n(x * 0.02, y * 0.02, 2), difusion: 2, oscurecer: 1, reservar: false });
+      aguada(sombras, "rosa", { cantidad: () => 0.05, difusion: 2, oscurecer: 0.5, reservar: false });
+      aguada(mascara((g) => { for (const [x, y, w, h, s2] of casas) if (s2 < 0.3) poli(g, [[x - 3, y - h + 2], [x + w * 0.5, y - h - 12], [x + w + 3, y - h + 2]]); }), "siena", { cantidad: (x, y) => 0.35 + 0.2 * n(x * 0.05, y * 0.05, 1), difusion: 1.5, oscurecer: 1.2, reservar: false });
+      aguada(mascara((g) => { for (const [x, y, w, h, s2] of casas) if (s2 > 0.45) { g.fillRect(x + w * 0.2 + r() * 3, y - h * 0.62, 4 + r() * 3, 7 + r() * 3); if (w > 60 && r() < 0.6) g.fillRect(x + w * 0.42, y - h * 0.6, 5, 8); } }), "gris", { cantidad: () => 0.6, difusion: 0.6, oscurecer: 0.4, reservar: false });
+      aguada(mascara((g) => poli(g, [[TX + 30, TY], [TX + 30, TY - 190], [TX + 46, TY - 190], [TX + 46, TY]])), "ultramar", { cantidad: () => 0.2, difusion: 1, oscurecer: 2, reservar: false });
+      aguada(mascara((g) => { g.fillRect(TX + 14, TY - 165, 10, 22); g.fillRect(TX + 14, TY - 110, 10, 16); }), "gris", { cantidad: () => 0.6, difusion: 0.5, oscurecer: 0.5, reservar: false });
+      // 5. Chumberas y pita en primer plano, con veladura oscura encima
+      const chumbera = mascara((g) => {
+        for (let k = 0; k < 14; k++) { const cx = 150 + (k % 5) * 38 + r() * 20, cy = 1120 - Math.floor(k / 5) * 60 - r() * 30; g.beginPath(); g.ellipse(cx, cy, 28, 40, r() - 0.5, 0, Math.PI * 2); g.fill(); }
+        for (let k = 0; k < 12; k++) { const a = -Math.PI / 2 + (k - 5.5) * 0.22; g.beginPath(); g.moveTo(790, 1150); g.quadraticCurveTo(790 + Math.cos(a) * 80, 1150 + Math.sin(a) * 120, 790 + Math.cos(a) * 160, 1150 + Math.sin(a) * 190); g.lineTo(800 + Math.cos(a) * 95, 1150 + Math.sin(a) * 95); g.fill(); }
+      });
+      aguada(chumbera, "verde", { cantidad: () => 0.6, difusion: 3, oscurecer: 2, granula: 0.3 });
+      aguada(chumbera, "ultramar", { cantidad: (x, y) => 0.3 * M.smooth(0.45, 0.7, n(x * 0.02, y * 0.02, 2)), difusion: 2, oscurecer: 1.5 });
+      // salpicaduras
+      aguada(mascara((g) => { for (let k = 0; k < 60; k++) { g.beginPath(); g.arc(300 + r() * 500, 1000 + r() * 200, 1 + r() * 4, 0, Math.PI * 2); g.fill(); } }), "siena", { cantidad: () => 0.5, difusion: 0.5, oscurecer: 1.5 });
+
+      // --- Composición: papel × transmitancia de todas las capas + grafito ---
+      const obra = M.lienzo(PW, PH);
+      const img = obra.x.createImageData(PW, PH);
+      for (let i = 0; i < N; i++) {
+        const tono = 0.97 + (papelH[i] - 0.5) * 0.05;
+        const g = gd[i] * 0.85;
+        img.data[i * 4] = 248 * tono * Math.exp(-OD[0][i]) * (1 - g * 0.6);
+        img.data[i * 4 + 1] = 245 * tono * Math.exp(-OD[1][i]) * (1 - g * 0.6);
+        img.data[i * 4 + 2] = 236 * tono * Math.exp(-OD[2][i]) * (1 - g * 0.55);
+        img.data[i * 4 + 3] = 255;
+      }
+      obra.x.putImageData(img, 0, 0);
+      A.iluminar(obra.x, papelH, { fuerza: 0.7 });
+      // cinta de carrocero en los bordes (una esquina despegada)
+      const cinta = (x, y, w, h) => {
+        obra.x.fillStyle = "rgba(226,212,170,.88)";
+        obra.x.fillRect(x, y, w, h);
+        obra.x.strokeStyle = "rgba(150,130,90,.35)";
+        for (let k = 0; k < 40; k++) { const px = x + r() * w, py = y + r() * h; obra.x.beginPath(); obra.x.moveTo(px, py); obra.x.lineTo(px + (w > h ? 0 : 10), py + (w > h ? 8 : 0)); obra.x.stroke(); }
+      };
+      cinta(0, 0, PW, 46); cinta(0, PH - 46, PW, 46); cinta(0, 0, 46, PH); cinta(PW - 46, 0, 46, PH);
+      obra.x.fillStyle = "#3a3a44";
+      obra.x.font = '26px "Pacifico"';
+      obra.x.globalAlpha = 0.55;
+      obra.x.fillText("Vejer, sept. 26", PW - 300, PH - 70);
+      obra.x.globalAlpha = 1;
+
+      // --- Foto sobre la mesa ---
+      const ctx = canvas2d();
+      A.mesaMadera(ctx, 8, [118, 82, 54]);
+      // pincel apoyado en la mesa
+      A.colocar(ctx, obra.c, [[62, 48], [1028, 70], [1010, 1312], [48, 1290]], { sombra: 0.5, curva: 8, brillo: 0.05 });
+      ctx.save();
+      ctx.translate(890, 1150);
+      ctx.rotate(-0.5);
+      ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 14; ctx.shadowOffsetX = 10; ctx.shadowOffsetY = 14;
+      const mango = ctx.createLinearGradient(0, -9, 0, 9);
+      mango.addColorStop(0, "#c4513a"); mango.addColorStop(0.4, "#e57a5e"); mango.addColorStop(1, "#7a2a1c");
+      ctx.fillStyle = mango;
+      ctx.beginPath(); ctx.roundRect(-10, -8, 300, 16, 8); ctx.fill();
+      ctx.shadowColor = "transparent";
+      const vir = ctx.createLinearGradient(0, -8, 0, 8);
+      vir.addColorStop(0, "#9a9aa0"); vir.addColorStop(0.4, "#f2f2f4"); vir.addColorStop(1, "#55555c");
+      ctx.fillStyle = vir;
+      ctx.fillRect(-70, -7, 62, 14);
+      ctx.fillStyle = "#2a1c14";
+      ctx.beginPath(); ctx.moveTo(-70, -7); ctx.quadraticCurveTo(-120, -6, -140, 0); ctx.quadraticCurveTo(-120, 6, -70, 7); ctx.fill();
+      ctx.restore();
+      A.pelicula(ctx, { grano: 0.035, halo: 0.25, vineta: 0.3, polvo: 0.2, aberracion: 0.0008 });
+      listo();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<style>body { background: #f6f2e8; } svg { position: absolute; inset: 0; }</style>
+</head>
+<body>
+  <script>
+    // Dibujo de patente de 1930: alzado sombreado a líneas, sección despiezada con rayado
+    // y referencias numeradas. SVG a mano, sin librerías.
+    const r = rng(1933);
+    const L = (x1, y1, x2, y2, w = 2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1a1a1a" stroke-width="${w}" stroke-linecap="round"/>`;
+    const P = (d, w = 2.4, fill = "none") => `<path d="${d}" fill="${fill}" stroke="#1a1a1a" stroke-width="${w}" stroke-linejoin="round"/>`;
+    const T = (x, y, t, s = 26, extra = "") => `<text x="${x}" y="${y}" font-family="Fraunces" font-style="italic" font-size="${s}" fill="#1a1a1a" ${extra}>${t}</text>`;
+    let s = `<svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="seccion" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="9" stroke="#1a1a1a" stroke-width="1.4"/></pattern>
+        <filter id="papel"><feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="3" seed="7"/><feColorMatrix values="0 0 0 0 .4 0 0 0 0 .35 0 0 0 0 .25 0 0 0 .12 0"/><feComposite in2="SourceGraphic" operator="in"/><feBlend in="SourceGraphic" mode="multiply"/></filter>
+      </defs>
+      <rect width="1080" height="1350" fill="#f6f2e8" filter="url(#papel)"/>`;
+
+    // Cabecera
+    s += T(70, 70, "2 Hojas—Hoja 1.", 22);
+    s += `<text x="540" y="70" text-anchor="middle" font-family="Playfair" font-weight="900" font-size="28" fill="#1a1a1a">M. QUILLO.</text>`;
+    s += `<text x="540" y="104" text-anchor="middle" font-family="DM Serif" font-size="24" fill="#1a1a1a" letter-spacing="3">CAFETERA DE PRESIÓN PARA FOGÓN.</text>`;
+    s += T(1010, 70, "Nº 2.026.001.", 22, 'text-anchor="end"');
+    s += T(540, 136, "Patentada el 28 de sept. de 2026.", 20, 'text-anchor="middle"');
+
+    // --- FIG. 1: alzado ---
+    const cx = 310, base = 1030;
+    // caldera inferior: tronco de pirámide octogonal
+    const bw = 150, tw = 112, arriba = 790;
+    s += P(`M ${cx - bw} ${base} L ${cx + bw} ${base} L ${cx + tw} ${arriba} L ${cx - tw} ${arriba} Z`);
+    for (const f of [-0.42, 0, 0.42]) s += L(cx + f * bw, base, cx + f * tw, arriba, 1.6);
+    // sombreado a rayas de las caras derechas (luz desde la izquierda)
+    for (let k = 0; k < 16; k++) {
+      const f = 0.45 + k * 0.034;
+      s += L(cx + f * bw, base - 4, cx + f * tw, arriba + 4, 1 + k * 0.05);
+    }
+    // válvula de seguridad
+    s += `<circle cx="${cx - 60}" cy="${base - 150}" r="13" fill="none" stroke="#1a1a1a" stroke-width="2"/>`;
+    s += `<circle cx="${cx - 60}" cy="${base - 150}" r="5" fill="#1a1a1a"/>`;
+    // cintura
+    s += P(`M ${cx - tw - 6} ${arriba} L ${cx + tw + 6} ${arriba} L ${cx + tw + 2} ${arriba - 22} L ${cx - tw - 2} ${arriba - 22} Z`, 2.4);
+    for (let k = 0; k < 7; k++) s += L(cx + 30 + k * 12, arriba - 3, cx + 30 + k * 12, arriba - 19, 1.2);
+    // depósito superior: tronco invertido
+    const uw0 = 104, uw1 = 138, utop = 560;
+    s += P(`M ${cx - uw0} ${arriba - 22} L ${cx + uw0} ${arriba - 22} L ${cx + uw1} ${utop} L ${cx - uw1} ${utop} Z`);
+    for (const f of [-0.42, 0, 0.42]) s += L(cx + f * uw0, arriba - 22, cx + f * uw1, utop, 1.6);
+    for (let k = 0; k < 16; k++) { const f = 0.45 + k * 0.034; s += L(cx + f * uw0, arriba - 26, cx + f * uw1, utop + 4, 1 + k * 0.05); }
+    // pico
+    s += P(`M ${cx - uw1} ${utop} L ${cx - uw1 - 44} ${utop + 18} L ${cx - uw1 - 4} ${utop + 46}`);
+    // tapa abombada y pomo
+    s += P(`M ${cx - uw1 + 6} ${utop} Q ${cx} ${utop - 58} ${cx + uw1 - 6} ${utop}`);
+    for (let k = 0; k < 8; k++) s += P(`M ${cx + 30 + k * 10} ${utop - 36 + k * 3.5} L ${cx + 30 + k * 10} ${utop - 4}`, 1);
+    s += P(`M ${cx - 16} ${utop - 44} Q ${cx} ${utop - 80} ${cx + 16} ${utop - 44}`, 2.4, "#1a1a1a");
+    // asa de baquelita
+    s += P(`M ${cx + uw1 - 8} ${utop + 14} C ${cx + 230} ${utop + 10}, ${cx + 240} ${utop + 60}, ${cx + 214} ${utop + 190} L ${cx + 180} ${utop + 186} C ${cx + 200} ${utop + 80}, ${cx + 190} ${utop + 50}, ${cx + uw1 - 22} ${utop + 58} Z`, 2.4);
+    for (let k = 0; k < 9; k++) s += L(cx + 188 + k * 3, utop + 60 + k * 14, cx + 206 + k * 1.5, utop + 64 + k * 14, 1.1);
+    // llama esquemática y fogón
+    s += L(cx - 190, base + 16, cx + 190, base + 16, 3);
+    for (let k = -3; k <= 3; k++) s += P(`M ${cx + k * 40 - 10} ${base + 60} Q ${cx + k * 40} ${base + 20} ${cx + k * 40 + 10} ${base + 60}`, 1.6);
+    s += L(cx - 200, base + 64, cx + 200, base + 64, 3);
+    s += T(cx - 40, 1165, "Fig. 1.", 34);
+
+    // --- FIG. 2: sección despiezada ---
+    const fx = 790;
+    const seccion = (d) => `<path d="${d}" fill="url(#seccion)" stroke="#1a1a1a" stroke-width="2.2" stroke-linejoin="round"/>`;
+    // depósito superior en sección (paredes rayadas) con columna central
+    s += seccion(`M ${fx - 118} 250 L ${fx - 100} 430 L ${fx - 88} 430 L ${fx - 106} 262 L ${fx - 106} 250 Z`);
+    s += seccion(`M ${fx + 118} 250 L ${fx + 100} 430 L ${fx + 88} 430 L ${fx + 106} 262 L ${fx + 106} 250 Z`);
+    s += seccion(`M ${fx - 100} 430 L ${fx + 100} 430 L ${fx + 100} 444 L ${fx - 100} 444 Z`);
+    s += seccion(`M ${fx - 10} 444 L ${fx + 10} 444 L ${fx + 10} 330 L ${fx - 10} 330 Z`);
+    s += L(fx - 10, 330, fx - 22, 318, 2) + L(fx + 10, 330, fx + 22, 318, 2);
+    s += P(`M ${fx - 100} 444 L ${fx - 100} 470 L ${fx + 100} 470 L ${fx + 100} 444`, 2.2);
+    // flechas del café subiendo
+    s += P(`M ${fx} 520 L ${fx} 350`, 1.6) + P(`M ${fx - 8} 364 L ${fx} 348 L ${fx + 8} 364`, 1.6);
+    // junta y filtro de embudo
+    s += `<rect x="${fx - 92}" y="510" width="184" height="14" rx="6" fill="#1a1a1a"/>`;
+    s += seccion(`M ${fx - 92} 560 L ${fx + 92} 560 L ${fx + 92} 574 L ${fx + 16} 612 L ${fx + 16} 740 L ${fx + 4} 740 L ${fx + 4} 618 L ${fx - 4} 618 L ${fx - 4} 740 L ${fx - 16} 740 L ${fx - 16} 612 L ${fx - 92} 574 Z`);
+    for (let k = -3; k <= 3; k++) s += `<circle cx="${fx + k * 22}" cy="567" r="3" fill="#f6f2e8" stroke="#1a1a1a" stroke-width="1"/>`;
+    // caldera en sección
+    s += seccion(`M ${fx - 150} 1030 L ${fx - 112} 800 L ${fx - 100} 800 L ${fx - 136} 1018 L ${fx + 136} 1018 L ${fx + 100} 800 L ${fx + 112} 800 L ${fx + 150} 1030 Z`);
+    // nivel del agua
+    for (let x = fx - 128; x < fx + 128; x += 16) s += P(`M ${x} 900 q 4 -5 8 0 q 4 5 8 0`, 1.2);
+    s += `<circle cx="${fx - 128}" cy="880" r="10" fill="#f6f2e8" stroke="#1a1a1a" stroke-width="2"/>`;
+    s += T(fx - 40, 1165, "Fig. 2.", 34);
+    // ejes de montaje (trazo y punto)
+    s += `<line x1="${fx}" y1="200" x2="${fx}" y2="1060" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="22 6 3 6"/>`;
+
+    // --- Referencias numeradas ---
+    const ref = (n, x, y, tx, ty) => {
+      s += P(`M ${x} ${y} Q ${(x + tx) / 2 + 20} ${(y + ty) / 2 - 20} ${tx} ${ty}`, 1.3);
+      s += T(tx + (tx > x ? 6 : -34), ty + 8, n, 26);
+    };
+    ref("10", cx - 110, 950, cx - 220, 900);
+    ref("12", cx - 60, base - 150, cx - 230, 820);
+    ref("14", cx - 60, arriba - 12, cx - 230, 740);
+    ref("16", cx - 100, 650, cx - 230, 640);
+    ref("18", cx - uw1 - 30, utop + 20, cx - 230, 540);
+    ref("20", cx, utop - 60, cx - 90, 470);
+    ref("22", cx + 222, utop + 120, cx + 280, 780);
+    ref("24", fx + 10, 400, fx + 170, 340);
+    ref("26", fx + 60, 517, fx + 170, 490);
+    ref("28", fx + 10, 680, fx + 170, 650);
+    ref("30", fx + 120, 960, fx + 190, 900);
+    ref("32", fx - 128, 880, fx - 190, 820);
+
+    // Firmas
+    s += T(70, 1240, "Testigos:", 22);
+    s += `<text x="80" y="1290" font-family="Pacifico" font-size="30" fill="#1a1a1a" transform="rotate(-3 80 1290)">R. Montoya</text>`;
+    s += `<text x="300" y="1300" font-family="Pacifico" font-size="28" fill="#1a1a1a" transform="rotate(-2 300 1300)">Lola F.</text>`;
+    s += T(1010, 1240, "Inventor:", 22, 'text-anchor="end"');
+    s += `<text x="1010" y="1290" text-anchor="end" font-family="Pacifico" font-size="34" fill="#1a1a1a" transform="rotate(-3 1010 1290)">M. Quillo</text>`;
+    s += T(1010, 1325, "por Bufete de la Alameda, abogados.", 18, 'text-anchor="end"');
+    s += `</svg>`;
+    document.body.innerHTML = s;
+    listo();
+  </script>
+</body>
+</html>

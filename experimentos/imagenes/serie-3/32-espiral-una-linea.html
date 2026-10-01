@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<style>body { background: #f4efe3; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Una sola línea continua: una espiral que tiembla más donde la imagen es más oscura.
+    // Es como lo dibujaría un plóter con un solo rotulador y sin levantarlo nunca.
+    (async () => {
+      await M.fuentes('italic 24px "Fraunces"');
+      const ctx = canvas2d();
+      const n = makeNoise(1198);
+      // La Giralda al atardecer, en gris
+      function oscuridad(x, y) {
+        const torre = (x0, x1, y0, y1) => x > x0 && x < x1 && y > y0 && y < y1;
+        let d = 0.12 + 0.1 * (y / H);
+        const sol = Math.hypot(x - 700, y - 520);
+        if (sol < 150) d = 0;
+        else d *= 1 - Math.exp(-(sol - 150) / 120) * 0.8;
+        const cx = 480;
+        if (torre(cx - 90, cx + 90, 470, 1180)) {
+          d = 0.82;
+          // ventanas y paños de sebka más claros
+          const vx = Math.abs(x - cx), fila = Math.floor((y - 520) / 130);
+          if (vx < 18 && (y - 520) % 130 < 70 && fila >= 0) d = 0.3;
+          if (vx > 40 && vx < 75 && y > 520 && y < 880 && (Math.floor(x / 10) + Math.floor(y / 10)) % 2 === 0) d = 0.62;
+        }
+        if (torre(cx - 70, cx + 70, 330, 470)) d = (Math.abs(x - cx) < 30 && y > 360 && y < 440) ? 0.2 : 0.75;
+        if (torre(cx - 50, cx + 50, 250, 330)) d = 0.8;
+        if (torre(cx - 32, cx + 32, 180, 250)) d = 0.7;
+        if (torre(cx - 16, cx + 16, 120, 180)) d = 0.9;
+        if (Math.hypot(x - cx, y - 100) < 22) d = 0.95;
+        // tejados de la ciudad y palmeras
+        const tejado = 1180 - 50 * n(x * 0.01, 1, 2) - (Math.floor(x / 90) % 2) * 20;
+        if (y > tejado) d = 0.55 + 0.15 * n(x * 0.05, y * 0.05, 2);
+        for (const [px, alto] of [[800, 360], [900, 280]]) {
+          if (Math.abs(x - px - Math.sin((1180 - y) * 0.004) * 30) < 8 && y > 1180 - alto) d = 0.9;
+          const cx2 = px + Math.sin(alto * 0.004) * 30, cy2 = 1180 - alto;
+          const a = Math.atan2(y - cy2, x - cx2), rr = Math.hypot(x - cx2, y - cy2);
+          if (rr < 130 && Math.abs(Math.sin(a * 5)) > 0.85 && y < cy2 + 60) d = Math.max(d, 0.8 * (1 - rr / 150));
+        }
+        return M.clamp(d);
+      }
+      ctx.fillStyle = "#f4efe3";
+      ctx.fillRect(0, 0, W, H);
+      const CX = 540, CY = 640, PASO = 7.2, RMAX = 900;
+      ctx.strokeStyle = "#1b1e2e";
+      ctx.lineWidth = 1.7;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      let fase = 0, largo = 0, px = CX, py = CY;
+      for (let th = 0; ; th += 0.0) {
+        const rr = (th / (Math.PI * 2)) * PASO;
+        if (rr > RMAX) break;
+        const x0 = CX + Math.cos(th) * rr, y0 = CY + Math.sin(th) * rr;
+        const dosc = x0 > 0 && x0 < W && y0 > 0 && y0 < H ? oscuridad(x0, y0) : 0;
+        fase += 1;
+        const off = Math.sin(fase * 1.6) * dosc * PASO * 0.62;
+        const x = CX + Math.cos(th) * (rr + off), y = CY + Math.sin(th) * (rr + off);
+        th === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        largo += Math.hypot(x - px, y - py);
+        px = x; py = y;
+        th += 1.6 / Math.max(rr, 3);
+      }
+      ctx.stroke();
+      ctx.fillStyle = "#f4efe3";
+      ctx.fillRect(0, H - 80, W, 80);
+      ctx.fillStyle = "#1b1e2e";
+      ctx.font = 'italic 24px "Fraunces"';
+      ctx.fillText(`La Giralda · una sola línea de ${Math.round(largo).toLocaleString("es-ES")} píxeles, sin levantar el rotulador`, 60, H - 40);
+      listo();
+    })();
+  </script>
+</body>
+</html>

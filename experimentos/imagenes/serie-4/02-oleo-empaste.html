@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../assets/base.css" />
+<script src="../assets/lib.js"></script>
+<script src="../assets/mas.js"></script>
+<script src="../assets/analogico.js"></script>
+<style>body { background: #1d1a17; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Óleo con empaste: cada pincelada pinta color y además deja relieve (crestas de las cerdas,
+    // más pasta al final del trazo). Luego se ilumina el relieve con luz rasante y brillo de aceite.
+    const ctx = canvas2d();
+    const r = rng(1888);
+    const n = makeNoise(1888);
+    const HOR = 760;
+
+    // Escena de referencia: atardecer en el Guadalquivir con una barca
+    function escena(x, y) {
+      const sol = Math.hypot(x - 640, y - 560);
+      if (y < HOR) {
+        const t = y / HOR;
+        let c = M.mezcla([40, 60, 120], [235, 120, 70], Math.pow(t, 1.6));
+        c = M.mezcla(c, [255, 200, 90], Math.exp(-sol / 170) * 0.95);
+        if (sol < 70) c = [255, 238, 170];
+        const nube = n(x * 0.004, y * 0.012, 3);
+        if (nube > 0.58 && y < 600) c = M.mezcla(c, [120, 60, 110], 0.6);
+        return c;
+      }
+      const t = (y - HOR) / (H - HOR);
+      let c = M.mezcla([200, 100, 80], [30, 40, 80], t * 1.2);
+      const refl = Math.exp(-Math.abs(x - 640) / (30 + t * 140));
+      c = M.mezcla(c, [255, 200, 110], refl * (0.6 + 0.4 * Math.sin(y * 0.3)));
+      // barca oscura
+      const bx = x - 330, by = y - 900;
+      if (by > -20 && by < 24 && Math.abs(bx) < 150 - by * 1.5) c = [30, 22, 30];
+      if (Math.abs(bx + 20) < 4 && by < -20 && by > -170) c = [30, 22, 30];
+      return c;
+    }
+    // dirección de las pinceladas
+    function flujo(x, y) {
+      if (y < HOR) {
+        const dx = x - 640, dy = y - 560, d = Math.hypot(dx, dy);
+        if (d < 260) return Math.atan2(dy, dx) + Math.PI / 2;
+        return (n(x * 0.004, y * 0.004, 2) - 0.5) * 1.2;
+      }
+      return (n(x * 0.01, y * 0.01, 2) - 0.5) * 0.4;
+    }
+
+    const col = M.lienzo(), alt = M.lienzo();
+    const C = col.x, Hh = alt.x;
+    // imprimación y lienzo
+    C.fillStyle = "#b9875a";
+    C.fillRect(0, 0, W, H);
+    Hh.fillStyle = "#000";
+    Hh.fillRect(0, 0, W, H);
+    Hh.globalCompositeOperation = "source-over";
+    C.lineCap = Hh.lineCap = "round";
+
+    const pasadas = [[3000, 34, 120], [7000, 18, 75], [11000, 10, 42]];
+    for (const [cantidad, ancho, largo] of pasadas) {
+      for (let k = 0; k < cantidad; k++) {
+        let x = r() * W, y = r() * H;
+        const base = escena(x, y).map((v) => M.clamp(v + (r() - 0.5) * 18, 0, 255));
+        const L = largo * (0.6 + r() * 0.8), w = ancho * (0.7 + r() * 0.6);
+        const pts = [];
+        let a = flujo(x, y) + (r() < 0.5 ? 0 : Math.PI);
+        for (let i = 0; i <= 10; i++) {
+          pts.push([x, y]);
+          a = a * 0.7 + flujo(x, y) * 0.3 + (r() < 0.5 ? 0 : 0);
+          x += Math.cos(a) * L / 10; y += Math.sin(a) * L / 10;
+        }
+        const cerdas = Math.max(4, Math.floor(w / 2.2));
+        for (let b = 0; b < cerdas; b++) {
+          const off = (b / (cerdas - 1) - 0.5) * w;
+          const carga = 0.7 + r() * 0.3;
+          const tono = base.map((v) => M.clamp(v * (0.95 + r() * 0.1), 0, 255));
+          C.strokeStyle = M.rgb(tono, 0.92);
+          C.lineWidth = (w / cerdas) * 1.7;
+          const grad = Hh.createLinearGradient(pts[0][0], pts[0][1], pts[10][0], pts[10][1]);
+          const hb = 90 + r() * 70;
+          grad.addColorStop(0, `rgba(${hb * 0.55},0,0,.75)`);
+          grad.addColorStop(0.8, `rgba(${hb},0,0,.9)`);
+          grad.addColorStop(1, `rgba(${hb * 1.25},0,0,.9)`);
+          Hh.strokeStyle = grad;
+          Hh.lineWidth = (w / cerdas) * 0.9;
+          for (const [g, final] of [[C, false], [Hh, true]]) {
+            g.beginPath();
+            pts.forEach(([px, py], i) => {
+              const t = i / 10;
+              const dx = i < 10 ? pts[i + 1][0] - px : px - pts[i - 1][0], dy = i < 10 ? pts[i + 1][1] - py : py - pts[i - 1][1];
+              const m = Math.hypot(dx, dy) || 1;
+              const q = [px - (dy / m) * off * (1 - t * 0.2), py + (dx / m) * off * (1 - t * 0.2)];
+              i ? g.lineTo(...q) : g.moveTo(...q);
+            });
+            g.stroke();
+          }
+        }
+      }
+    }
+    // Relieve: lo pintado + la trama del lienzo donde hay poca pasta
+    const hd = Hh.getImageData(0, 0, W, H).data;
+    const alto = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      const x = i % W, y = (i / W) | 0;
+      const pasta = hd[i * 4] / 255;
+      const trama = (Math.sin(x * 1.4) * 0.5 + 0.5) * (Math.sin(y * 1.4 + (Math.floor(x / 2.24) % 2) * 1.5) * 0.5 + 0.5);
+      alto[i] = pasta * 2.2 + trama * 0.25 * Math.max(0, 1 - pasta * 3);
+    }
+    const ab = A.filtrado((() => { const l = M.lienzo(); const im = l.x.createImageData(W, H); for (let i = 0; i < W * H; i++) { im.data[i * 4] = Math.min(255, alto[i] * 60); im.data[i * 4 + 3] = 255; } l.x.putImageData(im, 0, 0); return l.c; })(), "blur(0.8px)");
+    const abd = ab.x.getImageData(0, 0, W, H).data;
+    for (let i = 0; i < W * H; i++) alto[i] = abd[i * 4] / 60;
+    ctx.drawImage(col.c, 0, 0);
+    A.iluminar(ctx, alto, { fuerza: 1.6, luz: [-0.75, -0.55, 0.45], brillo: 0.35 });
+    A.pelicula(ctx, { grano: 0.03, halo: 0.15, vineta: 0.3, polvo: 0.15, saturacion: 0.95, levantar: 0.03 });
+    listo();
+  </script>
+</body>
+</html>
