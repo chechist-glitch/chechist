@@ -55,6 +55,7 @@
   .pieza video { aspect-ratio: 16 / 9; }
   .texto { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .nombre { font-size: 15px; font-weight: 700; margin: 0; }
+  .hecho { margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; color: var(--acento); }
   .receta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.5; background: var(--caja); border-radius: 6px; padding: 10px 12px; margin: 0; flex: 1; user-select: all; }
   .nota { margin: -6px 0 0; color: var(--suave); font-size: 15px; line-height: 1.5; max-width: 70ch; }
   .tabla { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
@@ -78,6 +79,7 @@
   <header>
     <h1>Recetario de estilos</h1>
     <p>Todas las pruebas que hemos hecho. Debajo de cada una tienes la frase para pedírmela: cópiala, pégamela en el chat y cambia el tema por lo que quieras.</p>
+    <p>En cada una pone con qué está hecha. <b>HyperFrames</b> solo lo he usado en los tres primeros vídeos. Las imágenes son páginas HTML (CSS, SVG, Canvas, shaders o Three.js) que fotografío con Chromium; las dos últimas de la serie de 50 salen solo de ffmpeg. Los vídeos de la cuarta dimensión y del virus van con un motor propio de shaders, porque HyperFrames se quedaba corto para tanto cálculo.</p>
   </header>
 
   <section>
@@ -234,6 +236,7 @@
     ["49-ffmpeg-mandelbrot", "Mandelbrot con ffmpeg", "Hazme una imagen de Mandelbrot usando solo los filtros de ffmpeg y recolorea con geq."],
     ["50-ffmpeg-vida", "Juego de la vida con ffmpeg", "Hazme el juego de la vida de Conway usando solo ffmpeg, con estela y moho."],
   ];
+  const HECHO_CON = {"a-01-cartel-suizo": "CSS / HTML", "a-02-bauhaus": "CSS / HTML", "a-03-azulejo-generativo": "SVG", "a-04-campo-de-flujo": "Canvas 2D", "a-05-synthwave": "CSS / HTML", "a-06-ascii": "CSS / HTML", "a-07-pixel-art": "Canvas 2D", "a-08-shader-fractal": "Shader WebGL", "a-09-naranjas-3d": "Three.js", "a-10-risografia": "SVG", "a-11-glitch": "CSS / HTML", "a-12-brutalista": "CSS / HTML", "a-13-topografico": "Canvas 2D", "a-14-periodico": "Canvas 2D", "a-15-neon": "CSS / HTML", "a-16-empaquetado-circulos": "Canvas 2D", "a-17-vidriera-voronoi": "Canvas 2D", "a-18-isometrico": "SVG", "a-19-terminal": "CSS / HTML", "a-20-olivo-fractal": "Canvas 2D", "a-21-truchet": "SVG", "a-22-aurora-grano": "SVG", "a-23-ondas": "Canvas 2D", "a-24-tarot": "SVG", "a-25-texto-particulas": "Canvas 2D", "a-26-memphis": "SVG", "a-27-plano-botijo": "SVG", "a-28-ticket-bar": "CSS / HTML", "a-29-caleidoscopio": "Canvas 2D", "a-30-reaccion-difusion": "Canvas 2D", "b-01-bodegon-trazado": "Shader WebGL", "b-02-sierra-atardecer": "Shader WebGL", "b-03-mar-de-alboran": "Shader WebGL", "b-04-planeta-azul": "Shader WebGL", "b-05-atractor-de-seda": "Canvas 2D", "b-06-noche-estrellada-oleo": "Canvas 2D", "b-07-papel-recortado": "Canvas 2D", "b-08-mandelbulb": "Shader WebGL", "b-09-marmol-liquido": "Shader WebGL", "b-10-physarum": "Canvas 2D", "b-11-billete": "SVG", "b-12-acuarela": "Canvas 2D", "b-13-comic-pop": "SVG", "b-14-lamina-botanica": "Canvas 2D", "b-15-puntillismo": "Canvas 2D", "c-01-ukiyoe-neon": "Canvas 2D", "c-02-alhambra-neon": "Canvas 2D", "c-03-roseton-circuito": "Canvas 2D", "c-04-art-deco": "SVG", "c-05-constructivista": "SVG", "c-06-vaporwave-win95": "SVG", "c-07-art-nouveau": "SVG", "c-08-3d-a-lapiz": "Three.js", "c-09-girasoles-gouache": "Canvas 2D", "c-10-mac-1bit": "Canvas 2D", "c-11-punto-de-cruz": "Canvas 2D", "c-12-mosaico-romano": "Canvas 2D", "c-13-piezas-de-juguete": "Canvas 2D", "c-14-jersey-de-punto": "Canvas 2D", "c-15-marqueteria": "Shader WebGL", "c-16-kilim": "Canvas 2D", "c-17-sashiko": "SVG", "c-18-plastilina": "Shader WebGL", "c-19-tiza-pizarra": "Canvas 2D", "c-20-grafiti": "Canvas 2D", "c-21-cianotipia": "Canvas 2D", "c-22-colodion-faro": "Shader WebGL", "c-23-camara-termica": "Canvas 2D", "c-24-rayos-x": "Canvas 2D", "c-25-tilt-shift-pueblo": "Shader WebGL", "c-26-anaglifo-mezquita": "Shader WebGL", "c-27-estereograma": "Canvas 2D", "c-28-offset-paella": "Canvas 2D", "c-29-pixel-sorting": "Canvas 2D", "c-30-slit-scan-noria": "Canvas 2D", "c-31-xilografia": "Canvas 2D", "c-32-espiral-una-linea": "Canvas 2D", "c-33-string-art-ojo": "Canvas 2D", "c-34-sumi-e": "Canvas 2D", "c-35-patente-cafetera": "SVG", "c-36-manuscrito-iluminado": "Canvas 2D + simulación analógica", "c-37-armonografo": "Canvas 2D", "c-38-op-art": "Canvas 2D", "c-39-agujero-negro": "Shader WebGL", "c-40-nubes-volumetricas": "Shader WebGL", "c-41-burbujas-jabon": "Shader WebGL", "c-42-causticas-piscina": "Shader WebGL", "c-43-copos-de-nieve": "Canvas 2D", "c-44-coral-dla": "Canvas 2D", "c-45-nervaduras": "Canvas 2D", "c-46-wfc-pueblo": "Canvas 2D", "c-47-diatomeas": "Canvas 2D", "c-48-relieve-suizo": "Canvas 2D", "d-01-acuarela-vejer": "Canvas 2D + simulación analógica", "d-02-oleo-empaste": "Canvas 2D + simulación analógica", "d-03-carboncillo": "Canvas 2D + simulación analógica", "d-04-polaroids": "Canvas 2D + simulación analógica", "d-05-azulejo-triana": "Canvas 2D + simulación analógica", "d-06-bordado-bastidor": "Canvas 2D + simulación analógica", "d-07-boli-cuaderno": "Canvas 2D + simulación analógica", "d-08-linograbado": "Canvas 2D + simulación analógica", "c-49-ffmpeg-mandelbrot": "ffmpeg (sin navegador)", "c-50-ffmpeg-vida": "ffmpeg (sin navegador)", "v-primer-video": "HyperFrames + GSAP", "v-feria-3d": "HyperFrames + Three.js", "v-red-en-capas": "HyperFrames + Three.js", "v-cuarta-dimension": "Motor propio de shaders + Three.js", "v-fagos": "Motor propio de shaders"};
   const ALTERNATIVAS = [
     ["Remotion", "https://www.remotion.dev", "React → MP4", "El rival directo de HyperFrames. <b>Mejor si piensas en componentes y datos</b>: vídeos con plantillas, subtítulos automáticos, render en la nube."],
     ["Motion Canvas", "https://motioncanvas.io", "TypeScript", "Animación con generadores y editor en vivo. <b>Brutal para vídeos explicativos</b> con código, diagramas y fórmulas."],
@@ -259,7 +262,7 @@
     ["Nuestro motor propio", "#", "shaders + Playwright", "Lo que he montado aquí (videos/rodaje.mjs): shaders con muestreo acumulado, fotograma a fotograma en Chromium. Sin límites de complejidad, a cambio de tiempo de render."],
   ];
 
-  function tarjeta(media, nombre, receta) {
+  function tarjeta(media, nombre, receta, clave) {
     const art = document.createElement("article");
     art.className = "pieza";
     art.appendChild(media);
@@ -290,7 +293,10 @@
         seleccionar();
       }
     });
-    texto.append(h, p, b);
+    const hc = document.createElement("p");
+    hc.className = "hecho";
+    hc.textContent = "Hecho con: " + (HECHO_CON[clave] || "HTML");
+    texto.append(h, hc, p, b);
     art.appendChild(texto);
     return art;
   }
@@ -304,7 +310,7 @@
     v.muted = true;
     v.playsInline = true;
     v.preload = "metadata";
-    cajaVideos.appendChild(tarjeta(v, nombre, receta));
+    cajaVideos.appendChild(tarjeta(v, nombre, receta, `v-${id}`));
   }
   const pintar = (lista, prefijo, destino) => {
     const caja = document.getElementById(destino);
@@ -313,7 +319,7 @@
       img.src = `img/${prefijo}-${id}.jpg`;
       img.alt = nombre;
       img.loading = "lazy";
-      caja.appendChild(tarjeta(img, nombre, receta));
+      caja.appendChild(tarjeta(img, nombre, receta, `${prefijo}-${id}`));
     }
   };
   pintar(RAPIDOS, "a", "rapidos");
