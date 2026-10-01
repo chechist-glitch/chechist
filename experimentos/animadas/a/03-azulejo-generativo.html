@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #fbf8f1; }
+  svg { position: absolute; inset: 0; }
+  .etq { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); background: #fbf8f1; padding: 18px 40px; font-family: "DM Serif"; font-style: italic; font-size: 44px; color: #1b3f8b; border: 4px solid #1b3f8b; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <svg id="s" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+  <div class="etq" id="etq">Azulejo nº 7.304 — generado, no pintado</div>
+  <script>
+    const r = rng(7304);
+    const AZ = "#1b3f8b", OC = "#e2a627", VE = "#2f7d5b";
+    // El motivo de un octante se refleja 8 veces. En el vídeo cada trazo crece desde su sitio
+    // y luego todo el motivo gira dentro del azulejo: la simetría se mantiene en cada fotograma.
+    const piezas = [];
+    for (let i = 0; i < 9; i++) {
+      const x = 20 + r() * 100, y = r() * x * 0.9;
+      const s = 8 + r() * 26;
+      const col = r() < 0.65 ? AZ : r() < 0.6 ? OC : VE;
+      const tipo = Math.floor(r() * 3);
+      let f;
+      if (tipo === 0) f = `<circle cx="${x}" cy="${y}" r="${s}" fill="${col}"/>`;
+      else if (tipo === 1) f = `<path d="M${x - s} ${y} Q${x} ${y - s * 1.6} ${x + s} ${y} Q${x} ${y + s * 1.6} ${x - s} ${y}Z" fill="${col}"/>`;
+      else f = `<circle cx="${x}" cy="${y}" r="${s}" fill="none" stroke="${col}" stroke-width="5"/>`;
+      piezas.push(`<g class="m${i}" style="transform-origin:${x}px ${y}px">${f}</g>`);
+    }
+    const motivo = piezas.join("");
+    let octantes = "";
+    for (let k = 0; k < 4; k++) {
+      octantes += `<g transform="rotate(${k * 90})">${motivo}</g><g transform="rotate(${k * 90}) scale(1,-1) rotate(-90)">${motivo}</g>`;
+    }
+    const T = 270;
+    const tile = `<g transform="translate(${T / 2} ${T / 2})">
+      <clipPath id="cp"><rect x="${-T / 2}" y="${-T / 2}" width="${T}" height="${T}"/></clipPath>
+      <g clip-path="url(#cp)"><g id="giro">${octantes}</g>
+      <circle id="boton" r="18" fill="${OC}"/><circle r="8" fill="${AZ}"/>
+      ${[[-1,-1],[1,-1],[-1,1],[1,1]].map(([a,b])=>`<g class="esq" style="transform-origin:${a*T/2}px ${b*T/2}px"><circle cx="${a*T/2}" cy="${b*T/2}" r="40" fill="${AZ}"/><circle cx="${a*T/2}" cy="${b*T/2}" r="22" fill="${OC}"/></g>`).join("")}
+      </g><rect x="${-T / 2}" y="${-T / 2}" width="${T}" height="${T}" fill="none" stroke="#d9d2c3" stroke-width="3"/></g>`;
+    let s = `<defs><g id="t">${tile}</g></defs>`;
+    for (let y = 0; y < 5; y++) for (let x = 0; x < 4; x++) s += `<use href="#t" x="${x * T}" y="${y * T}"/>`;
+    document.getElementById("s").innerHTML = s;
+    const cl = (u) => Math.min(1, Math.max(0, u));
+    const sale = (u) => 1 + 2.7 * Math.pow(cl(u) - 1, 3) + 1.7 * Math.pow(cl(u) - 1, 2);
+    const ease = (u) => { u = cl(u); return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
+    window.pintar = (t) => {
+      for (let i = 0; i < 9; i++) {
+        const k = sale((t - 0.3 - i * 0.22) / 0.7);
+        document.querySelectorAll(`.m${i}`).forEach((g) => (g.style.transform = `scale(${k})`));
+      }
+      document.querySelectorAll(".esq").forEach((g) => (g.style.transform = `scale(${sale((t - 2.4) / 0.8)})`));
+      // dos cuartos de vuelta, con pausa entre medias
+      const giro = 90 * ease((t - 3.6) / 2.2) + 90 * ease((t - 6.8) / 2.2);
+      document.getElementById("giro").setAttribute("transform", `rotate(${giro})`);
+      const e = document.getElementById("etq");
+      e.style.opacity = cl((t - 2.8) / 0.6);
+      e.style.transform = `translateX(-50%) translateY(${30 * (1 - ease((t - 2.8) / 0.6))}px)`;
+    };
+    listo();
+  </script>
+</body>
+</html>

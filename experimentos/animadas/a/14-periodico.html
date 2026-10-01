@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #f3eee2; color: #1b1b1b; padding: 50px 56px; font-family: "Liberation Serif", serif; }
+  .cab { text-align: center; border-bottom: 3px double #1b1b1b; padding-bottom: 10px; }
+  .cab h1 { font-family: "Fraktur"; font-weight: 700; font-size: 118px; line-height: 1; }
+  .meta { display: flex; justify-content: space-between; font-size: 20px; border-bottom: 1px solid #1b1b1b; padding: 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+  h2 { font-family: "Playfair"; font-weight: 900; font-size: 86px; line-height: .95; margin: 26px 0 10px; letter-spacing: -1px; }
+  .ante { font-family: "Playfair"; font-style: italic; font-size: 32px; margin-bottom: 22px; }
+  .foto { height: 360px; margin-bottom: 8px; display: block; }
+  .pie { font-size: 18px; font-style: italic; margin-bottom: 18px; }
+  .cols { column-count: 3; column-gap: 34px; column-rule: 1px solid #1b1b1b; font-size: 21px; line-height: 1.35; text-align: justify; hyphens: auto; }
+  .cols p { margin-bottom: 10px; }
+  .cols p:first-child::first-letter { font-family: "Playfair"; font-weight: 900; float: left; font-size: 88px; line-height: .8; padding: 6px 8px 0 0; }
+</style>
+</head>
+<body>
+  <div class="cab"><h1>El Chechist Diario</h1></div>
+  <div class="meta"><span>Año I · Nº 1</span><span>Lunes, 28 de septiembre</span><span>Precio: una sonrisa</span></div>
+  <h2 id="tit">Un gato de Triana se niega a bajarse de la mesa</h2>
+  <div class="ante">Los vecinos, divididos. El gato, tranquilísimo.</div>
+  <canvas id="foto" class="foto" width="968" height="360"></canvas>
+  <div class="pie">El sospechoso, en una imagen de archivo convertida a trama de semitono punto a punto con Canvas.</div>
+  <div class="cols" id="cols">
+    <p>Sevilla. — Lo que empezó como una siesta corriente se ha convertido en el asunto del barrio. El felino, conocido por los vecinos como «el Canijo», ocupa desde el martes la mesa del comedor de la familia Rodríguez y no hay argumento que le haga moverse.</p>
+    <p>«Le hemos ofrecido jamón, le hemos ofrecido el sofá, le hemos ofrecido hasta una caja de cartón», explica la dueña de la casa. «Nos mira, bosteza y sigue a lo suyo».</p>
+    <p>Fuentes cercanas al gato aseguran que la mesa recibe el sol de la tarde en el ángulo exacto. Los expertos consultados coinciden: «Ahí no hay nada que hacer».</p>
+    <p>La familia ya come en la cocina. El gato no ha querido hacer declaraciones.</p>
+  </div>
+  <script>
+    // La foto de semitono se mueve: el gato menea la cola, respira y el sol de la ventana avanza.
+    // El titular se compone letra a letra y las columnas salen como de la rotativa.
+    const fw = 968, fh = 360;
+    const off = document.createElement("canvas"); off.width = fw; off.height = fh;
+    const g = off.getContext("2d", { willReadFrequently: true });
+    const fc = document.getElementById("foto").getContext("2d");
+    const titular = document.getElementById("tit").textContent;
+    const cl = (u) => Math.min(1, Math.max(0, u));
+    function escena(t) {
+      const luz = g.createLinearGradient(0, 0, fw, 0); luz.addColorStop(0, "#777"); luz.addColorStop(1, "#ddd");
+      g.fillStyle = luz; g.fillRect(0, 0, fw, fh);
+      g.fillStyle = "#f4f4f4"; g.fillRect(640, 30, 250, 200);
+      g.fillStyle = "#999"; g.fillRect(760, 30, 10, 200); g.fillRect(640, 125, 250, 10);
+      g.fillStyle = "#555"; g.fillRect(80, 250, 820, 26); g.fillRect(120, 276, 30, 90); g.fillRect(830, 276, 30, 90);
+      g.fillStyle = "#1c1c1c";
+      const resp = 1 + 0.04 * Math.sin(t * 2.4);
+      g.beginPath(); g.ellipse(430, 205 - 2 * Math.sin(t * 2.4), 170, 55 * resp, 0, 0, Math.PI * 2); g.fill();
+      const cab = Math.sin(t * 0.9) * 0.06;
+      g.save(); g.translate(595, 175); g.rotate(cab); g.translate(-595, -175);
+      g.beginPath(); g.arc(595, 175, 52, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.moveTo(560, 140); g.lineTo(572, 95); g.lineTo(598, 128); g.fill();
+      const oreja = t > 5 && t < 5.3 ? -8 : 0;
+      g.beginPath(); g.moveTo(600, 126); g.lineTo(630 + oreja, 92 + Math.abs(oreja)); g.lineTo(640, 145); g.fill();
+      g.restore();
+      g.lineWidth = 22; g.lineCap = "round"; g.strokeStyle = "#1c1c1c";
+      const c = Math.sin(t * 2.2) * 30;
+      g.beginPath(); g.moveTo(270, 215); g.bezierCurveTo(180, 230 + c * 0.3, 190 + c, 150, 240 + c * 1.4, 140 - Math.abs(c) * 0.4); g.stroke();
+      const sx = 700 + t * 12;
+      const sol = g.createRadialGradient(sx, 130, 10, sx, 130, 380); sol.addColorStop(0, "rgba(255,255,255,.55)"); sol.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = sol; g.fillRect(0, 0, fw, fh);
+    }
+    window.pintar = (t) => {
+      escena(t);
+      const d = g.getImageData(0, 0, fw, fh).data;
+      fc.fillStyle = "#f3eee2"; fc.fillRect(0, 0, fw, fh);
+      fc.fillStyle = "#1b1b1b";
+      const paso = 7;
+      const revela = cl((t - 1.4) / 1.5); // los puntos crecen de arriba abajo, como al revelar
+      for (let y = 0; y < fh; y += paso) {
+        const k = cl(revela * 1.4 - (y / fh) * 0.4);
+        if (k <= 0) continue;
+        for (let x = (y / paso) % 2 ? paso / 2 : 0; x < fw; x += paso) {
+          const v = d[(Math.floor(y) * fw + Math.floor(x)) * 4] / 255;
+          const rad = (1 - v) * paso * 0.62 * k;
+          if (rad > 0.3) { fc.beginPath(); fc.arc(x, y, rad, 0, Math.PI * 2); fc.fill(); }
+        }
+      }
+      const n = Math.floor(cl(t / 1.4) * titular.length);
+      document.getElementById("tit").textContent = titular.slice(0, n) || "\u00a0";
+      document.getElementById("cols").style.clipPath = `inset(0 0 ${100 - 100 * cl((t - 2.6) / 2.4)}% 0)`;
+    };
+    listo();
+  </script>
+</body>
+</html>

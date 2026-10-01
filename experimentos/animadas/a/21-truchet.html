@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #14213d; }
+  svg { position: absolute; inset: 0; }
+  .t { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #14213d; padding: 30px 50px; border: 6px solid #fca311; text-align: center; font-family: "Bebas"; font-size: 120px; line-height: .9; color: #fca311; }
+  .t small { display: block; font-family: "Space Mono"; font-size: 20px; color: #e5e5e5; margin-top: 10px; }
+</style>
+</head>
+<body>
+  <svg id="s" width="1080" height="1350"></svg>
+  <div class="t">EL LABERINTO<small>azulejos de Truchet · cada pieza gira al azar</small></div>
+  <script>
+    const r = rng(1704);
+    const T = 90;
+    let out = "";
+    for (let y = 0; y < 15; y++) for (let x = 0; x < 12; x++) {
+      const X = x * T, Y = y * T, h = T / 2;
+      const giro = r() < 0.5;
+      const col = (x + y) % 2 ? "#fca311" : "#e76f51";
+      out += `<g class="tz" data-x="${x}" data-y="${y}" style="transform-origin:${X + h}px ${Y + h}px">` + (giro
+        ? `<path d="M${X + h} ${Y} A${h} ${h} 0 0 1 ${X} ${Y + h} M${X + T} ${Y + h} A${h} ${h} 0 0 0 ${X + h} ${Y + T}" stroke="${col}" stroke-width="22" fill="none" stroke-linecap="butt"/>`
+        : `<path d="M${X + h} ${Y} A${h} ${h} 0 0 0 ${X + T} ${Y + h} M${X} ${Y + h} A${h} ${h} 0 0 1 ${X + h} ${Y + T}" stroke="${col}" stroke-width="22" fill="none" stroke-linecap="butt"/>`) + "</g>";
+    }
+    document.getElementById("s").innerHTML = out;
+    // El laberinto se reordena: olas de giros de 90° salen del centro y lo cambian entero.
+    // Como cada pieza gira justo un cuarto de vuelta, al acabar cada ola vuelve a ser un Truchet válido.
+    const tz = [...document.querySelectorAll(".tz")];
+    const ease = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+    const olas = [[1.0, 5.5, 7.5], [4.6, 0, 0], [7.2, 11, 14]];
+    window.pintar = (t) => {
+      for (const el of tz) {
+        const x = +el.dataset.x, y = +el.dataset.y;
+        let giro = 0;
+        for (const [t0, ox, oy] of olas) {
+          const d = Math.hypot(x - (ox || 5.5), y - (oy || 7)) * 0.11;
+          giro += 90 * ease((t - t0 - d) / 0.5);
+        }
+        el.style.transform = `rotate(${giro}deg)`;
+      }
+    };
+    listo();
+  </script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<script src="../../imagenes/assets/analogico.js"></script>
+<style>body { background: #3a2a1e; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Fotos instantáneas tiradas sobre la mesa: se cogen renders de la serie 2 como si fueran
+    // fotos, se les da la química de la película instantánea (colores lavados, cian en sombras,
+    // química sin extender en el borde) y se colocan en perspectiva con su marco y su letra.
+    (async () => {
+      await M.fuentes('34px "Pacifico"');
+      const carga = (src) => new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = src; });
+      const fotos = await Promise.all(["../../imagenes/salida-serie-2/03-mar-de-alboran.png", "../../imagenes/salida-serie-2/02-sierra-atardecer.png", "../../imagenes/salida-serie-2/01-bodegon-trazado.png"].map(carga));
+      const r = rng(1972);
+      const n = makeNoise(1972);
+      const ctx = canvas2d();
+      A.mesaMadera(ctx, 21, [128, 88, 58]);
+
+      function polaroid(img, texto, recorte) {
+        const PW = 540, PH = 650, IM = 476, OX = 32, OY = 34;
+        const p = M.lienzo(PW, PH);
+        // marco blanco con algo de textura
+        M.porPixel(p.x, (x, y) => { const v = 0.95 + (n(x * 0.3, y * 0.3, 2) - 0.5) * 0.04; return [244 * v, 241 * v, 234 * v]; });
+        // foto cuadrada recortada del render
+        const f = M.lienzo(IM, IM);
+        const [sx, sy, sw] = recorte;
+        f.x.drawImage(img, sx, sy, sw, sw, 0, 0, IM, IM);
+        // química instantánea: contraste bajo, sombras cian, luces crema, borde con química sin extender
+        const d = f.x.getImageData(0, 0, IM, IM);
+        for (let y = 0; y < IM; y++) for (let x = 0; x < IM; x++) {
+          const k = (y * IM + x) * 4;
+          let R = d.data[k] / 255, G = d.data[k + 1] / 255, B = d.data[k + 2] / 255;
+          const L = R * 0.3 + G * 0.59 + B * 0.11;
+          R = 0.08 + R * 0.82; G = 0.1 + G * 0.8; B = 0.12 + B * 0.74;
+          R -= 0.05 * (1 - L); B += 0.06 * (1 - L); G += 0.02 * (1 - L);
+          R += 0.04 * L; B -= 0.03 * L;
+          const lm = R * 0.3 + G * 0.59 + B * 0.11;
+          R = lm + (R - lm) * 0.8; G = lm + (G - lm) * 0.8; B = lm + (B - lm) * 0.8;
+          // química irregular en el borde inferior
+          const borde = Math.min(x, y, IM - x, IM - y);
+          const quim = M.smooth(18, 0, borde + (n(x * 0.05, y * 0.05, 3) - 0.5) * 30);
+          R = M.lerp(R, 0.85, quim * 0.6); G = M.lerp(G, 0.72, quim * 0.6); B = M.lerp(B, 0.45, quim * 0.6);
+          const v = 1 - 0.35 * Math.pow(Math.hypot(x / IM - 0.5, y / IM - 0.5) * 1.5, 2.5);
+          d.data[k] = R * v * 255; d.data[k + 1] = G * v * 255; d.data[k + 2] = B * v * 255;
+        }
+        f.x.putImageData(d, 0, 0);
+        A.pelicula(f.x, { grano: 0.05, halo: 0.3, vineta: 0, polvo: 0.3, saturacion: 0.95, levantar: 0, viraje: 0.5, suave: 1.1, semilla: Math.floor(r() * 1000) });
+        p.x.drawImage(f.c, OX, OY);
+        // sombra interior del hueco
+        p.x.strokeStyle = "rgba(0,0,0,.18)";
+        p.x.lineWidth = 2;
+        p.x.strokeRect(OX, OY, IM, IM);
+        // letra a rotulador
+        p.x.fillStyle = "rgba(30,40,90,.85)";
+        p.x.font = '34px "Pacifico"';
+        p.x.textAlign = "center";
+        p.x.save();
+        p.x.translate(PW / 2, PH - 50);
+        p.x.rotate(-0.03);
+        p.x.fillText(texto, 0, 0);
+        p.x.restore();
+        return p.c;
+      }
+      const cuad = (cx, cy, w, h, a, inc = 0) => {
+        const c = Math.cos(a), s = Math.sin(a);
+        return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([x, y], i) => [cx + x * c - y * s + (i < 2 ? inc : 0), cy + x * s + y * c]);
+      };
+      const lista = [
+        [fotos[1], "la sierra, agosto", [120, 260, 840], cuad(330, 390, 470, 566, -0.16)],
+        [fotos[2], "el bodegón de la abuela", [60, 340, 960], cuad(760, 560, 470, 566, 0.12)],
+        [fotos[0], "Alborán ☀ 2026", [0, 250, 1080], cuad(470, 960, 500, 602, -0.04, -6)],
+      ];
+      // En el vídeo las fotos caen sobre la mesa una detrás de otra y se van revelando como las
+      // instantáneas de verdad: salen gris verdoso y la imagen aparece poco a poco.
+      const mesa = M.lienzo(); mesa.x.drawImage(ctx.canvas, 0, 0);
+      const hechas = lista.map(([img, txt, rec]) => polaroid(img, txt, rec));
+      const tmp = M.lienzo(540, 650);
+      const llegada = [0.4, 1.5, 2.6];
+      const cl = (u) => Math.min(1, Math.max(0, u));
+      const ease = (u) => 1 - Math.pow(1 - cl(u), 3);
+      window.pintar = (t) => {
+        ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; ctx.filter = "none";
+        ctx.drawImage(mesa.c, 0, 0);
+        lista.forEach(([, , , q], i) => {
+          const u = ease((t - llegada[i]) / 0.7);
+          if (u <= 0) return;
+          // cae desde fuera de cuadro girando un poco
+          const off = (1 - u) * 900, giro = (1 - u) * (i % 2 ? 0.5 : -0.5);
+          const c = q.reduce((a, p) => [a[0] + p[0] / 4, a[1] + p[1] / 4], [0, 0]);
+          const qq = q.map(([x, y]) => { const dx = x - c[0], dy = y - c[1]; return [c[0] + dx * Math.cos(giro) - dy * Math.sin(giro) + off * (i === 1 ? 1 : -0.6), c[1] + dx * Math.sin(giro) + dy * Math.cos(giro) - off * 0.4]; });
+          // revelado: de verde grisáceo oscuro a la foto, en unos 5 s
+          const rev = cl((t - llegada[i] - 0.6) / 5.2);
+          tmp.x.globalCompositeOperation = "source-over"; tmp.x.globalAlpha = 1;
+          tmp.x.drawImage(hechas[i], 0, 0);
+          tmp.x.globalAlpha = Math.pow(1 - rev, 1.4);
+          tmp.x.fillStyle = "#3d4238";
+          tmp.x.fillRect(32, 34, 476, 476);
+          tmp.x.globalCompositeOperation = "color";
+          tmp.x.globalAlpha = (1 - rev) * 0.6;
+          tmp.x.fillStyle = "#56604f";
+          tmp.x.fillRect(32, 34, 476, 476);
+          A.colocar(ctx, tmp.c, qq, { sombra: 0.55, curva: 4, brillo: 0.1, borde: true });
+        });
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 8; ctx.shadowOffsetX = 5; ctx.shadowOffsetY = 7;
+        const ch = ctx.createRadialGradient(326, 128, 2, 330, 134, 18);
+        ch.addColorStop(0, "#ff8c7a"); ch.addColorStop(1, "#b0201a");
+        ctx.fillStyle = ch;
+        if (t > 1.2) { ctx.beginPath(); ctx.arc(330, 134, 17, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+        A.pelicula(ctx, { grano: 0.035, halo: 0.2, vineta: 0.45, polvo: 0.2, calido: 1.3, saturacion: 0.95, semilla: 77 + Math.floor(t * 24) });
+      };
+      listo();
+    })();
+  </script>
+</body>
+</html>

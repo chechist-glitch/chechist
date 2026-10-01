@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #0b0a10; }
+  .t { position: absolute; left: 0; right: 0; bottom: 60px; text-align: center; font-family: "Fraktur"; font-weight: 700; font-size: 80px; color: #e9c46a; }
+  .t small { display: block; font-family: "Space Mono"; font-size: 20px; color: #8d99ae; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">Rosetón<small>diagrama de Voronoi · cada cristal es la zona más cercana a un punto</small></div>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(1248);
+    const cx = 540, cy = 590, R = 480;
+    // Semillas en anillos con simetría radial de 12
+    const semillas = [{ x: cx, y: cy, c: 0 }];
+    const anillos = [70, 150, 235, 320, 400, 460];
+    anillos.forEach((rad, i) => {
+      const n = 12 * (i < 2 ? 1 : 2);
+      const off = r() * Math.PI;
+      for (let k = 0; k < n; k++) {
+        const a = off + (k / n) * Math.PI * 2;
+        semillas.push({ x: cx + Math.cos(a) * rad, y: cy + Math.sin(a) * rad, c: (i + (k % 2)) % 6 });
+      }
+    });
+    // Los anillos de cristales giran unos contra otros (como un caleidoscopio) y la luz
+    // de la tarde va cruzando el rosetón. Cada fotograma recalcula el diagrama entero.
+    const vidrio = [[190, 30, 45], [20, 60, 160], [230, 170, 40], [30, 120, 70], [120, 30, 120], [220, 90, 30]];
+    const base = semillas.map((s) => ({ a: Math.atan2(s.y - cy, s.x - cx), d: Math.hypot(s.x - cx, s.y - cy), c: s.c }));
+    const anilloDe = base.map((b) => anillos.findIndex((rad) => Math.abs(rad - b.d) < 2));
+    const img = ctx.createImageData(W, H);
+    const d = img.data;
+    for (let q = 0; q < W * H; q++) { d[q * 4] = 11; d[q * 4 + 1] = 10; d[q * 4 + 2] = 16; d[q * 4 + 3] = 255; }
+    const sx = new Float32Array(base.length), sy = new Float32Array(base.length);
+    window.pintar = (t) => {
+      const giro = (Math.PI / 12) * (1 - Math.cos((t / 10) * Math.PI)) ; // medio paso de la simetría, ida suave
+      base.forEach((b, s) => {
+        const k = anilloDe[s];
+        const a = b.a + (k < 0 ? 0 : (k % 2 ? 1 : -1) * giro * (1 + k * 0.15));
+        sx[s] = cx + Math.cos(a) * b.d; sy[s] = cy + Math.sin(a) * b.d;
+      });
+      const lx = cx - 300 + t * 60, ly = cy - 220 + t * 18;
+      for (let y = cy - R; y < cy + R; y++) for (let x = cx - R; x < cx + R; x++) {
+        const dist = Math.hypot(x - cx, y - cy);
+        if (dist > R) continue;
+        const i = (y * W + x) * 4;
+        let b1 = Infinity, b2 = Infinity, bi = 0;
+        for (let s = 0; s < sx.length; s++) {
+          const dx = x - sx[s], dy = y - sy[s], dd = dx * dx + dy * dy;
+          if (dd < b1) { b2 = b1; b1 = dd; bi = s; } else if (dd < b2) b2 = dd;
+        }
+        const borde = Math.sqrt(b2) - Math.sqrt(b1);
+        if (borde < 5 || dist > R - 12) { d[i] = 25; d[i + 1] = 22; d[i + 2] = 28; continue; }
+        const c = vidrio[base[bi].c];
+        const sol = Math.max(0, 1 - Math.hypot(x - lx, y - ly) / 520);
+        const brillo = 0.5 + 0.6 * Math.max(0, 1 - Math.sqrt(b1) / 90) + 0.6 * sol * sol;
+        d[i] = Math.min(255, c[0] * brillo + 40 * sol * sol); d[i + 1] = Math.min(255, c[1] * brillo + 30 * sol * sol); d[i + 2] = Math.min(255, c[2] * brillo + 20 * sol * sol);
+      }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.putImageData(img, 0, 0);
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(lx, ly, 20, cx, cy, R);
+      g.addColorStop(0, "rgba(255,240,200,.35)"); g.addColorStop(1, "rgba(255,240,200,0)");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    };
+    listo();
+  </script>
+</body>
+</html>

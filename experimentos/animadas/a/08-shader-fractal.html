@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #000; }
+  .t { position: absolute; left: 60px; bottom: 60px; font-family: "Plex Mono"; color: #fff; font-size: 22px; line-height: 1.5; background: rgba(0,0,0,.55); padding: 20px 26px; border-left: 6px solid #ffcc66; }
+  .t b { font-weight: 700; font-size: 40px; display: block; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full" width="1080" height="1350"></canvas>
+  <div class="t"><b id="k">c = −0.745 + 0.113i</b>Conjunto de Julia · shader GLSL · cada píxel lo calcula la GPU</div>
+  <script>
+    // El parámetro c da una vuelta pequeña alrededor del valor de la imagen y la cámara se acerca:
+    // el fractal se deforma y respira. Al final c vuelve a su sitio.
+    const c = document.getElementById("c");
+    const gl = c.getContext("webgl", { preserveDrawingBuffer: true, antialias: false });
+    const vs = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
+    const fs = `precision highp float;
+      uniform vec2 res; uniform vec2 k; uniform float zoom;
+      vec3 pal(float t){ return .5 + .5*cos(6.28318*(vec3(1.,1.,1.)*t + vec3(.0,.10,.20))) * vec3(1.,.8,.6); }
+      void main(){
+        vec2 uv = (gl_FragCoord.xy - res * .5) / res.y * 2.4 / zoom;
+        uv = vec2(uv.y * .9 - .05, uv.x * .9);
+        vec2 z = uv;
+        float i = 0.; float m = 0.;
+        for (int n = 0; n < 320; n++) {
+          z = vec2(z.x*z.x - z.y*z.y, 2.*z.x*z.y) + k;
+          m = dot(z,z);
+          if (m > 256.) break;
+          i += 1.;
+        }
+        float s = i - log2(log2(m)) + 4.;
+        vec3 c = i >= 319. ? vec3(0.02,0.0,0.05) : pal(s * .018 + .55) * (1. - exp(-s*.06));
+        gl_FragColor = vec4(pow(c, vec3(.9)), 1.);
+      }`;
+    function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; }
+    const pr = gl.createProgram();
+    gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs));
+    gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(pr);
+    gl.useProgram(pr);
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, "p");
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform2f(gl.getUniformLocation(pr, "res"), 1080, 1350);
+    gl.viewport(0, 0, 1080, 1350);
+    const uk = gl.getUniformLocation(pr, "k"), uz = gl.getUniformLocation(pr, "zoom");
+    window.pintar = (t) => {
+      const a = (t / 10) * Math.PI * 2;
+      const kx = -0.745 + 0.0035 * Math.sin(a), ky = 0.113 + 0.009 * Math.sin(2 * a);
+      gl.uniform2f(uk, kx, ky);
+      gl.uniform1f(uz, 1 + 0.35 * (0.5 - 0.5 * Math.cos(a)));
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.finish();
+      document.getElementById("k").textContent = `c = ${kx < 0 ? "−" : ""}${Math.abs(kx).toFixed(3)} ${ky < 0 ? "−" : "+"} ${Math.abs(ky).toFixed(3)}i`;
+    };
+    listo();
+  </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/gl.js"></script>
+<script src="../comun/trazar-video.js"></script>
+<style>body { background: #000; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Océano: suma de olas "afiladas" en varias direcciones, trazado por
+    // raymarching; Fresnel mezcla reflejo del cielo y el azul del fondo.
+    const frag = `
+    float h12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+    float vn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
+      return -1. + 2. * mix(mix(h12(i), h12(i + vec2(1, 0)), u.x), mix(h12(i + vec2(0, 1)), h12(i + vec2(1, 1)), u.x), u.y); }
+    float fbm(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 6; i++) { s += a * vn(p); p = mat2(1.6, 1.2, -1.2, 1.6) * p; a *= .5; } return s; }
+    const vec3 SOL = normalize(vec3(.12, .075, -1.));
+    const mat2 OCT = mat2(1.6, 1.2, -1.2, 1.6);
+    float ola(vec2 uv, float choppy) {
+      uv += vn(uv);
+      vec2 wv = 1. - abs(sin(uv));
+      vec2 swv = abs(cos(uv));
+      wv = mix(wv, swv, wv);
+      return pow(1. - pow(wv.x * wv.y, .65), choppy);
+    }
+    float mar(vec3 p, int iter) {
+      float freq = .16, amp = .62, choppy = 4.2, h = 0.;
+      vec2 uv = p.xz; uv.x *= .75;
+      for (int i = 0; i < 9; i++) {
+        if (i >= iter) break;
+        float d = ola((uv + 1.3 + uT * .8) * freq, choppy) + ola((uv - 1.3 - uT * .8) * freq, choppy);
+        h += d * amp;
+        uv *= OCT; freq *= 1.9; amp *= .22;
+        choppy = mix(choppy, 1., .2);
+      }
+      return p.y - h;
+    }
+    vec3 normal(vec3 p, float eps) {
+      vec3 n;
+      n.y = mar(p, 8);
+      n.x = mar(vec3(p.x + eps, p.y, p.z), 8) - n.y;
+      n.z = mar(vec3(p.x, p.y, p.z + eps), 8) - n.y;
+      n.y = eps;
+      return normalize(n);
+    }
+    float traza(vec3 ro, vec3 rd, out vec3 p) {
+      float tm = 0., tx = 2000.;
+      float hx = mar(ro + rd * tx, 5);
+      if (hx > 0.) { p = ro + rd * tx; return tx; }
+      float hm = mar(ro + rd * tm, 5), tmid = 0.;
+      for (int i = 0; i < 16; i++) {
+        tmid = mix(tm, tx, hm / (hm - hx));
+        p = ro + rd * tmid;
+        float hmid = mar(p, 5);
+        if (hmid < 0.) { tx = tmid; hx = hmid; } else { tm = tmid; hm = hmid; }
+      }
+      return tmid;
+    }
+    vec3 cielo(vec3 rd) {
+      float y = max(rd.y, 0.), s = max(dot(rd, SOL), 0.);
+      vec3 c = mix(vec3(1.15, .55, .3), vec3(.14, .24, .5), pow(y, .42));
+      c += vec3(1.1, .45, .18) * pow(s, 10.) * .7;
+      c += vec3(1., .8, .55) * pow(s, 90.) * 2.;
+      c += vec3(1., .85, .6) * 60. * smoothstep(.9994, .9998, s);
+      if (rd.y > 0.) {
+        vec2 uv = rd.xz / (rd.y + .08) + vec2(uT * .04, 0.);
+        float n = smoothstep(.25, .75, fbm(uv * .9 + vec2(2., 0.)) + .1);
+        n *= smoothstep(0., .25, rd.y) * (1. - smoothstep(.35, .8, rd.y) * .6);
+        vec3 cn = mix(vec3(.4, .22, .3), vec3(1.3, .6, .35), pow(s, 2.) + .15);
+        c = mix(c, cn, n * .8);
+      }
+      return c;
+    }
+    vec3 agua(vec3 p, vec3 n, vec3 l, vec3 eye, vec3 dist) {
+      float fres = clamp(1. - dot(n, -eye), 0., 1.);
+      fres = min(pow(fres, 3.), .5);
+      vec3 refl = cielo(reflect(eye, n));
+      vec3 base = vec3(0., .07, .1);
+      vec3 cuerpo = vec3(.1, .22, .2) * .6;
+      float dif = pow(dot(n, l) * .4 + .6, 80.);
+      vec3 refr = base + dif * cuerpo * .12;
+      vec3 c = mix(refr, refl, fres);
+      float atten = max(1. - dot(dist, dist) * .0006, 0.);
+      c += cuerpo * (p.y - .6) * .18 * atten;
+      float spec = pow(max(dot(reflect(eye, n), l), 0.), 220.) * ((220. + 8.) / (PI * 8.));
+      c += vec3(1., .75, .45) * spec * 3.;
+      // Espuma en las crestas
+      float esp = smoothstep(1.05, 1.5, p.y) * smoothstep(.3, .9, fbm(p.xz * 3.));
+      c = mix(c, vec3(.9, .82, .75), esp * .55);
+      return c;
+    }
+    vec3 muestra(vec2 px) {
+      vec2 uv = (px - uRes * .5) / uRes.y;
+      // la cámara se mece como en una barca y avanza despacio
+      vec3 ro = vec3(sin(uT * .5) * .3, 3.1 + sin(uT * 1.1) * .18, -uT * 1.6);
+      vec3 ta = vec3(0.3 + sin(uT * .4) * .4, 2.35 + sin(uT * 1.1 + .6) * .12, -8. - uT * 1.6);
+      vec3 ww = normalize(ta - ro), uu = normalize(cross(ww, vec3(0, 1, 0))), vv = cross(uu, ww);
+      vec3 rd = normalize(uv.x * uu + uv.y * vv + 1.25 * ww);
+      vec3 p;
+      traza(ro, rd, p);
+      vec3 dist = p - ro;
+      vec3 n = normal(p, dot(dist, dist) * (.1 / uRes.y));
+      vec3 c = mix(cielo(rd), agua(p, n, SOL, rd, dist), pow(smoothstep(0., -.02, rd.y), .2));
+      return c * 1.05;
+    }`;
+    // En el vídeo las olas se mueven de verdad (el tiempo entra en la suma de ondas),
+    // la cámara se mece como en una barca y las nubes pasan.
+    trazarVideo({ escala: .67, frag, modo: "anima", porFotograma: 1, franjas: 8, expo: .8, vineta: .35, grano: .02 });
+    listo();
+  </script>
+</body>
+</html>

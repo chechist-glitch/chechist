@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #f4efe3; }
+  .tinta { position: absolute; inset: 0; mix-blend-mode: multiply; }
+  .rosa { color: #ff48b0; }
+  .azul { color: #0078bf; }
+  .forma { position: absolute; background: currentColor; }
+  .trama { position: absolute; background-image: radial-gradient(currentColor 38%, transparent 40%); background-size: 14px 14px; }
+  .trama.fina { background-size: 9px 9px; }
+  h1 { position: absolute; font-family: "Rubik Mono"; font-size: 118px; line-height: .95; letter-spacing: -2px; }
+  p { position: absolute; font-family: "Space Mono"; font-weight: 700; font-size: 30px; }
+  .grano { position: absolute; inset: 0; mix-blend-mode: multiply; opacity: .5; }
+  #papel { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+  <div id="papel">
+  <div class="tinta rosa" id="rosa">
+    <div class="forma" style="left:120px;top:200px;width:560px;height:560px;border-radius:50%"></div>
+    <div class="trama" style="left:420px;top:620px;width:560px;height:420px"></div>
+    <h1 style="left:70px;top:1010px">FERIA DEL</h1>
+    <p style="left:74px;top:1250px">SÁB 12 · DOM 13 · PLAZA DEL POZO</p>
+  </div>
+  <div class="tinta azul" id="azul">
+    <div class="trama fina" style="left:380px;top:120px;width:600px;height:600px;border-radius:50%"></div>
+    <div class="forma" style="left:80px;top:640px;width:420px;height:330px"></div>
+    <h1 style="left:70px;top:1120px">LIBRO RARO</h1>
+    <p style="left:74px;top:70px">IMPRESIÓN A DOS TINTAS · ED. LIMITADA</p>
+  </div>
+  <svg class="grano" width="1080" height="1350">
+    <filter id="f"><feTurbulence id="tu" type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4" /><feColorMatrix values="0 0 0 0 .5  0 0 0 0 .45  0 0 0 0 .4  0 0 0 -1.4 1.1" /></filter>
+    <rect width="1080" height="1350" filter="url(#f)" />
+  </svg>
+  </div>
+  <script>
+    // Como sale de la risógrafo: primero pasa la tinta rosa, luego la azul con su descuadre,
+    // y la hoja va temblando un pelín. Cada copia sale con su grano distinto.
+    const cl = (u) => Math.min(1, Math.max(0, u));
+    const ease = (u) => 1 - Math.pow(1 - cl(u), 3);
+    const rosa = document.getElementById("rosa"), azul = document.getElementById("azul");
+    window.pintar = (t) => {
+      // el rodillo barre de arriba abajo
+      const ur = ease((t - 0.3) / 1.8), ua = ease((t - 2.2) / 1.8);
+      rosa.style.clipPath = `inset(0 0 ${100 - 100 * ur}% 0)`;
+      azul.style.clipPath = `inset(0 0 ${100 - 100 * ua}% 0)`;
+      // descuadre: llega muy movido y se asienta en (7, -5), con un temblor de máquina
+      const k = Math.floor(t * 12);
+      const tiembla = Math.sin(k * 2.3) * 1.2;
+      const dx = 7 + 40 * (1 - ease((t - 2.2) / 3)) + tiembla, dy = -5 - 18 * (1 - ease((t - 2.2) / 3)) + Math.cos(k * 1.7);
+      azul.style.transform = `translate(${dx}px, ${dy}px)`;
+      document.getElementById("tu").setAttribute("seed", 4 + Math.floor(t * 8));
+      document.getElementById("papel").style.transform = `translate(${Math.sin(k) * 1.5}px, ${Math.cos(k * 1.3) * 1.5}px) rotate(${Math.sin(t * 0.7) * 0.25}deg)`;
+    };
+    listo();
+  </script>
+</body>
+</html>

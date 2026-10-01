@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/gl.js"></script>
+<script src="../comun/trazar-video.js"></script>
+<style>body { background: #000; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Un planeta desde órbita: continentes y nubes con ruido 3D, océano
+    // con reflejo del sol, luces de ciudades en la cara de noche y una
+    // atmósfera calculada con dispersión de Rayleigh (por eso el borde es azul).
+    const frag = `
+    float h13(vec3 p) { p = fract(p * .1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+    float vn(vec3 p) {
+      vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+      return mix(mix(mix(h13(i), h13(i + vec3(1,0,0)), f.x), mix(h13(i + vec3(0,1,0)), h13(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(h13(i + vec3(0,0,1)), h13(i + vec3(1,0,1)), f.x), mix(h13(i + vec3(0,1,1)), h13(i + vec3(1,1,1)), f.x), f.y), f.z);
+    }
+    float fbm(vec3 p, int o) { float s = 0., a = .5; for (int i = 0; i < 10; i++) { if (i >= o) break; s += a * vn(p); p = p * 2.02 + 3.1; a *= .5; } return s; }
+    const float RP = 1.0, RA = 1.014;
+    const vec3 SOL = normalize(vec3(-1., .3, -.25));
+    vec2 esf(vec3 ro, vec3 rd, float r) { float b = dot(ro, rd), c = dot(ro, ro) - r * r, h = b * b - c; if (h < 0.) return vec2(-1); h = sqrt(h); return vec2(-b - h, -b + h); }
+    float alturaTierra(vec3 p) { return fbm(p * 3.4 + fbm(p * 1.6, 5) * 1.5, 10); }
+    float nubes(vec3 p) { vec3 q = p * 5.5; q += vec3(fbm(q * .6, 5), fbm(q * .6 + 5., 5), fbm(q * .6 + 9., 5)) * 1.8; float c = fbm(q, 9); return smoothstep(.52, .7, c) * (.6 + .4 * smoothstep(.4, .7, fbm(q * 3., 5))); }
+    // Dispersión atmosférica simplificada (Rayleigh + Mie), 12 x 6 pasos
+    vec3 atmosfera(vec3 ro, vec3 rd, float tFin, out vec3 trans) {
+      vec2 a = esf(ro, rd, RA);
+      trans = vec3(1);
+      if (a.y < 0.) return vec3(0);
+      float t0 = max(a.x, 0.), t1 = min(a.y, tFin);
+      const vec3 BR = vec3(37., 86., 211.);
+      const float BM = 134.;
+      const float H_R = .00125, H_M = .00019;
+      float ds = (t1 - t0) / 12.;
+      vec3 sumR = vec3(0), sumM = vec3(0);
+      float odR = 0., odM = 0.;
+      for (int i = 0; i < 12; i++) {
+        vec3 p = ro + rd * (t0 + ds * (float(i) + .5));
+        float h = length(p) - RP;
+        float dR = exp(-h / H_R) * ds, dM = exp(-h / H_M) * ds;
+        odR += dR; odM += dM;
+        vec2 ls = esf(p, SOL, RA);
+        float dl = ls.y / 6., lR = 0., lM = 0.;
+        bool sombra = esf(p, SOL, RP).x > 0.;
+        for (int j = 0; j < 6; j++) {
+          vec3 q = p + SOL * dl * (float(j) + .5);
+          float hq = length(q) - RP;
+          lR += exp(-hq / H_R) * dl; lM += exp(-hq / H_M) * dl;
+        }
+        if (!sombra) {
+          vec3 tau = BR * (odR + lR) + BM * 1.1 * (odM + lM);
+          vec3 at = exp(-tau);
+          sumR += at * dR; sumM += at * dM;
+        }
+      }
+      trans = exp(-(BR * odR + BM * 1.1 * odM));
+      float mu = dot(rd, SOL);
+      float pR = 3. / (16. * PI) * (1. + mu * mu);
+      float g = .76;
+      float pM = 3. / (8. * PI) * ((1. - g * g) * (1. + mu * mu)) / ((2. + g * g) * pow(1. + g * g - 2. * g * mu, 1.5));
+      return (sumR * BR * pR + sumM * BM * pM) * 9.;
+    }
+    vec3 estrellas(vec3 rd) {
+      vec3 q = rd * 300.;
+      vec3 i = floor(q);
+      float h = h13(i);
+      float s = smoothstep(.9985, 1., h) * smoothstep(.5, .0, length(fract(q) - .5));
+      return vec3(.9, .95, 1.) * s * 2. + vec3(.02, .02, .035) * fbm(rd * 3., 4) * smoothstep(.2, .9, fbm(rd * 1.5 + 7., 5));
+    }
+    vec3 rY(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z); }
+    vec3 muestra(vec2 px) {
+      vec2 uv = (px - uRes * .5) / uRes.y;
+      vec3 ro = vec3(0., .55, 2.35);
+      vec3 ta = vec3(-.25, .82, 0.);
+      vec3 ww = normalize(ta - ro), uu = normalize(cross(ww, vec3(.15, 1, 0))), vv = cross(uu, ww);
+      vec3 rd = normalize(uv.x * uu + uv.y * vv + 1.35 * ww);
+      vec2 tp = esf(ro, rd, RP);
+      vec3 col;
+      float tFin = 1e9;
+      if (tp.x > 0.) {
+        tFin = tp.x;
+        vec3 p = ro + rd * tp.x;
+        vec3 n = normalize(p);
+        // el planeta gira y las nubes un poco más deprisa que el suelo
+        vec3 ng = rY(n, uT * .05), nc0 = rY(n, uT * .075);
+        float h = alturaTierra(ng);
+        float mar = .54;
+        float dif = dot(n, SOL);
+        float luz = clamp(dif, 0., 1.);
+        vec3 alb;
+        vec3 nn = n;
+        if (h < mar) {
+          alb = mix(vec3(.004, .018, .05), vec3(.01, .05, .09), smoothstep(mar - .1, mar, h));
+          vec3 hv = normalize(SOL - rd);
+          col = alb * luz + vec3(1., .85, .6) * pow(max(dot(n, hv), 0.), 2500.) * 1.2 * luz;
+        } else {
+          float e = .004;
+          vec3 g = vec3(alturaTierra(normalize(ng + vec3(e,0,0))), alturaTierra(normalize(ng + vec3(0,e,0))), alturaTierra(normalize(ng + vec3(0,0,e)))) - h;
+          nn = normalize(n - g * 5.);
+          float lat = abs(n.y);
+          vec3 selva = vec3(.03, .07, .02), desierto = vec3(.28, .2, .11), roca = vec3(.12, .1, .08);
+          float seco = smoothstep(.45, .6, fbm(ng * 3. + 11., 5)) * (1. - smoothstep(.55, .8, lat));
+          alb = mix(selva, desierto, seco);
+          alb = mix(alb, roca, smoothstep(.62, .72, h));
+          alb = mix(alb, vec3(.8, .82, .85), smoothstep(.78, .86, lat + (h - mar) * .6));
+          col = alb * clamp(dot(nn, SOL), 0., 1.);
+          // Ciudades en la cara de noche
+          float noche = smoothstep(.05, -.15, dif);
+          float urb = smoothstep(.62, .8, fbm(ng * 40., 4)) * smoothstep(.55, .75, fbm(ng * 5. + 2., 4)) * (1. - seco * .7);
+          col += vec3(1., .62, .25) * urb * noche * .5;
+        }
+        // Nubes con su sombra
+        float cl = nubes(nc0);
+        vec3 nc = normalize(n + SOL * .01);
+        float somb = nubes(normalize(nc0 + SOL * .02));
+        col *= 1. - somb * .6;
+        col = mix(col, vec3(1.) * (luz * .95 + .02), cl * .92);
+        col += vec3(.04, .05, .08) * smoothstep(-.2, .1, dif) * .1;
+      } else {
+        // Luna al fondo, con cráteres
+        vec3 LC = vec3(-1.25, 2.35, -2.6); float LR = .16;
+        vec2 tl = esf(ro - LC, rd, LR);
+        if (tl.x > 0.) {
+          vec3 q = normalize(ro + rd * tl.x - LC);
+          float cr = fbm(q * 6., 6);
+          float cr2 = smoothstep(.62, .66, fbm(q * 14., 3));
+          vec3 a = vec3(.42, .41, .4) * (.6 + .6 * cr) * (1. - cr2 * .25);
+          a = mix(a, vec3(.2), smoothstep(.55, .6, fbm(q * 2.5 + 4., 5)) * .6);
+          col = a * clamp(dot(q, SOL), 0., 1.) * 1.3;
+        } else col = estrellas(rd);
+      }
+      vec3 tr;
+      vec3 atm = atmosfera(ro, rd, tFin, tr);
+      col = col * 2.6 * tr + atm;
+      return col * 1.2;
+    }`;
+    // En el vídeo la Tierra gira: continentes, desiertos y ciudades pasan de la cara de día a la de noche.
+    trazarVideo({ escala: .67, frag, modo: "anima", porFotograma: 1, franjas: 12, expo: 1.0, vineta: .25, grano: .02 });
+    listo();
+  </script>
+</body>
+</html>

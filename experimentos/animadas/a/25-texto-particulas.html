@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #06070d; }
+  .t { position: absolute; left: 70px; bottom: 70px; font-family: "Space Mono"; font-size: 22px; color: #6b7aa1; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">muestreo de píxeles del texto → 12.000 partículas<br />y el viento se lleva casi la mitad</div>
+  <script>
+    document.fonts.load("900 400px Fraunces").then(() => {
+      const ctx = canvas2d();
+      const r = rng(77);
+      const n = makeNoise(77);
+      ctx.fillStyle = "#06070d"; ctx.fillRect(0, 0, W, H);
+      // Se escribe el texto en un lienzo oculto y se leen sus píxeles
+      const off = document.createElement("canvas"); off.width = W; off.height = H;
+      const o = off.getContext("2d", { willReadFrequently: true });
+      o.fillStyle = "#fff"; o.textAlign = "center"; o.textBaseline = "middle";
+      o.font = "900 250px Fraunces"; o.fillText("che", 540, 470);
+      o.font = "900 250px Fraunces"; o.fillText("chist", 540, 720);
+      const d = o.getImageData(0, 0, W, H).data;
+      const pts = [];
+      for (let k = 0; k < 800000 && pts.length < 12000; k++) {
+        const x = Math.floor(r() * W), y = Math.floor(r() * H);
+        if (d[(y * W + x) * 4] > 128) pts.push([x, y]);
+      }
+      // Las partículas llegan volando desde todas partes, forman las letras, aguantan un momento
+      // y luego el viento se lleva la mitad derecha siguiendo su camino de ruido, hasta la imagen final.
+      const ps = pts.map(([x, y]) => {
+        const viento = Math.max(0, (x - 380) / 700) * (r() < 0.4 ? 1 : 0);
+        let px = x, py = y;
+        const camino = [[x, y]];
+        const pasos = Math.floor(viento * 60 * r());
+        for (let s = 0; s < pasos; s++) {
+          const a = n(px * 0.004, py * 0.004, 2) * Math.PI - Math.PI / 2 + 0.35;
+          px += Math.cos(a) * 7; py += Math.sin(a) * 7;
+          camino.push([px, py]);
+        }
+        const t = Math.min(1, (px - 200) / 900);
+        const ang = r() * Math.PI * 2, dist = 700 + r() * 900;
+        return { camino, col: `hsl(${190 + t * 140}, 100%, ${60 + r() * 20}%)`, rad: Math.max(0.8, 1.6 + r() * 2.4 - viento),
+          sx: 540 + Math.cos(ang) * dist, sy: 675 + Math.sin(ang) * dist, retraso: r() * 1.2 };
+      });
+      const cl = (u) => Math.min(1, Math.max(0, u));
+      const ease = (u) => 1 - Math.pow(1 - cl(u), 3);
+      window.pintar = (t) => {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#06070d"; ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.85;
+        const viento = cl((t - 5) / 4.2);
+        for (const p of ps) {
+          const u = ease((t - 0.2 - p.retraso) / 2.2);
+          let [x, y] = p.camino[0];
+          if (u < 1) { x = p.sx + (x - p.sx) * u; y = p.sy + (y - p.sy) * u; }
+          else if (p.camino.length > 1) {
+            const f = viento * (p.camino.length - 1), k = Math.floor(f), fr = f - k;
+            const a = p.camino[k], b = p.camino[Math.min(k + 1, p.camino.length - 1)];
+            x = a[0] + (b[0] - a[0]) * fr; y = a[1] + (b[1] - a[1]) * fr;
+          }
+          ctx.fillStyle = p.col;
+          ctx.beginPath(); ctx.arc(x, y, p.rad, 0, Math.PI * 2); ctx.fill();
+        }
+      };
+      listo();
+    });
+  </script>
+</body>
+</html>

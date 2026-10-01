@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: linear-gradient(#0d0221 0%, #261447 40%, #ff3864 62%, #0d0221 62.1%); }
+  .estrellas { position: absolute; inset: 0 0 50% 0; background-image: radial-gradient(1.5px 1.5px at 20% 30%, #fff, transparent), radial-gradient(1px 1px at 70% 20%, #fff, transparent), radial-gradient(1.5px 1.5px at 40% 70%, #fff, transparent), radial-gradient(1px 1px at 85% 55%, #fff, transparent), radial-gradient(1px 1px at 10% 80%, #fff, transparent); background-size: 260px 220px; opacity: .8; animation: titila 1.3s steps(2) infinite alternate, deslizan 10s linear both; }
+  .sol { position: absolute; left: 190px; top: 430px; width: 700px; height: 700px; border-radius: 50%; background: linear-gradient(#ffe45e, #ff6c11 55%, #ff2975); -webkit-mask: repeating-linear-gradient(#000 0 21px, transparent 21px 26px) 0 0 / 100% 210px; -webkit-mask-position: 0 0; clip-path: inset(0 0 42% 0); filter: drop-shadow(0 0 60px #ff2975); animation: franjas 10s linear both, asoma 2.5s cubic-bezier(.2,.8,.2,1) both; }
+  .suelo { position: absolute; left: -540px; right: -540px; top: 837px; height: 900px; background: #0d0221; background-image: linear-gradient(#ff38c7 3px, transparent 3px), linear-gradient(90deg, #ff38c7 3px, transparent 3px); background-size: 90px 90px; transform-origin: top center; transform: perspective(300px) rotateX(62deg); box-shadow: inset 0 60px 80px #0d0221; animation: avanza 10s linear both; }
+  .brillo { position: absolute; left: 0; right: 0; top: 780px; height: 120px; background: linear-gradient(transparent, rgba(255,56,100,.5), transparent); }
+  h1 { position: absolute; top: 90px; width: 100%; text-align: center; font-family: "Monoton"; font-size: 130px; color: #fff; text-shadow: 0 0 10px #ff38c7, 0 0 30px #ff38c7, 0 0 60px #b967ff; letter-spacing: 6px; animation: enciende 2.4s .6s linear both; }
+  h2 { position: absolute; top: 1180px; width: 100%; text-align: center; font-family: "Pacifico"; font-size: 84px; color: #2de2e6; text-shadow: 0 0 12px #2de2e6, 0 0 40px #2de2e6; transform: rotate(-4deg); animation: firma 1.4s 3.2s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes avanza { to { background-position: 0 1080px, 0 0; } }
+  @keyframes franjas { to { -webkit-mask-position: 0 420px; } }
+  @keyframes asoma { from { translate: 0 260px; } }
+  @keyframes deslizan { to { background-position: -120px 0; } }
+  @keyframes titila { from { opacity: .55; } to { opacity: .9; } }
+  @keyframes enciende { 0%, 8% { opacity: 0; } 9% { opacity: 1; } 12% { opacity: .1; } 16% { opacity: 1; } 20% { opacity: .3; } 22%, 60% { opacity: 1; } 62% { opacity: .5; } 64%, 100% { opacity: 1; } }
+  @keyframes firma { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+</style>
+</head>
+<body>
+  <div class="estrellas"></div>
+  <div class="sol"></div>
+  <div class="brillo"></div>
+  <div class="suelo"></div>
+  <h1>ALMERÍA</h1>
+  <h2>Verano del 86</h2>
+  <script>listo();</script>
+</body>
+</html>

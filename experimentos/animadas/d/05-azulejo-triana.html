@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<script src="../../imagenes/assets/analogico.js"></script>
+<script src="../comun/rodado.js"></script>
+<style>body { background: #2a2622; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Azulejos de Triana pintados a mano: el pigmento se embolsa en el esmalte (pinceladas con más
+    // carga en los bordes), el esmalte tiene craquelado, burbujas y ondulación, y la superficie brilla
+    // con la luz de una ventana. Cantos desconchados y llagas de mortero. Foto en la pared, un poco ladeada.
+    (async () => {
+      const r = rng(1505);
+      const n = makeNoise(1505);
+      const T = 340, COLS = 3, FILAS = 4, LL = 10;
+      const PW = COLS * T + (COLS + 1) * LL, PH = FILAS * T + (FILAS + 1) * LL;
+      const muro = M.lienzo(PW, PH);
+      const g = muro.x;
+      // mortero
+      M.porPixel(g, (x, y) => { const v = 0.8 + n(x * 0.08, y * 0.08, 3) * 0.3; return [190 * v, 182 * v, 165 * v]; });
+      const hh = (a, b) => { let h = Math.imul(a, 374761393) ^ Math.imul(b, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+      const AZUL = [30, 55, 140], MANG = [70, 40, 30], AMAR = [225, 160, 30], VERDE = [40, 110, 70], BL = [244, 238, 222];
+      // dibujo de un cuarto de azulejo (se repite con simetría): estrella con lazo y hojas
+      function dibujo(pg, s) {
+        pg.lineCap = "round"; pg.lineJoin = "round";
+        const c = s / 2;
+        // cuadrante → simetría de 4
+        for (let k = 0; k < 4; k++) {
+          pg.save();
+          pg.translate(c, c);
+          pg.rotate((k * Math.PI) / 2);
+          pg.translate(-c, -c);
+          // pétalo amarillo con contorno de manganeso
+          pg.fillStyle = M.rgb(AMAR, 0.9);
+          pg.beginPath();
+          pg.moveTo(c, c - 14);
+          pg.bezierCurveTo(c - 52, c - 70, c - 30, c - 140, c, c - 150);
+          pg.bezierCurveTo(c + 30, c - 140, c + 52, c - 70, c, c - 14);
+          pg.fill();
+          pg.strokeStyle = M.rgb(MANG, 0.95);
+          pg.lineWidth = 4;
+          pg.stroke();
+          // hojas verdes a los lados
+          pg.fillStyle = M.rgb(VERDE, 0.85);
+          for (const sx of [-1, 1]) {
+            pg.beginPath();
+            pg.moveTo(c + sx * 20, c - 40);
+            pg.quadraticCurveTo(c + sx * 110, c - 90, c + sx * 120, c - 120);
+            pg.quadraticCurveTo(c + sx * 60, c - 110, c + sx * 20, c - 40);
+            pg.fill();
+            pg.stroke();
+          }
+          // esquinas: cuarto de roseta azul que enlaza con el azulejo vecino
+          pg.fillStyle = M.rgb(AZUL, 0.92);
+          pg.beginPath();
+          pg.arc(0, 0, 70, 0, Math.PI / 2);
+          pg.lineTo(0, 0);
+          pg.fill();
+          pg.beginPath();
+          pg.arc(0, 0, 92, 0, Math.PI / 2);
+          pg.lineWidth = 8;
+          pg.strokeStyle = M.rgb(AZUL, 0.9);
+          pg.stroke();
+          pg.lineWidth = 4;
+          pg.strokeStyle = M.rgb(MANG, 0.95);
+          pg.beginPath(); pg.arc(0, 0, 70, 0, Math.PI / 2); pg.stroke();
+          // cenefa azul del borde
+          pg.fillStyle = M.rgb(AZUL, 0.88);
+          pg.fillRect(70, 4, s - 140, 14);
+          pg.restore();
+        }
+        pg.fillStyle = M.rgb(AZUL, 0.95);
+        pg.beginPath(); pg.arc(c, c, 26, 0, Math.PI * 2); pg.fill();
+        pg.strokeStyle = M.rgb(MANG, 0.95); pg.lineWidth = 4; pg.stroke();
+        pg.fillStyle = M.rgb(BL);
+        pg.beginPath(); pg.arc(c, c, 8, 0, Math.PI * 2); pg.fill();
+      }
+      for (let j = 0; j < FILAS; j++) for (let i = 0; i < COLS; i++) {
+        const x0 = LL + i * (T + LL), y0 = LL + j * (T + LL);
+        const sem = i * 7 + j * 13 + 1;
+        const rr = rng(sem);
+        // capa del dibujo con temblor de mano y pigmento embolsado (borde más oscuro)
+        const d = M.lienzo(T, T);
+        d.x.save();
+        d.x.translate(T / 2, T / 2);
+        d.x.rotate((rr() - 0.5) * 0.02);
+        d.x.translate(-T / 2 + (rr() - 0.5) * 4, -T / 2 + (rr() - 0.5) * 4);
+        dibujo(d.x, T);
+        d.x.restore();
+        const dd = d.x.getImageData(0, 0, T, T).data;
+        const db = A.filtrado(d.c, "blur(2.5px)").x.getImageData(0, 0, T, T).data;
+        const img = g.getImageData(x0, y0, T, T);
+        const o = img.data;
+        for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+          const k = (y * T + x) * 4;
+          const gx = x0 + x, gy = y0 + y;
+          // bizcocho bajo el esmalte blanco, algo amarillento y con motas
+          let c = BL.map((v) => v * (0.97 + (n(gx * 0.05, gy * 0.05, 2) - 0.5) * 0.05));
+          if (r() < 0.0015) c = c.map((v) => v * 0.6);
+          const a = dd[k + 3] / 255;
+          if (a > 0.01) {
+            const pig = [dd[k], dd[k + 1], dd[k + 2]];
+            // embolsado: más pigmento donde el borde de la mancha (alfa sin desenfocar > desenfocado)
+            const borde = Math.max(0, a - db[k + 3] / 255) * 2.2;
+            const carga = 0.72 + 0.35 * n(gx * 0.04, gy * 0.04, 3) + borde;
+            const p = pig.map((v) => v * (1.15 - 0.35 * carga));
+            c = M.mezcla(c, p, Math.min(1, a * (0.75 + 0.3 * carga)));
+          }
+          // craquelado: líneas finas oscuras siguiendo celdas de Voronoi irregulares
+          const cx = gx * 0.045 + n(gx * 0.02, gy * 0.02, 2) * 2, cy = gy * 0.045 + n(gx * 0.02 + 5, gy * 0.02, 2) * 2;
+          const ix = Math.floor(cx), iy = Math.floor(cy);
+          let d1 = 9, d2 = 9;
+          for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+            const h = hh(ix + ox, iy + oy), h2 = hh(iy + oy + 911, ix + ox - 37);
+            const dist = Math.hypot(cx - (ix + ox + h), cy - (iy + oy + h2));
+            if (dist < d1) { d2 = d1; d1 = dist; } else if (dist < d2) d2 = dist;
+          }
+          const grieta = M.smooth(0.035, 0.0, d2 - d1) * (n(gx * 0.01, gy * 0.01, 2) > 0.42 ? 0.35 : 0.12);
+          c = c.map((v) => v * (1 - grieta));
+          // esquinas desconchadas: se ve el barro
+          const esq = Math.min(Math.hypot(x, y), Math.hypot(T - x, y), Math.hypot(x, T - y), Math.hypot(T - x, T - y));
+          const borde2 = Math.min(x, y, T - x, T - y);
+          const desconchon = esq < 10 + 16 * rr() * (n(gx * 0.1, gy * 0.1, 2) > 0.5 ? 1 : 0) || borde2 < 1.5 + 3 * Math.max(0, n(gx * 0.08, gy * 0.08, 2) - 0.6) * 10;
+          if (desconchon) c = [186, 120, 82].map((v) => v * (0.85 + r() * 0.2));
+          o[k] = c[0]; o[k + 1] = c[1]; o[k + 2] = c[2];
+        }
+        g.putImageData(img, x0, y0);
+      }
+      // esmalte: relieve ondulado + brillo especular de ventana
+      const alto = new Float32Array(PW * PH);
+      for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+        const lx = (x - LL) % (T + LL), ly = (y - LL) % (T + LL);
+        const dentro = lx >= 0 && ly >= 0 && lx < T && ly < T;
+        const bisel = dentro ? M.smooth(0, 10, Math.min(lx, ly, T - lx, T - ly)) : 0;
+        alto[y * PW + x] = bisel * 1.5 + (dentro ? n(x * 0.012, y * 0.012, 3) * 1.2 + n(x * 0.15, y * 0.15, 1) * 0.08 : n(x * 0.3, y * 0.3, 2) * 0.6 - 0.8);
+      }
+      A.iluminar(g, alto, { fuerza: 2.2, luz: [-0.5, -0.55, 0.65], brillo: 0.9 });
+      // reflejo grande de ventana en el esmalte (solo sobre los azulejos)
+      const ref = g.createLinearGradient(0, 0, PW, PH);
+      ref.addColorStop(0.18, "rgba(255,255,255,0)");
+      ref.addColorStop(0.26, "rgba(255,255,255,.22)");
+      ref.addColorStop(0.3, "rgba(255,255,255,.05)");
+      ref.addColorStop(0.36, "rgba(255,255,255,.18)");
+      ref.addColorStop(0.42, "rgba(255,255,255,0)");
+      g.fillStyle = ref;
+      for (let j = 0; j < FILAS; j++) for (let i = 0; i < COLS; i++) g.fillRect(LL + i * (T + LL), LL + j * (T + LL), T, T);
+
+      const ctx = canvas2d();
+      A.pared(ctx, 6, [208, 196, 176]);
+      A.colocar(ctx, muro.c, [[40, 30], [1050, 52], [1036, 1330], [28, 1316]], { sombra: 0.35, curva: 0, brillo: 0, borde: false });
+      A.pelicula(ctx, { grano: 0.035, halo: 0.35, vineta: 0.4, polvo: 0.15, calido: 1.1, saturacion: 0.95 });
+      // En el vídeo: grabado como con el móvil, cámara en mano y luz de ventana entre hojas que se mueven.
+      rodar({ ventana: [0.55, 0.45], hojas: 1, semilla: 15, mano: 0.8 });
+      listo();
+    })();
+  </script>
+</body>
+</html>

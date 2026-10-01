@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<script src="../../imagenes/assets/analogico.js"></script>
+<script src="../comun/rodado.js"></script>
+<style>body { background: #3b2c22; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Bordado a mano en bastidor: cada zona se rellena con puntadas de satén (hilos paralelos
+    // que van de borde a borde con un ángulo), cada puntada es un hilo de seis cabos con brillo de seda.
+    // Debajo, lino con su trama; alrededor, el aro de madera con su tornillo de latón.
+    (async () => {
+      const r = rng(1777);
+      const n = makeNoise(1777);
+      const ctx = canvas2d();
+      A.mesaMadera(ctx, 14, [128, 92, 62]);
+      const CX = 540, CY = 640, RA = 470;
+      // tela de lino: trama y urdimbre con hilos irregulares
+      const tela = M.lienzo();
+      M.porPixel(tela.x, (x, y) => {
+        const tx = 0.5 + 0.5 * Math.sin(x * 1.25 + n(x * 0.01, y * 0.2, 2) * 2), ty = 0.5 + 0.5 * Math.sin(y * 1.25 + n(x * 0.2, y * 0.01, 2) * 2);
+        const grosor = 0.9 + 0.2 * n(x * 0.02, 3, 1) + 0.15 * n(3, y * 0.02, 1);
+        const v = (0.82 + 0.1 * Math.max(tx, ty) * grosor + 0.05 * n(x * 0.003, y * 0.003, 3)) * (1 - 0.18 * Math.max(0, Math.hypot(x - CX, y - CY) / RA - 0.7));
+        return [226 * v, 214 * v, 190 * v];
+      });
+      const t = tela.x;
+      // --- Puntadas ---
+      function satin(mascara, ang, color, sep0 = 3.2, brillo = 1) {
+        const sep = sep0 * 1.9;
+        // recorre líneas paralelas a 'ang' y pone una puntada en cada tramo dentro de la máscara
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const md = mascara.x.getImageData(0, 0, W, H).data;
+        const dentro = (x, y) => x >= 0 && y >= 0 && x < W && y < H && md[((y | 0) * W + (x | 0)) * 4 + 3] > 128;
+        const base = M.hex(color);
+        for (let s = -1300; s < 1300; s += sep) {
+          let enTramo = false, ini = 0;
+          for (let u = -1300; u < 1300; u += 1) {
+            const x = CX + ca * u - sa * s, y = CY + sa * u + ca * s;
+            const d = dentro(x, y);
+            if (d && !enTramo) { enTramo = true; ini = u; }
+            if ((!d || u >= 1299) && enTramo) {
+              enTramo = false;
+              const fin = u - 1;
+              if (fin - ini < 2) continue;
+              const j1 = (r() - 0.5) * 1.6, j2 = (r() - 0.5) * 1.6;
+              const ax = CX + ca * (ini + j1) - sa * s, ay = CY + sa * (ini + j1) + ca * s;
+              const bx = CX + ca * (fin + j2) - sa * s, by = CY + sa * (fin + j2) + ca * s;
+              // sombra de la puntada
+              t.strokeStyle = "rgba(60,40,25,.35)";
+              t.lineWidth = sep * 1.15;
+              t.lineCap = "round";
+              t.beginPath(); t.moveTo(ax + 0.8, ay + 1.2); t.lineTo(bx + 0.8, by + 1.2); t.stroke();
+              // hilo con brillo: degradado perpendicular
+              const nx = -sa, ny = ca;
+              const g = t.createLinearGradient(ax - nx * sep * 0.6, ay - ny * sep * 0.6, ax + nx * sep * 0.6, ay + ny * sep * 0.6);
+              const tono = base.map((v) => v * (0.92 + r() * 0.12));
+              g.addColorStop(0, M.rgb(tono.map((v) => v * 0.5)));
+              g.addColorStop(0.35, M.rgb(tono.map((v) => Math.min(255, v * (1.05 + 0.25 * brillo) + 25 * brillo))));
+              g.addColorStop(0.55, M.rgb(tono));
+              g.addColorStop(1, M.rgb(tono.map((v) => v * 0.55)));
+              t.strokeStyle = g;
+              t.lineWidth = sep * 0.95;
+              t.beginPath(); t.moveTo(ax, ay); t.lineTo(bx, by); t.stroke();
+              // cabos del hilo: líneas finas de torsión
+              t.strokeStyle = M.rgb(tono.map((v) => v * 0.7), 0.35);
+              t.lineWidth = 0.5;
+              const L = Math.hypot(bx - ax, by - ay);
+              for (let k = 3; k < L; k += 3.5) {
+                const px = ax + (bx - ax) * (k / L), py = ay + (by - ay) * (k / L);
+                t.beginPath(); t.moveTo(px - nx * sep * 0.4 - ca, py - ny * sep * 0.4 - sa); t.lineTo(px + nx * sep * 0.4 + ca, py + ny * sep * 0.4 + sa); t.stroke();
+              }
+            }
+          }
+        }
+      }
+      const forma = (dibuja) => { const m = M.lienzo(); m.x.fillStyle = "#000"; m.x.translate(540, 600); m.x.scale(1.45, 1.45); m.x.translate(-540, -560); dibuja(m.x); return m; };
+      // clavel: pétalos dentados en tres tonos, cáliz y tallo
+      const pet = (g, cx, cy, rx, ry, a) => {
+        g.save(); g.translate(cx, cy); g.rotate(a);
+        g.beginPath();
+        for (let k = 0; k <= 40; k++) { const tt = (k / 40) * Math.PI; const den = 1 + 0.12 * Math.sin(k * 2.3) ; g.lineTo(Math.cos(tt) * rx * den, -Math.sin(tt) * ry * den); }
+        g.closePath(); g.fill(); g.restore();
+      };
+      const FX = 540, FY = 470;
+      satin(forma((g) => { g.beginPath(); g.moveTo(FX - 7, FY + 80); g.bezierCurveTo(FX - 30, FY + 240, FX + 30, FY + 330, FX - 10, FY + 450); g.lineTo(FX + 6, FY + 450); g.bezierCurveTo(FX + 46, FY + 330, FX - 14, FY + 240, FX + 9, FY + 80); g.fill(); }), 1.45, "#3f6b34", 2.6);
+      for (const [lx, ly, a, s] of [[FX - 70, FY + 270, -2.4, 1], [FX + 60, FY + 330, -0.6, -1]]) {
+        satin(forma((g) => { g.save(); g.translate(lx, ly); g.rotate(a); g.beginPath(); g.ellipse(0, 0, 90, 22, 0, 0, Math.PI * 2); g.fill(); g.restore(); }), a + 0.9 * s, "#5a8a3c", 2.8);
+      }
+      satin(forma((g) => { g.beginPath(); g.moveTo(FX - 46, FY + 40); g.quadraticCurveTo(FX, FY + 150, FX + 46, FY + 40); g.fill(); }), 1.57, "#4c7a3a", 2.6);
+      satin(forma((g) => { pet(g, FX, FY + 40, 170, 120, 0); }), 1.2, "#9c1a2a", 3.2, 0.8);
+      satin(forma((g) => { pet(g, FX - 40, FY + 20, 120, 110, -0.25); pet(g, FX + 50, FY + 25, 115, 105, 0.3); }), 1.75, "#c8233a", 3.2, 1);
+      satin(forma((g) => { pet(g, FX, FY - 10, 80, 90, 0); }), 2.2, "#e8475a", 3, 1.2);
+      // pespunte de contorno (puntada atrás) en manganeso
+      t.strokeStyle = "#3a1a18"; t.lineWidth = 2.2; t.setLineDash([9, 3]);
+      t.beginPath(); t.ellipse(540, 600 + (FY + 40 - 560) * 1.45, 170 * 1.45, 120 * 1.45, 0, Math.PI, 0); t.stroke();
+      t.setLineDash([]);
+      // nudos franceses amarillos alrededor
+      for (let k = 0; k < 26; k++) {
+        const a = -Math.PI * 0.95 + (k / 25) * Math.PI * 0.9, rr = 215 + (k % 2) * 22;
+        const x = 540 + Math.cos(a) * rr * 1.45, y = 600 + (FY + 40 - 560) * 1.45 + Math.sin(a) * rr * 0.8 * 1.45;
+        const g = t.createRadialGradient(x - 1.5, y - 1.5, 0.5, x, y, 6);
+        g.addColorStop(0, "#fff3b0"); g.addColorStop(0.6, "#e8b52e"); g.addColorStop(1, "#8a5a10");
+        t.fillStyle = "rgba(60,40,25,.35)"; t.beginPath(); t.arc(x + 1, y + 1.5, 6.5, 0, Math.PI * 2); t.fill();
+        t.fillStyle = g; t.beginPath(); t.arc(x, y, 6, 0, Math.PI * 2); t.fill();
+      }
+      // relieve de la tela tensada
+      A.iluminar(t, A.relieve(W, H, 3, { grano: 0.5, fibras: 0.2, escala: 0.4 }), { fuerza: 0.5 });
+      // Colocar la tela dentro del aro
+      ctx.save();
+      ctx.beginPath(); ctx.arc(CX, CY, RA, 0, Math.PI * 2); ctx.clip();
+      ctx.drawImage(tela.c, 0, 0);
+      // sombra interior del aro sobre la tela
+      const si = ctx.createRadialGradient(CX, CY, RA - 60, CX, CY, RA);
+      si.addColorStop(0, "rgba(0,0,0,0)"); si.addColorStop(1, "rgba(30,20,10,.45)");
+      ctx.fillStyle = si; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+      // tela sobrante fuera del aro
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 25; ctx.shadowOffsetY = 12;
+      // aro de madera: dos anillos
+      for (const [rad, w, tono] of [[RA + 18, 30, [196, 150, 98]], [RA + 6, 14, [176, 130, 82]]]) {
+        const g = ctx.createRadialGradient(CX - 120, CY - 160, rad - 200, CX, CY, rad + 40);
+        g.addColorStop(0, M.rgb(tono.map((v) => Math.min(255, v * 1.25))));
+        g.addColorStop(1, M.rgb(tono.map((v) => v * 0.7)));
+        ctx.strokeStyle = g; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.arc(CX, CY, rad, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+      // vetas en el aro
+      ctx.strokeStyle = "rgba(90,55,25,.25)"; ctx.lineWidth = 1;
+      for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.arc(CX, CY, RA + 8 + k * 5, 0, Math.PI * 2); ctx.stroke(); }
+      // tornillo de latón arriba
+      const gl = ctx.createLinearGradient(CX - 30, 0, CX + 30, 0);
+      gl.addColorStop(0, "#7a5a1a"); gl.addColorStop(0.45, "#f6dc8a"); gl.addColorStop(1, "#6a4a10");
+      ctx.fillStyle = gl;
+      ctx.fillRect(CX - 26, CY - RA - 64, 52, 40);
+      ctx.fillRect(CX - 10, CY - RA - 110, 20, 50);
+      ctx.beginPath(); ctx.ellipse(CX, CY - RA - 112, 34, 14, 0, 0, Math.PI * 2); ctx.fill();
+      // madejas de hilo y aguja con hebra en la mesa
+      for (const [x, y, col] of [[150, 1240, "#c8233a"], [920, 1250, "#5a8a3c"]]) {
+        ctx.save(); ctx.shadowColor = "rgba(0,0,0,.4)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 6;
+        ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y, 90, 34, -0.1, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = "rgba(0,0,0,.18)"; ctx.lineWidth = 1;
+        for (let k = -80; k < 80; k += 3) { ctx.beginPath(); ctx.moveTo(x + k, y - 30); ctx.quadraticCurveTo(x + k + 8, y, x + k, y + 30); ctx.stroke(); }
+        ctx.fillStyle = "#e8dfc8"; ctx.fillRect(x - 22, y - 34, 44, 68);
+      }
+      A.pelicula(ctx, { grano: 0.035, halo: 0.25, vineta: 0.45, polvo: 0.2, calido: 1.2, saturacion: 0.95 });
+      // En el vídeo: grabado como con el móvil, cámara en mano y luz de ventana entre hojas que se mueven.
+      rodar({ ventana: [0.4, 0.4], hojas: 0.9, semilla: 16 });
+      listo();
+    })();
+  </script>
+</body>
+</html>

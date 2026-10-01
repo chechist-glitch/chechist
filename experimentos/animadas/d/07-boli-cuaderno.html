@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<script src="../../imagenes/assets/analogico.js"></script>
+<script src="../comun/rodado.js"></script>
+<style>body { background: #1d1b19; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Boli azul en cuaderno de cuadros: la tinta de bolígrafo no es uniforme (la bola salta en el
+    // grano del papel, deja pegotes al arrancar y brilla un poco), el trazo tiembla, se rayan
+    // sombras con idas y vueltas y la hoja de al lado tiene marcas transparentadas.
+    (async () => {
+      await M.fuentes('40px "Pacifico"', 'italic 30px "Fraunces"');
+      const r = rng(1950);
+      const n = makeNoise(1950);
+      const PW = 980, PH = 1280;
+      const hoja = M.lienzo(PW, PH);
+      const g = hoja.x;
+      // papel con cuadrícula de 5 mm y margen rojo
+      M.porPixel(g, (x, y) => {
+        const v = 0.97 + (n(x * 0.4, y * 0.4, 2) - 0.5) * 0.04 + (n(x * 0.004, y * 0.004, 3) - 0.5) * 0.04;
+        let c = [246 * v, 245 * v, 238 * v];
+        const lx = x % 28, ly = y % 28;
+        if (lx < 1.1 || ly < 1.1) c = M.mezcla(c, [140, 175, 205], 0.55);
+        if (Math.abs(x - 110) < 1.3) c = M.mezcla(c, [220, 80, 80], 0.7);
+        return c;
+      });
+      const relieve = A.relieve(PW, PH, 5, { grano: 1, fibras: 0.3, escala: 0.5 });
+      // capa de tinta: se acumula densidad y luego se tiñe
+      const tinta = new Float32Array(PW * PH);
+      function punto(x, y, rad, d) {
+        const x0 = Math.max(0, Math.floor(x - rad - 1)), x1 = Math.min(PW - 1, Math.ceil(x + rad + 1));
+        const y0 = Math.max(0, Math.floor(y - rad - 1)), y1 = Math.min(PH - 1, Math.ceil(y + rad + 1));
+        for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
+          const dist = Math.hypot(xx - x, yy - y);
+          if (dist > rad + 0.7) continue;
+          const a = M.clamp(rad + 0.7 - dist);
+          // la bola no toca los valles del papel
+          const toca = M.clamp((relieve[yy * PW + xx] - 0.25) * 2.4);
+          tinta[yy * PW + xx] = Math.min(1.6, tinta[yy * PW + xx] + a * d * (0.35 + 0.65 * toca));
+        }
+      }
+      function trazo(pts, presion = 1) {
+        let px = pts[0][0], py = pts[0][1];
+        punto(px, py, 1.6, 0.9);
+        for (let i = 1; i < pts.length; i++) {
+          const [x, y] = pts[i];
+          const L = Math.hypot(x - px, y - py);
+          for (let k = 0; k < L; k += 0.6) {
+            const t = k / L;
+            const qx = px + (x - px) * t + (n(px * 0.05 + k, py * 0.05, 1) - 0.5) * 0.6, qy = py + (y - py) * t;
+            punto(qx, qy, 0.9, 0.42 * presion * (0.8 + 0.4 * n(qx * 0.03, qy * 0.03, 2)));
+          }
+          px = x; py = y;
+        }
+        if (r() < 0.25) punto(px, py, 2.2, 0.9); // pegote al levantar
+      }
+      const linea = (x0, y0, x1, y1, p = 1, temblor = 1.2) => {
+        const L = Math.hypot(x1 - x0, y1 - y0), N = Math.max(2, Math.ceil(L / 8));
+        const pts = [];
+        for (let i = 0; i <= N; i++) { const t = i / N; pts.push([x0 + (x1 - x0) * t + (n(t * 3 + x0, y0, 1) - 0.5) * temblor * 2, y0 + (y1 - y0) * t + (n(t * 3 + y0, x0, 1) - 0.5) * temblor * 2]); }
+        trazo(pts, p);
+      };
+      // rayado de sombra en zigzag dentro de una función de máscara
+      function rayado(dentro, x0, y0, x1, y1, ang, sep, p = 0.8) {
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.hypot(x1 - x0, y1 - y0) / 2;
+        let ida = true;
+        for (let s = -R; s < R; s += sep) {
+          const pts = [];
+          for (let u = -R; u < R; u += 3) {
+            const x = cx + ca * u - sa * s, y = cy + sa * u + ca * s;
+            if (dentro(x, y)) pts.push([x + (r() - 0.5), y + (r() - 0.5)]);
+            else if (pts.length > 2) { trazo(ida ? pts : pts.reverse(), p); pts.length = 0; ida = !ida; }
+          }
+          if (pts.length > 2) trazo(ida ? pts : pts.reverse(), p);
+          ida = !ida;
+        }
+      }
+      // --- Dibujo: la Torre del Oro con el río y unas barcas, a lo rápido ---
+      const TX = 470, TB = 800;
+      const torre = [[TX - 120, TB], [TX - 120, TB - 300], [TX - 132, TB - 310], [TX - 132, TB - 330], [TX - 80, TB - 330], [TX - 80, TB - 450], [TX - 90, TB - 458], [TX - 90, TB - 476], [TX - 50, TB - 476], [TX - 50, TB - 560], [TX - 30, TB - 600], [TX + 30, TB - 600], [TX + 50, TB - 560], [TX + 50, TB - 476], [TX + 90, TB - 476], [TX + 90, TB - 458], [TX + 80, TB - 450], [TX + 80, TB - 330], [TX + 132, TB - 330], [TX + 132, TB - 310], [TX + 120, TB - 300], [TX + 120, TB]];
+      for (let pasada = 0; pasada < 2; pasada++) for (let i = 1; i < torre.length; i++) linea(torre[i - 1][0], torre[i - 1][1], torre[i][0], torre[i][1], 1, 1.4 + pasada);
+      // almenas
+      for (let k = -5; k <= 5; k += 2) { linea(TX + k * 22, TB - 330, TX + k * 22, TB - 350); linea(TX + k * 22, TB - 350, TX + k * 22 + 22, TB - 350); linea(TX + k * 22 + 22, TB - 350, TX + k * 22 + 22, TB - 330); }
+      // aristas del dodecágono
+      for (const dx of [-60, 0, 60]) linea(TX + dx, TB, TX + dx * 0.95, TB - 300, 0.7);
+      for (const dx of [-30, 30]) linea(TX + dx, TB - 330, TX + dx, TB - 450, 0.7);
+      // ventanas
+      for (const [x, y] of [[TX - 90, TB - 200], [TX - 20, TB - 220], [TX + 50, TB - 200], [TX - 10, TB - 400], [TX - 6, TB - 530]]) {
+        linea(x, y, x, y - 40); linea(x + 18, y, x + 18, y - 40); linea(x, y - 40, x + 9, y - 52); linea(x + 9, y - 52, x + 18, y - 40);
+        rayado((px, py) => px > x && px < x + 18 && py > y - 46 && py < y, x, y - 52, x + 18, y, 0.3, 3, 1.1);
+      }
+      // sombra del lado derecho (luz a la izquierda)
+      rayado((x, y) => x > TX + 30 && x < TX + 120 && y > TB - 300 && y < TB, TX + 30, TB - 300, TX + 120, TB, 1.1, 5.5);
+      rayado((x, y) => x > TX + 15 && x < TX + 80 && y > TB - 450 && y < TB - 330, TX + 15, TB - 450, TX + 80, TB - 330, 1.1, 5.5);
+      rayado((x, y) => x > TX + 15 && x < TX + 50 && y > TB - 560 && y < TB - 476, TX + 15, TB - 560, TX + 50, TB - 476, 1.1, 5);
+      // río: líneas horizontales sueltas y reflejo
+      for (let k = 0; k < 26; k++) {
+        const y = TB + 20 + k * 14 + r() * 6, x = 150 + r() * 600, L = 40 + r() * 160;
+        linea(x, y, x + L, y + (r() - 0.5) * 3, 0.6, 0.8);
+      }
+      rayado((x, y) => Math.abs(x - TX) < 110 - (y - TB) * 0.25 && y > TB + 10 && y < TB + 300 && n(x * 0.05, y * 0.2, 2) > 0.45, TX - 120, TB, TX + 120, TB + 300, 0, 6, 0.6);
+      // barca
+      const bx = 760, by = 930;
+      linea(bx - 120, by, bx + 120, by - 10); linea(bx - 120, by, bx - 90, by + 30); linea(bx - 90, by + 30, bx + 100, by + 26); linea(bx + 100, by + 26, bx + 120, by - 10);
+      rayado((x, y) => y > by && y < by + 28 && x > bx - 100 && x < bx + 105, bx - 120, by, bx + 120, by + 30, 0.6, 4, 0.9);
+      linea(bx - 10, by - 6, bx - 10, by - 150); linea(bx - 10, by - 150, bx + 70, by - 30, 0.8); linea(bx - 10, by - 140, bx - 70, by - 20, 0.8);
+      // horizonte y Triana al fondo
+      linea(130, TB - 10, PW - 60, TB - 16, 0.6);
+      for (let x = 600; x < PW - 80; x += 40 + r() * 30) { const h = 30 + r() * 50; linea(x, TB - 14, x, TB - 14 - h, 0.5); linea(x, TB - 14 - h, x + 30, TB - 14 - h, 0.5); linea(x + 30, TB - 14 - h, x + 30, TB - 14, 0.5); }
+      // anotaciones a mano
+      const escribe = (txt, x, y, tam, ang) => {
+        const m = M.lienzo(PW, PH);
+        m.x.font = `${tam}px "Pacifico"`;
+        m.x.fillStyle = "#fff";
+        m.x.save(); m.x.translate(x, y); m.x.rotate(ang); m.x.fillText(txt, 0, 0); m.x.restore();
+        const d = m.x.getImageData(0, 0, PW, PH).data;
+        for (let i = 0; i < PW * PH; i++) if (d[i * 4 + 3] > 40) tinta[i] = Math.min(1.6, tinta[i] + (d[i * 4 + 3] / 255) * 0.8 * (0.5 + 0.5 * M.clamp((relieve[i] - 0.2) * 2.5)));
+      };
+      escribe("Torre del Oro, 17:40", 140, 180, 46, -0.03);
+      escribe("sombra fuerte", 640, 560, 30, 0.05);
+      escribe("el agua más oscura abajo", 150, 1190, 30, -0.02);
+      linea(632, 552, 596, 590, 0.8); linea(596, 590, 612, 584, 0.8); linea(596, 590, 600, 574, 0.8);
+      // tiñe la tinta: azul bic con un leve brillo violeta donde hay mucha
+      const img = g.getImageData(0, 0, PW, PH);
+      const d = img.data;
+      for (let i = 0; i < PW * PH; i++) {
+        const a = M.clamp(tinta[i]);
+        if (a <= 0) continue;
+        const k = i * 4;
+        const azul = tinta[i] > 1.1 ? [40, 30, 110] : [25, 45, 150];
+        for (let c = 0; c < 3; c++) d[k + c] = d[k + c] * (1 - a * 0.92) + azul[c] * a * 0.92;
+      }
+      g.putImageData(img, 0, 0);
+      A.iluminar(g, relieve, { fuerza: 0.5 });
+      // Foto: cuaderno de espiral en la mesa, algo girado
+      const ctx = canvas2d();
+      A.mesaMadera(ctx, 31, [72, 52, 40]);
+      A.colocar(ctx, hoja.c, [[96, 70], [1040, 44], [1064, 1300], [116, 1330]], { sombra: 0.55, curva: 6, brillo: 0.04 });
+      // espiral
+      for (let k = 0; k < 24; k++) {
+        const t = k / 23;
+        const x = M.lerp(96, 116, t) - 6, y = M.lerp(70, 1330, t);
+        ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.ellipse(x + 4, y + 4, 20, 9, -0.1, Math.PI * 0.6, Math.PI * 2.1); ctx.stroke();
+        const gm = ctx.createLinearGradient(x - 20, y, x + 20, y);
+        gm.addColorStop(0, "#555"); gm.addColorStop(0.5, "#eee"); gm.addColorStop(1, "#444");
+        ctx.strokeStyle = gm; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.ellipse(x, y, 20, 9, -0.1, Math.PI * 0.6, Math.PI * 2.1); ctx.stroke();
+      }
+      // el boli encima
+      ctx.save();
+      ctx.translate(820, 1180); ctx.rotate(-0.85);
+      ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 16; ctx.shadowOffsetX = 12; ctx.shadowOffsetY = 16;
+      const cuerpo = ctx.createLinearGradient(0, -11, 0, 11);
+      cuerpo.addColorStop(0, "rgba(220,230,240,.95)"); cuerpo.addColorStop(0.5, "rgba(250,252,255,.8)"); cuerpo.addColorStop(1, "rgba(160,170,180,.95)");
+      ctx.fillStyle = cuerpo;
+      ctx.beginPath(); ctx.moveTo(0, -11); ctx.lineTo(330, -11); ctx.lineTo(330, 11); ctx.lineTo(0, 11); ctx.closePath(); ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.fillStyle = "#1f3fb0"; ctx.fillRect(10, -3, 300, 6);
+      ctx.fillStyle = "#1f3fb0"; ctx.fillRect(330, -12, 46, 24);
+      ctx.fillStyle = "#d9d9d9"; ctx.beginPath(); ctx.moveTo(0, -11); ctx.lineTo(-40, -3); ctx.lineTo(-40, 3); ctx.lineTo(0, 11); ctx.fill();
+      ctx.fillStyle = "#888"; ctx.fillRect(-50, -2, 10, 4);
+      ctx.restore();
+      A.pelicula(ctx, { grano: 0.035, halo: 0.25, vineta: 0.45, polvo: 0.25, calido: 1.1 });
+      // En el vídeo: grabado como con el móvil, cámara en mano y luz de ventana entre hojas que se mueven.
+      rodar({ ventana: [0.65, 0.3], hojas: 1, semilla: 17, mano: 1.1 });
+      listo();
+    })();
+  </script>
+</body>
+</html>

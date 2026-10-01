@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #120a1c; }
+  .t { position: absolute; left: 70px; bottom: 70px; color: #ffe2c0; font-family: "Playfair"; font-weight: 900; font-style: italic; font-size: 92px; line-height: .95; text-shadow: 0 4px 30px #120a1c; }
+  .t small { display: block; font-family: "Space Mono"; font-style: normal; font-weight: 400; font-size: 24px; margin-top: 18px; color: #ff9f7a; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t" id="t">Viento de<br />Levante<small>8.000 partículas siguiendo un campo de ruido · Canvas 2D</small></div>
+  <script>
+    // Las mismas 8.000 partículas que la imagen, pero ahora se ve cómo avanzan:
+    // cada fotograma dibuja los siguientes pasos de todas a la vez.
+    const ctx = canvas2d();
+    const r = rng(42), n = makeNoise(42);
+    ctx.fillStyle = "#120a1c";
+    ctx.fillRect(0, 0, W, H);
+    const pal = ["#ffd166", "#ff9f7a", "#ef476f", "#b5179e", "#7209b7", "#3a0ca3"];
+    const N = 8000, PASOS = 90;
+    const px = new Float32Array(N), py = new Float32Array(N), col = [];
+    for (let i = 0; i < N; i++) {
+      px[i] = r() * W; py[i] = r() * H;
+      col.push(pal[Math.min(pal.length - 1, Math.floor((py[i] / H) * pal.length + (r() - 0.5)))] || pal[0]);
+    }
+    ctx.lineWidth = 1.2;
+    ctx.globalCompositeOperation = "lighter";
+    let hecho = 0;
+    const pasosEn = (t) => Math.round(PASOS * (1 - Math.pow(1 - Math.min(1, t / 8.5), 1.6)));
+    window.pintar = (t) => {
+      document.getElementById("t").style.opacity = Math.min(1, Math.max(0, (t - 1) / 1.5));
+      const hasta = pasosEn(t);
+      if (hasta <= hecho) return;
+      ctx.globalAlpha = 0.09;
+      for (let i = 0; i < N; i++) {
+        let x = px[i], y = py[i];
+        ctx.strokeStyle = col[i];
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        for (let s = hecho; s < hasta; s++) {
+          const a = n(x * 0.0022, y * 0.0022, 3) * Math.PI * 4.5;
+          x += Math.cos(a) * 3;
+          y += Math.sin(a) * 3;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        px[i] = x; py[i] = y;
+      }
+      hecho = hasta;
+    };
+    listo();
+  </script>
+</body>
+</html>

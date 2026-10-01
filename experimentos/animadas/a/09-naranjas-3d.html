@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script type="importmap">{ "imports": { "three": "../../imagenes/assets/vendor/three.module.js" } }</script>
+<style>
+  body { background: #f6c7b6; }
+  .t { position: absolute; left: 70px; top: 70px; font-family: "DM Serif"; font-size: 110px; line-height: .92; color: #3b1f2b; }
+  .t i { font-style: italic; color: #e8590c; }
+  .s { position: absolute; right: 70px; bottom: 60px; font-family: "Space Mono"; font-size: 20px; color: #3b1f2b; text-align: right; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full" width="1080" height="1350"></canvas>
+  <div class="t">Naranjas<br /><i>del futuro</i></div>
+  <div class="s">Three.js · materiales físicos<br />reflejos calculados en tiempo real</div>
+  <script type="module">
+    import * as THREE from "three";
+    const r = rng(1212);
+    const canvas = document.getElementById("c");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(1080, 1350, false);
+    renderer.setPixelRatio(1);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf6c7b6);
+
+    // Entorno para los reflejos: una "habitación" de paneles de colores
+    const env = new THREE.Scene();
+    env.background = new THREE.Color(0xf6c7b6);
+    const panel = (c, x, y, z, w, h, ry) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+      m.position.set(x, y, z); m.rotation.y = ry; env.add(m);
+    };
+    panel(0xffffff, 0, 6, -8, 10, 4, 0);
+    panel(0x7fd1ff, -8, 3, 0, 8, 8, Math.PI / 2);
+    panel(0xff8a3d, 8, 2, 0, 6, 6, -Math.PI / 2);
+    const top = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+    top.position.y = 9; top.rotation.x = Math.PI / 2; env.add(top);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(env, 0.04).texture;
+
+    const suelo = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0xf2b6a0, roughness: 0.9 }));
+    suelo.rotation.x = -Math.PI / 2; suelo.receiveShadow = true; scene.add(suelo);
+
+    const luz = new THREE.DirectionalLight(0xfff1e0, 2.2);
+    luz.position.set(-4, 8, 5); luz.castShadow = true;
+    luz.shadow.mapSize.set(2048, 2048);
+    luz.shadow.camera.left = -8; luz.shadow.camera.right = 8; luz.shadow.camera.top = 8; luz.shadow.camera.bottom = -8;
+    luz.shadow.radius = 6;
+    scene.add(luz);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xf2b6a0, 0.6));
+
+    const mats = [
+      new THREE.MeshPhysicalMaterial({ color: 0xff7a00, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.1 }),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0.05 }),
+      new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 1, roughness: 0.05, thickness: 1.2, ior: 1.5 }),
+      new THREE.MeshStandardMaterial({ color: 0xffb347, metalness: 1, roughness: 0.2 }),
+    ];
+    const pos = [];
+    const bolas = [];
+    for (let i = 0; i < 9; i++) {
+      let x, z, s, ok, intentos = 0;
+      do {
+        s = 0.45 + r() * 0.9; x = (r() - 0.5) * 7; z = (r() - 0.5) * 6 - 1;
+        ok = pos.every((p) => Math.hypot(p.x - x, p.z - z) > p.s + s + 0.1);
+      } while (!ok && ++intentos < 200);
+      if (!ok) continue;
+      pos.push({ x, z, s });
+      const g = new THREE.Group();
+      const m = new THREE.Mesh(new THREE.SphereGeometry(s, 64, 48), mats[i % mats.length]);
+      m.position.set(0, s, 0); m.castShadow = true; g.add(m);
+      if (i % mats.length === 0) {
+        const hoja = new THREE.Mesh(new THREE.SphereGeometry(s * 0.35, 24, 12), new THREE.MeshStandardMaterial({ color: 0x2f7d3a, roughness: 0.5 }));
+        hoja.scale.set(1, 0.25, 0.55); hoja.position.set(s * 0.2, s * 2.02, 0); hoja.rotation.z = -0.4; hoja.castShadow = true; g.add(hoja);
+      }
+      g.position.set(x, 0, z);
+      scene.add(g);
+      bolas.push({ g, s, t0: 0.25 + bolas.length * 0.42 });
+    }
+
+    const cam = new THREE.PerspectiveCamera(32, 1080 / 1350, 0.1, 100);
+    // Cada bola cae del cielo y bota (rebote amortiguado) mientras la cámara gira despacio alrededor
+    const caida = (u, s) => {
+      if (u <= 0) return 14;
+      const g = 30, h0 = 14;
+      const t1 = Math.sqrt(2 * h0 / g);
+      if (u < t1) return h0 - 0.5 * g * u * u;
+      let v = g * t1 * 0.45, tt = u - t1;
+      for (let k = 0; k < 4; k++) { const d = 2 * v / g; if (tt < d) return v * tt - 0.5 * g * tt * tt; tt -= d; v *= 0.45; }
+      return 0;
+    };
+    window.pintar = (t) => {
+      for (const b of bolas) {
+        const y = caida(t - b.t0, b.s);
+        b.g.position.y = y;
+        b.g.visible = t > b.t0;
+        // se aplasta un pelín al tocar el suelo
+        const aplasta = y < 0.05 && t - b.t0 > 0.5 ? 0 : 0;
+        b.g.rotation.y = (t - b.t0) * 0.4;
+      }
+      const a = -0.22 + t * 0.044;
+      cam.position.set(Math.sin(a) * 13.4, 9.2 - t * 0.04, Math.cos(a) * 13.4 - 1.4);
+      cam.lookAt(0, 0.4, -1.4);
+      renderer.render(scene, cam);
+    };
+    listo();
+  </script>
+</body>
+</html>

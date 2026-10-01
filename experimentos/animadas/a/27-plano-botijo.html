@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #0e4a8a; background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(rgba(255,255,255,.16) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,.16) 2px, transparent 2px); background-size: 30px 30px, 30px 30px, 150px 150px, 150px 150px; }
+  svg { position: absolute; inset: 0; font-family: "Space Mono"; }
+  .cajetin { position: absolute; right: 50px; bottom: 50px; width: 520px; border: 3px solid #e8f1ff; color: #e8f1ff; font-family: "Space Mono"; font-size: 18px; }
+  .cajetin div { border-bottom: 2px solid #e8f1ff; padding: 8px 14px; display: flex; justify-content: space-between; }
+  .cajetin div:last-child { border: 0; }
+  .cajetin b { font-weight: 700; font-size: 34px; }
+</style>
+</head>
+<body>
+  <svg id="s" width="1080" height="1350" viewBox="0 0 1080 1350" fill="none" stroke="#e8f1ff" stroke-width="3">
+    <defs><marker id="fl" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#e8f1ff" stroke="none"/></marker></defs>
+    <!-- Cuerpo -->
+    <path d="M540 360 C 760 360 820 560 800 700 C 780 860 660 930 540 930 C 420 930 300 860 280 700 C 260 560 320 360 540 360 Z" stroke-width="4"/>
+    <line x1="280" y1="700" x2="800" y2="700" stroke-dasharray="14 8" stroke-width="2"/>
+    <line x1="540" y1="300" x2="540" y2="990" stroke-dasharray="30 8 4 8" stroke-width="2"/>
+    <!-- Asa -->
+    <path d="M430 395 C 430 220 650 220 650 395" stroke-width="4"/>
+    <path d="M455 400 C 455 255 625 255 625 400" stroke-width="2"/>
+    <!-- Boca de llenado -->
+    <path d="M360 460 L300 350 L340 330 L395 440" stroke-width="4"/>
+    <ellipse cx="320" cy="340" rx="24" ry="10" transform="rotate(-28 320 340)"/>
+    <!-- Pitorro -->
+    <path d="M700 450 L800 300 L815 312 L725 470" stroke-width="4"/>
+    <circle cx="807" cy="305" r="6"/>
+    <!-- Base -->
+    <path d="M440 925 L450 960 L630 960 L640 925" stroke-width="4"/>
+    <!-- Cotas -->
+    <line x1="280" y1="1050" x2="800" y2="1050" marker-start="url(#fl)" marker-end="url(#fl)" stroke-width="2"/>
+    <line x1="280" y1="720" x2="280" y2="1070" stroke-width="1"/><line x1="800" y1="720" x2="800" y2="1070" stroke-width="1"/>
+    <text x="540" y="1040" fill="#e8f1ff" stroke="none" text-anchor="middle" font-size="22">Ø 260 mm</text>
+    <line x1="170" y1="360" x2="170" y2="960" marker-start="url(#fl)" marker-end="url(#fl)" stroke-width="2"/>
+    <text x="150" y="660" fill="#e8f1ff" stroke="none" text-anchor="middle" font-size="22" transform="rotate(-90 150 660)">300 mm</text>
+    <!-- Notas -->
+    <line x1="807" y1="305" x2="900" y2="200" stroke-width="1.5"/>
+    <text x="905" y="195" fill="#e8f1ff" stroke="none" font-size="19">A. PITORRO</text>
+    <text x="905" y="218" fill="#e8f1ff" stroke="none" font-size="15">chorro fino, 40°</text>
+    <line x1="320" y1="340" x2="220" y2="230" stroke-width="1.5"/>
+    <text x="80" y="220" fill="#e8f1ff" stroke="none" font-size="19">B. BOCA</text>
+    <text x="80" y="243" fill="#e8f1ff" stroke="none" font-size="15">para llenar</text>
+    <line x1="540" y1="250" x2="640" y2="140" stroke-width="1.5"/>
+    <text x="645" y="135" fill="#e8f1ff" stroke="none" font-size="19">C. ASA</text>
+    <line x1="700" y1="820" x2="930" y2="880" stroke-width="1.5"/>
+    <text x="840" y="905" fill="#e8f1ff" stroke="none" font-size="19">D. BARRO POROSO</text>
+    <text x="840" y="928" fill="#e8f1ff" stroke="none" font-size="15">enfría por evaporación</text>
+    <text x="60" y="90" fill="#e8f1ff" stroke="none" font-size="46" font-weight="700">BOTIJO MOD. 1</text>
+    <text x="60" y="124" fill="#e8f1ff" stroke="none" font-size="20">alzado frontal · escala 1:2</text>
+  </svg>
+  <div class="cajetin" id="caj">
+    <div><span>PROYECTO</span><b>AGUA FRESQUITA</b></div>
+    <div><span>DIBUJADO</span><span>chechist · SVG a mano</span></div>
+    <div><span>FECHA</span><span>28-09-2026</span><span>HOJA 1/1</span></div>
+  </div>
+  <script>
+    // El plano se delinea a mano alzada: cada trazo se dibuja en orden (cuerpo, ejes, asa, boca,
+    // pitorro, base, cotas, notas), los textos aparecen como rotulados y al final se firma el cajetín.
+    const els = [...document.querySelectorAll("#s > :not(defs)")];
+    const cl = (u) => Math.min(1, Math.max(0, u));
+    const lineas = els.filter((e) => e.tagName !== "text");
+    lineas.forEach((e) => { e.setAttribute("pathLength", "1"); e.dataset.dash = e.getAttribute("stroke-dasharray") || ""; });
+    let reloj = 0.3;
+    const plan = els.map((e) => {
+      const d = e.tagName === "text" ? 0.35 : e.tagName === "line" ? 0.3 : 0.75;
+      const p = { e, ini: reloj, dur: d };
+      reloj += d * 0.55;
+      return p;
+    });
+    const k = 7.2 / reloj;
+    plan.forEach((p) => { p.ini *= k; p.dur *= k; });
+    const caj = document.getElementById("caj");
+    window.pintar = (t) => {
+      for (const p of plan) {
+        const u = cl((t - p.ini) / p.dur);
+        if (p.e.tagName === "text") { p.e.style.opacity = u; continue; }
+        if (p.e.dataset.dash) { p.e.style.opacity = u > 0 ? 1 : 0; p.e.style.clipPath = `inset(0 ${100 - 100 * u}% 0 0)`; continue; }
+        p.e.style.strokeDasharray = "1 1";
+        p.e.style.strokeDashoffset = 1 - u;
+        p.e.style.opacity = u > 0 ? 1 : 0;
+      }
+      caj.style.opacity = cl((t - 7.6) / 0.5);
+      caj.style.transform = `translateY(${20 * (1 - cl((t - 7.6) / 0.5))}px)`;
+    };
+    listo();
+  </script>
+</body>
+</html>

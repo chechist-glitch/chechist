@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #efe6d2; }
+  .t { position: absolute; left: 60px; top: 60px; background: #efe6d2; padding: 22px 30px; border: 3px solid #5a3e2b; font-family: "Playfair"; font-weight: 900; font-size: 64px; color: #5a3e2b; line-height: 1; }
+  .t small { display: block; font-family: "Space Mono"; font-weight: 400; font-size: 20px; margin-top: 12px; }
+  .escala { position: absolute; right: 60px; bottom: 60px; font-family: "Space Mono"; font-size: 18px; color: #5a3e2b; background: #efe6d2; padding: 10px 14px; border: 2px solid #5a3e2b; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">Sierra Nevada<small>(inventada) · curvas de nivel con marching squares</small></div>
+  <div class="escala">1 : 25.000 · equidistancia 40 m</div>
+  <script>
+    const ctx = canvas2d();
+    const n = makeNoise(1719);
+    const S = 6;
+    const GX = Math.ceil(W / S) + 1, GY = Math.ceil(H / S) + 1;
+    const alt = new Float32Array(GX * GY);
+    for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) {
+      const x = i * S, y = j * S;
+      const pico = Math.exp(-(((x - 640) / 380) ** 2 + ((y - 720) / 460) ** 2)) * 0.55;
+      alt[j * GX + i] = n(x * 0.0028, y * 0.0028, 5) * 0.8 + pico;
+    }
+    const niveles = 38;
+    let mn = Infinity, mx = -Infinity;
+    for (const v of alt) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+    // En el vídeo el mapa se dibuja como se levanta un relieve: primero el color del terreno
+    // barriendo de abajo arriba por cotas, luego cada curva de nivel, de la más baja a la cumbre.
+    const fondo = document.createElement("canvas"); fondo.width = W; fondo.height = H;
+    const fg = fondo.getContext("2d");
+    for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) {
+      const t = (alt[j * GX + i] - mn) / (mx - mn);
+      const c = t < 0.5 ? [236 - t * 30, 226 - t * 20, 200 - t * 60] : [221 - (t - .5) * 60, 206 - (t - .5) * 90, 170 - (t - .5) * 80];
+      fg.fillStyle = `rgb(${c.map(Math.round).join(",")})`;
+      fg.fillRect(i * S, j * S, S, S);
+    }
+    const curvas = [];
+    for (let k = 1; k < niveles; k++) {
+      const iso = mn + (mx - mn) * k / niveles;
+      const p = new Path2D();
+      for (let j = 0; j < GY - 1; j++) for (let i = 0; i < GX - 1; i++) {
+        const a = alt[j * GX + i], b = alt[j * GX + i + 1], c = alt[(j + 1) * GX + i + 1], d = alt[(j + 1) * GX + i];
+        const idx = (a > iso) * 8 + (b > iso) * 4 + (c > iso) * 2 + (d > iso);
+        if (idx === 0 || idx === 15) continue;
+        const x = i * S, y = j * S;
+        const lerp = (p, q) => (iso - p) / (q - p);
+        const top = [x + S * lerp(a, b), y], der = [x + S, y + S * lerp(b, c)], abj = [x + S * lerp(d, c), y + S], izq = [x, y + S * lerp(a, d)];
+        const segs = {1:[izq,abj],2:[abj,der],3:[izq,der],4:[top,der],5:[top,izq,abj,der],6:[top,abj],7:[top,izq],8:[top,izq],9:[top,abj],10:[top,der,izq,abj],11:[top,der],12:[izq,der],13:[abj,der],14:[izq,abj]}[idx];
+        for (let s = 0; s < segs.length; s += 2) { p.moveTo(...segs[s]); p.lineTo(...segs[s + 1]); }
+      }
+      curvas.push({ p, maestra: k % 5 === 0 });
+    }
+    let best = 0;
+    for (let q = 0; q < alt.length; q++) if (alt[q] > alt[best]) best = q;
+    const bx = (best % GX) * S, by = Math.floor(best / GX) * S;
+    // máscara de cotas: qué parte del terreno ya "ha salido" (todo lo que está por debajo del nivel de agua inverso)
+    const mascara = document.createElement("canvas"); mascara.width = GX; mascara.height = GY;
+    const mg = mascara.getContext("2d");
+    const md = mg.createImageData(GX, GY);
+    const cl = (u) => Math.min(1, Math.max(0, u));
+    ctx.lineCap = "round";
+    window.pintar = (t) => {
+      const nivel = cl((t - 0.2) / 2.2) * 1.08;
+      for (let q = 0; q < alt.length; q++) {
+        const v = (alt[q] - mn) / (mx - mn);
+        md.data[q * 4 + 3] = 255 * cl((nivel - v) / 0.06);
+      }
+      mg.putImageData(md, 0, 0);
+      ctx.fillStyle = "#efe6d2"; ctx.fillRect(0, 0, W, H);
+      ctx.save();
+      ctx.drawImage(fondo, 0, 0);
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(mascara, 0, 0, GX * S, GY * S);
+      ctx.restore();
+      ctx.save(); ctx.globalCompositeOperation = "destination-over"; ctx.fillStyle = "#efe6d2"; ctx.fillRect(0, 0, W, H); ctx.restore();
+      const k = cl((t - 2.2) / 5.2) * curvas.length;
+      for (let i = 0; i < curvas.length && i < k; i++) {
+        const c = curvas[i];
+        ctx.globalAlpha = cl(k - i);
+        ctx.strokeStyle = c.maestra ? "#5a3e2b" : "rgba(122,84,56,.75)";
+        ctx.lineWidth = c.maestra ? 2.4 : 1.1;
+        ctx.stroke(c.p);
+      }
+      ctx.globalAlpha = 1;
+      const u = cl((t - 7.6) / 0.6);
+      if (u > 0) {
+        ctx.globalAlpha = u;
+        ctx.fillStyle = "#5a3e2b";
+        const sy = by - 30 * (1 - u);
+        ctx.beginPath(); ctx.moveTo(bx, sy - 14); ctx.lineTo(bx + 12, sy + 8); ctx.lineTo(bx - 12, sy + 8); ctx.fill();
+        ctx.font = "italic 30px Playfair";
+        ctx.fillText("Pico del Quillo · 3.482 m", bx + 20, by + 8);
+        ctx.globalAlpha = 1;
+      }
+    };
+    document.fonts.load("italic 30px Playfair").then(() => listo());
+  </script>
+</body>
+</html>

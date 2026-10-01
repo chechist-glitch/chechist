@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #1f2a1c; }
+  .t { position: absolute; left: 0; right: 0; bottom: 70px; text-align: center; font-family: "DM Serif"; font-size: 96px; color: #e8dfb0; }
+  .t small { display: block; font-family: "Space Mono"; font-size: 20px; color: #9fae7a; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t">Aceitunas<small>2.000 intentos de meter círculos sin que se toquen · circle packing</small></div>
+  <script>
+    const ctx = canvas2d();
+    const r = rng(2024);
+    const cx = 540, cy = 560, R = 440;
+    const pal = ["#6b8e23", "#556b2f", "#808b3a", "#3b4a1f", "#a4a653", "#2e2a1f", "#5e3b4d"];
+    const cs = [];
+    for (let k = 0; k < 20000 && cs.length < 2000; k++) {
+      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R;
+      const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+      let rad = Math.min(70, R - d);
+      for (const c of cs) {
+        rad = Math.min(rad, Math.hypot(c.x - x, c.y - y) - c.r - 3);
+        if (rad < 4) break;
+      }
+      if (rad >= 4) cs.push({ x, y, r: rad });
+    }
+    // En el vídeo se ve el algoritmo trabajando: cada círculo que encuentra hueco aparece
+    // con un pequeño rebote, primero los gordos y luego rellenando huecos cada vez más finos.
+    const r2 = rng(99);
+    for (const c of cs) { c.col = pal[Math.floor(r() * pal.length)]; c.rojo = c.r > 22 && r() < 0.25; }
+    const fondo = document.createElement("canvas"); fondo.width = W; fondo.height = H;
+    const cl = (u) => Math.min(1, Math.max(0, u));
+    const rebote = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : 1 + 2.7 * Math.pow(u - 1, 3) + 1.7 * Math.pow(u - 1, 2));
+    const cuando = (i) => 0.3 + 7.4 * Math.pow(i / cs.length, 0.6);
+    const pinta = (g, c, k) => {
+      if (k <= 0) return;
+      const rr = c.r * k;
+      const gr = g.createRadialGradient(c.x - rr * .35, c.y - rr * .4, rr * .1, c.x, c.y, rr);
+      gr.addColorStop(0, "rgba(255,255,230,.55)"); gr.addColorStop(0.35, c.col); gr.addColorStop(1, "#141a10");
+      g.fillStyle = gr;
+      g.beginPath(); g.ellipse(c.x, c.y, rr, rr * 0.92, 0.4, 0, Math.PI * 2); g.fill();
+      if (c.rojo) { g.fillStyle = "#c0392b"; g.beginPath(); g.arc(c.x, c.y, rr * 0.28, 0, Math.PI * 2); g.fill(); }
+    };
+    const fg = fondo.getContext("2d");
+    let fijos = 0;
+    window.pintar = (t) => {
+      // los que ya terminaron su rebote se quedan pintados en un lienzo aparte
+      while (fijos < cs.length && t > cuando(fijos) + 0.35) { pinta(fg, cs[fijos], 1); fijos++; }
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(fondo, 0, 0);
+      for (let i = fijos; i < cs.length; i++) {
+        const u = (t - cuando(i)) / 0.35;
+        if (u <= 0) break;
+        pinta(ctx, cs[i], rebote(u));
+      }
+    };
+    listo();
+  </script>
+</body>
+</html>

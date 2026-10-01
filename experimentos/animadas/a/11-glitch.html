@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #050505; color: #fff; }
+  .capa { position: absolute; left: 60px; top: 330px; font-family: "Anton"; font-size: 300px; line-height: .86; text-transform: uppercase; }
+  .r { color: #ff0040; mix-blend-mode: screen; }
+  .c { color: #00f0ff; mix-blend-mode: screen; }
+  .b { color: #fff; }
+  .corte { position: absolute; left: 0; right: 0; overflow: hidden; }
+  .corte .capa { top: calc(330px - var(--y)); }
+  .scan { position: absolute; inset: 0; background: repeating-linear-gradient(transparent 0 3px, rgba(0,0,0,.45) 3px 4px); }
+  .cod { position: absolute; left: 60px; top: 90px; font-family: "Plex Mono"; font-size: 30px; color: #00f0ff; white-space: pre; }
+  .pie { position: absolute; left: 60px; bottom: 90px; font-family: "Plex Mono"; font-size: 26px; color: #aaa; line-height: 1.5; }
+  .pie b { color: #ff0040; font-weight: 700; }
+  .bloque { position: absolute; }
+  #todo { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+  <div id="todo">
+  <div class="cod" id="cod"></div>
+  <div class="capa r" id="r">Error<br />404</div>
+  <div class="capa c" id="c">Error<br />404</div>
+  <div class="capa b" id="b">Error<br />404</div>
+  <div id="cortes"></div>
+  <div class="pie"><b>SIESTA NO ENCONTRADA.</b><br />Reinicie el sistema con un café.<br />Código: 0xCAFE_CON_LECHE</div>
+  </div>
+  <div class="scan" id="scan"></div>
+  <script>
+    // El fallo no se está quieto: cada fotograma salen cortes y bloques nuevos, con ráfagas
+    // fuertes de vez en cuando y momentos de calma en los que casi se arregla.
+    const linea = "> kernel_panic: siesta.exe no responde";
+    const rafagas = [1.2, 3.1, 3.4, 5.6, 7.2, 7.5, 9.1];
+    window.pintar = (t) => {
+      const k = Math.floor(t * 24);
+      const r = rng(404 + k);
+      let fuerza = 0.25;
+      for (const q of rafagas) fuerza = Math.max(fuerza, Math.exp(-(((t - q) / 0.15) ** 2)) * 1.6);
+      const sep = 12 * (0.6 + fuerza) + Math.sin(t * 9) * 3;
+      document.getElementById("r").style.transform = `translate(${-sep}px, 0)`;
+      document.getElementById("c").style.transform = `translate(${sep}px, ${4 * fuerza}px)`;
+      let h = "";
+      const nc = Math.round(2 + fuerza * 6);
+      for (let i = 0; i < nc; i++) {
+        const y = 340 + r() * 480, alto = 6 + r() * 22 * (0.5 + fuerza), dx = (r() - 0.5) * 120 * fuerza;
+        h += `<div class="corte" style="top:${y}px;height:${alto}px;--y:${y}px;background:#050505"><div class="capa b" style="transform:translateX(${dx}px)">Error<br>404</div></div>`;
+      }
+      const nb = Math.round(6 + fuerza * 12);
+      const cols = ["#ff0040", "#00f0ff", "#fff", "#ffe600"];
+      for (let i = 0; i < nb; i++) {
+        h += `<div class="bloque" style="left:${r() * 1000}px;top:${r() * 1350}px;width:${10 + r() * 180}px;height:${3 + r() * 14}px;background:${cols[Math.floor(r() * 4)]};opacity:${0.4 + r() * 0.6}"></div>`;
+      }
+      document.getElementById("cortes").innerHTML = h;
+      const n = Math.min(linea.length, Math.floor(t * 16));
+      document.getElementById("cod").textContent = linea.slice(0, n) + (Math.floor(t * 3) % 2 ? "_" : " ");
+      document.getElementById("todo").style.transform = fuerza > 0.8 ? `translate(${(r() - 0.5) * 30}px, ${(r() - 0.5) * 10}px)` : "none";
+      document.getElementById("scan").style.backgroundPosition = `0 ${(t * 40) % 4}px`;
+    };
+    listo();
+  </script>
+</body>
+</html>

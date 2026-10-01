@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: #05060c; }
+  .t { position: absolute; left: 70px; bottom: 64px; font-family: "Space Mono"; font-size: 19px; color: rgba(220, 225, 255, .55); line-height: 1.7; }
+  .t b { font-family: "DM Serif"; font-style: italic; font-weight: 400; font-size: 44px; color: rgba(240, 235, 255, .9); display: block; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="t"><b>Seda</b>x' = sin(a·y) + c·cos(a·x) · y' = sin(b·x) + d·cos(b·y)<br />atractor de Clifford · 40 millones de iteraciones</div>
+  <script>
+    const ctx = canvas2d();
+    // En el vídeo los cuatro parámetros dan una vuelta pequeña y vuelven: la seda se retuerce
+    // y se recompone. Cada fotograma lanza 2,5 millones de iteraciones (la imagen fija, 40).
+    const N = 2.5e6;
+    const R = new Float32Array(W * H), G = new Float32Array(W * H), B = new Float32Array(W * H);
+    const img = ctx.createImageData(W, H);
+    const esc = 205, cx = 540, cy = 600;
+    window.pintar = (t) => {
+      const f = (t / 10) * Math.PI * 2;
+      const a = -1.24 + 0.07 * Math.sin(f), b = -1.25 + 0.05 * Math.sin(2 * f), c = -1.81 + 0.04 * Math.sin(f), d = -1.91 + 0.05 * Math.sin(2 * f);
+      R.fill(0); G.fill(0); B.fill(0);
+      let x = 0.1, y = 0.1;
+      const n = N * Math.min(1, 0.15 + t / 1.2);
+      for (let i = 0; i < n; i++) {
+        const nx = Math.sin(a * y) + c * Math.cos(a * x);
+        const ny = Math.sin(b * x) + d * Math.cos(b * y);
+        const ang = Math.atan2(ny - y, nx - x);
+        x = nx; y = ny;
+        const px = Math.floor(cx + x * esc * 0.93), py = Math.floor(cy + y * esc);
+        if (px < 0 || py < 0 || px >= W || py >= H) continue;
+        const k = py * W + px;
+        R[k] += 0.5 + 0.5 * Math.cos(ang);
+        G[k] += 0.5 + 0.5 * Math.cos(ang - 2.1);
+        B[k] += 0.5 + 0.5 * Math.cos(ang + 2.1);
+      }
+      let mx = 0;
+      for (let k = 0; k < W * H; k++) mx = Math.max(mx, R[k] + G[k] + B[k]);
+      const lm = Math.log(1 + mx);
+      for (let k = 0; k < W * H; k++) {
+        const tot = R[k] + G[k] + B[k];
+        const v = Math.pow(Math.log(1 + tot) / lm, 1.35);
+        const s = tot > 0 ? 1 / tot : 0;
+        const r = (R[k] * s * 1.3 + 0.15) * v, g = (G[k] * s * 0.9 + 0.2) * v, bb = (B[k] * s * 1.5 + 0.35) * v;
+        const w = Math.pow(v, 3) * 0.9;
+        img.data[k * 4] = Math.min(255, 5 + 255 * (r * (1 - w) + w * 1.05));
+        img.data[k * 4 + 1] = Math.min(255, 6 + 255 * (g * (1 - w) + w * 0.97));
+        img.data[k * 4 + 2] = Math.min(255, 12 + 255 * (bb * (1 - w) + w * 0.9));
+        img.data[k * 4 + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+    };
+    listo();
+  </script>
+</body>
+</html>

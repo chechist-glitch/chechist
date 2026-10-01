@@ -9,3 +9,7 @@ __pycache__/
 output/
 experimentos/alternativas/*/*.mp4
 package-lock.json
+experimentos/animadas/base/
+experimentos/animadas/hechos/
+experimentos/animadas/candados/
+experimentos/animadas/PARAR

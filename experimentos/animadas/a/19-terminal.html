@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<style>
+  body { background: linear-gradient(135deg, #ff9a8b, #ff6a88 45%, #7f53ac); display: flex; align-items: center; justify-content: center; }
+  .win { width: 940px; border-radius: 22px; background: #151320; box-shadow: 0 50px 120px rgba(20, 0, 40, .55); overflow: hidden; }
+  .barra { height: 64px; background: #221f33; display: flex; align-items: center; padding: 0 26px; gap: 14px; }
+  .barra i { width: 20px; height: 20px; border-radius: 50%; display: block; }
+  .barra span { margin-left: auto; margin-right: auto; font-family: "Plex Mono"; color: #8e8aa6; font-size: 20px; transform: translateX(-40px); }
+  pre { font-family: "Plex Mono"; font-size: 23px; line-height: 1.5; color: #e6e1ff; padding: 34px 38px 44px; white-space: pre-wrap; }
+  .p { color: #7ee787; } .c { color: #79c0ff; } .d { color: #8e8aa6; } .y { color: #ffd166; } .m { color: #ff7eb6; } .b { font-weight: 700; }
+  .cursor { display: inline-block; width: 14px; height: 28px; background: #e6e1ff; vertical-align: -5px; }
+</style>
+</head>
+<body>
+  <div class="win">
+    <div class="barra"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>chechist@quillo: ~/experimentos</span></div>
+<pre id="pre"><span class="p">➜</span> <span class="c">~/experimentos</span> npx hyperframes render
+<span class="d">◇ compilando composición…</span>
+<span class="d">◇ calentando Chrome…</span>
+<span class="y">████████████████████████</span> 100%
+<span class="p">✓</span> feria-3d.mp4 · 12.0s · <span class="b">360 frames</span>
+
+<span class="p">➜</span> <span class="c">~/experimentos</span> cat ideas.txt
+<span class="m">       _               _     _     _
+   ___| |__   ___  ___| |__ (_)___| |_
+  / __| '_ \ / _ \/ __| '_ \| / __| __|
+ | (__| | | |  __/ (__| | | | \__ \ |_
+  \___|_| |_|\___|\___|_| |_|_|___/\__|</span>
+
+ 1. vídeos que bailan con la música
+ 2. 30 imágenes, 30 estilos       <span class="p">← estás aquí</span>
+ 3. <span class="d">???</span>
+
+<span class="p">➜</span> <span class="c">~/experimentos</span> <span class="cursor"></span></pre>
+  </div>
+  <script>
+    // El terminal se escribe solo: los comandos se teclean a mano (con su ritmo irregular),
+    // las respuestas salen de golpe y la barra de progreso se rellena de verdad.
+    const pre = document.getElementById("pre");
+    const original = pre.innerHTML;
+    pre.style.height = pre.offsetHeight + "px"; // la ventana ya tiene su tamaño final desde el principio
+    // trozos: [html, modo]; "t" = tecleado, "i" = de golpe, "b" = barra de progreso
+    const partes = original.split(/(?=<span class="p">➜<\/span>)/);
+    const trozos = [];
+    for (const p of partes) {
+      const fin = p.indexOf("\n");
+      const cmd = fin < 0 ? p : p.slice(0, fin + 1);
+      const resto = fin < 0 ? "" : p.slice(fin + 1);
+      const k = cmd.indexOf("</span>", cmd.indexOf('class="c"')) + 7;
+      trozos.push([cmd.slice(0, k), "i"], [cmd.slice(k), "t"]);
+      if (resto) for (const l of resto.split(/(?<=\n)/)) trozos.push([l, l.includes("████") ? "b" : "i"]);
+    }
+    const visibles = (h) => h.replace(/<[^>]+>/g, "").length;
+    // corta un html a n caracteres visibles sin romper etiquetas
+    const corta = (h, n) => { let o = "", c = 0, abiertas = 0; for (let i = 0; i < h.length && c < n; i++) { if (h[i] === "<") { const j = h.indexOf(">", i); const tag = h.slice(i, j + 1); o += tag; abiertas += tag[1] === "/" ? -1 : 1; i = j; } else { o += h[i]; c++; } } while (abiertas-- > 0) o += "</span>"; return o; };
+    // horario de cada trozo
+    let reloj = 0.4;
+    const plan = trozos.map(([h, m], i) => {
+      const n = visibles(h);
+      const ini = reloj;
+      const dur = m === "t" ? n / 16 : m === "b" ? 1.4 : 0;
+      reloj += dur + (m === "t" ? 0.35 : m === "b" ? 0.2 : (h.includes("◇") ? 0.45 : 0.06));
+      return { h, m, n, ini, dur };
+    });
+    const escala = Math.min(1, 8.4 / reloj);
+    for (const p of plan) { p.ini *= escala; p.dur *= escala; }
+    window.pintar = (t) => {
+      let o = "";
+      for (const p of plan) {
+        if (t < p.ini) break;
+        if (p.m === "i" || t >= p.ini + p.dur) { o += p.h.replace(/<span class="cursor"><\/span>/, ""); continue; }
+        const u = (t - p.ini) / p.dur;
+        if (p.m === "b") { const k = Math.floor(u * 24); o += `<span class="y">${"█".repeat(k)}${"░".repeat(24 - k)}</span> ${Math.floor(u * 100)}%`; }
+        else o += corta(p.h, Math.floor(u * p.n + Math.sin(u * 37) * 0.8));
+        break;
+      }
+      pre.innerHTML = o + (Math.floor(t * 2.2) % 2 === 0 ? '<span class="cursor"></span>' : '<span class="cursor" style="opacity:0"></span>');
+    };
+    listo();
+  </script>
+</body>
+</html>
