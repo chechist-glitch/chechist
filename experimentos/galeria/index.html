@@ -73,6 +73,52 @@
   }
   button:hover { background: var(--caja); }
   button:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  .pieza img { cursor: zoom-in; }
+  .pieza img:focus-visible { outline: 3px solid var(--acento); outline-offset: -3px; }
+
+  /* Visor: siempre oscuro, como una mesa de luz apagada */
+  #visor {
+    --v-fondo: #0b0c10; --v-panel: #15171d; --v-tinta: #eceef3; --v-suave: #9aa1b0;
+    --v-linea: #2a2e38; --v-caja: #1f222b; --v-acento: #8fb0ff;
+    border: 0; padding: 0; margin: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none;
+    background: var(--v-fondo); color: var(--v-tinta);
+  }
+  #visor::backdrop { background: rgba(0, 0, 0, 0.85); }
+  #visor[open] { display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+  .v-escena { position: relative; display: grid; place-items: center; min-height: 0; padding: 24px 72px; }
+  .v-escena img { max-width: 100%; max-height: calc(100dvh - 48px); object-fit: contain; display: block; border-radius: 4px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); user-select: none; -webkit-user-drag: none; }
+  #visor button.v-nav, #visor button.v-cerrar {
+    position: absolute; align-self: auto; display: grid; place-items: center;
+    width: 48px; height: 48px; padding: 0; border-radius: 999px;
+    border: 1px solid var(--v-linea); background: rgba(21, 23, 29, 0.8); color: var(--v-tinta);
+  }
+  #visor button.v-nav:hover, #visor button.v-cerrar:hover { background: var(--v-caja); border-color: var(--v-suave); }
+  #visor button.v-nav:focus-visible, #visor button.v-cerrar:focus-visible { outline: 2px solid var(--v-acento); outline-offset: 2px; }
+  #visor button.v-nav { top: 50%; transform: translateY(-50%); }
+  .v-ant { left: 14px; }
+  .v-sig { right: 14px; }
+  #visor button.v-cerrar { top: 14px; right: 14px; z-index: 2; }
+  #visor svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .v-panel { background: var(--v-panel); border-left: 1px solid var(--v-linea); padding: 76px 24px 24px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; }
+  .v-cuenta { margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; color: var(--v-suave); }
+  .v-nombre { margin: 0; font-size: 24px; line-height: 1.15; font-weight: 700; text-wrap: balance; }
+  .v-hecho { margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; color: var(--v-acento); }
+  .v-receta { margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.55; background: var(--v-caja); border-radius: 6px; padding: 12px 14px; user-select: all; }
+  #visor .v-copiar { color: var(--v-acento); border-color: var(--v-acento); }
+  #visor .v-copiar:hover { background: var(--v-caja); }
+  .v-pista { margin: auto 0 0; padding-top: 12px; font-size: 13px; color: var(--v-suave); }
+  .v-pista kbd { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; border: 1px solid var(--v-linea); border-radius: 4px; padding: 1px 6px; }
+  @media (max-width: 820px) {
+    #visor[open] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+    .v-escena { padding: 60px 12px 12px; }
+    .v-escena img { max-height: calc(62dvh - 72px); }
+    #visor button.v-nav { width: 42px; height: 42px; top: auto; bottom: 18px; transform: none; }
+    .v-ant { left: 18px; }
+    .v-sig { right: 18px; }
+    .v-panel { border-left: 0; border-top: 1px solid var(--v-linea); padding: 16px; max-height: 38dvh; }
+    .v-nombre { font-size: 19px; }
+    .v-pista { display: none; }
+  }
 </style>
 
 <main>
@@ -121,6 +167,23 @@
     <div class="tabla" id="alternativas"></div>
   </section>
 </main>
+
+<dialog id="visor" aria-label="Visor de imágenes">
+  <div class="v-escena">
+    <img id="v-img" alt="">
+    <button type="button" class="v-nav v-ant" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button type="button" class="v-nav v-sig" aria-label="Siguiente"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+  <aside class="v-panel">
+    <button type="button" class="v-cerrar" aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <p class="v-cuenta" id="v-cuenta"></p>
+    <h2 class="v-nombre" id="v-nombre"></h2>
+    <p class="v-hecho" id="v-hecho"></p>
+    <p class="v-receta" id="v-receta"></p>
+    <button type="button" class="v-copiar" id="v-copiar">Copiar frase</button>
+    <p class="v-pista"><kbd>←</kbd> <kbd>→</kbd> para pasar · <kbd>Esc</kbd> para cerrar</p>
+  </aside>
+</dialog>
 
 <script>
   const VIDEOS = [
@@ -279,6 +342,23 @@
     ["Nuestro motor propio", "#", "shaders + Playwright", "Lo que he montado aquí (videos/rodaje.mjs): shaders con muestreo acumulado, fotograma a fotograma en Chromium. Sin límites de complejidad, a cambio de tiempo de render."],
   ];
 
+  function copiar(texto, boton, nodo) {
+    const hecho = () => { boton.textContent = "Copiada"; setTimeout(() => (boton.textContent = "Copiar frase"), 1600); };
+    const seleccionar = () => {
+      const rango = document.createRange();
+      rango.selectNodeContents(nodo);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(rango);
+      boton.textContent = "Seleccionada, cópiala";
+    };
+    try {
+      navigator.clipboard.writeText(texto).then(hecho, seleccionar);
+    } catch (e) {
+      seleccionar();
+    }
+  }
+
   function tarjeta(media, nombre, receta, clave) {
     const art = document.createElement("article");
     art.className = "pieza";
@@ -294,22 +374,7 @@
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = "Copiar frase";
-    b.addEventListener("click", () => {
-      const hecho = () => { b.textContent = "Copiada"; setTimeout(() => (b.textContent = "Copiar frase"), 1600); };
-      const seleccionar = () => {
-        const rango = document.createRange();
-        rango.selectNodeContents(p);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(rango);
-        b.textContent = "Seleccionada, cópiala";
-      };
-      try {
-        navigator.clipboard.writeText(receta).then(hecho, seleccionar);
-      } catch (e) {
-        seleccionar();
-      }
-    });
+    b.addEventListener("click", () => copiar(receta, b, p));
     const hc = document.createElement("p");
     hc.className = "hecho";
     hc.textContent = "Hecho con: " + (HECHO_CON[clave] || "HTML");
@@ -329,16 +394,82 @@
     v.preload = "metadata";
     cajaVideos.appendChild(tarjeta(v, nombre, receta, `v-${id}`));
   }
+  // Todas las imágenes en el orden de la página, para pasarlas con las flechas en el visor
+  const VISOR = [];
   const pintar = (lista, prefijo, destino) => {
     const caja = document.getElementById(destino);
+    const seccion = caja.closest("section").querySelector("h2").firstChild.textContent.trim();
     for (const [id, nombre, receta] of lista) {
       const img = document.createElement("img");
       img.src = `img/${prefijo}-${id}.jpg`;
       img.alt = nombre;
       img.loading = "lazy";
+      img.tabIndex = 0;
+      img.setAttribute("role", "button");
+      img.setAttribute("aria-label", `Ver en grande: ${nombre}`);
+      const i = VISOR.length;
+      VISOR.push({ peque: img.src, grande: `grande/${prefijo}-${id}.jpg`, nombre, receta, hecho: HECHO_CON[`${prefijo}-${id}`] || "HTML", seccion });
+      img.addEventListener("click", () => abrirVisor(i));
+      img.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrirVisor(i); } });
       caja.appendChild(tarjeta(img, nombre, receta, `${prefijo}-${id}`));
     }
   };
+
+  const visor = document.getElementById("visor");
+  const vImg = document.getElementById("v-img");
+  const vReceta = document.getElementById("v-receta");
+  const vCopiar = document.getElementById("v-copiar");
+  let actual = 0;
+  let origen = null;
+  const precargar = (i) => { const im = new Image(); im.src = VISOR[(i + VISOR.length) % VISOR.length].grande; };
+  function mostrar(i) {
+    actual = (i + VISOR.length) % VISOR.length;
+    const d = VISOR[actual];
+    // primero la pequeña (ya está en caché) y en cuanto llega la grande, se cambia
+    vImg.src = d.peque;
+    vImg.alt = d.nombre;
+    const grande = new Image();
+    grande.onload = () => { if (VISOR[actual] === d) vImg.src = d.grande; };
+    grande.src = d.grande;
+    document.getElementById("v-cuenta").textContent = `${actual + 1} / ${VISOR.length} · ${d.seccion}`;
+    document.getElementById("v-nombre").textContent = d.nombre;
+    document.getElementById("v-hecho").textContent = "Hecho con: " + d.hecho;
+    vReceta.textContent = d.receta;
+    vCopiar.textContent = "Copiar frase";
+    precargar(actual + 1);
+    precargar(actual - 1);
+  }
+  function abrirVisor(i) {
+    origen = document.activeElement;
+    mostrar(i);
+    if (!visor.open) visor.showModal();
+    document.documentElement.style.overflow = "hidden";
+  }
+  visor.addEventListener("close", () => {
+    document.documentElement.style.overflow = "";
+    const img = document.querySelectorAll(".pieza img")[actual];
+    if (img) { img.scrollIntoView({ block: "nearest" }); img.focus({ preventScroll: true }); }
+    else if (origen) origen.focus();
+  });
+  visor.querySelector(".v-ant").addEventListener("click", () => mostrar(actual - 1));
+  visor.querySelector(".v-sig").addEventListener("click", () => mostrar(actual + 1));
+  visor.querySelector(".v-cerrar").addEventListener("click", () => visor.close());
+  vCopiar.addEventListener("click", () => copiar(VISOR[actual].receta, vCopiar, vReceta));
+  visor.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") { e.preventDefault(); mostrar(actual - 1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); mostrar(actual + 1); }
+  });
+  // clic en el fondo oscuro (fuera de la foto y del panel) cierra
+  visor.querySelector(".v-escena").addEventListener("click", (e) => { if (e.target === e.currentTarget) visor.close(); });
+  // deslizar con el dedo en el móvil
+  let toqueX = null, toqueY = null;
+  visor.addEventListener("touchstart", (e) => { toqueX = e.touches[0].clientX; toqueY = e.touches[0].clientY; }, { passive: true });
+  visor.addEventListener("touchend", (e) => {
+    if (toqueX === null) return;
+    const dx = e.changedTouches[0].clientX - toqueX, dy = e.changedTouches[0].clientY - toqueY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) mostrar(actual + (dx < 0 ? 1 : -1));
+    toqueX = null;
+  });
   pintar(RAPIDOS, "a", "rapidos");
   pintar(SERIE2, "b", "serie2");
   const cajaPA = document.getElementById("pruebasalt");
