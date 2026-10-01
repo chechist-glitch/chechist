@@ -83,7 +83,7 @@
   </header>
 
   <section>
-    <h2>Vídeos <small>4</small></h2>
+    <h2>Vídeos <small>5</small></h2>
     <div class="rejilla videos" id="videos"></div>
   </section>
 
@@ -110,6 +110,12 @@
   </section>
 
   <section>
+    <h2>Una prueba con cada alternativa <small>9 de momento</small></h2>
+    <p class="nota">El mismo tipo de encargo hecho con otras herramientas, instaladas y ejecutadas aquí. Debajo de cada vídeo pone qué hace bien esa herramienta.</p>
+    <div class="rejilla videos" id="pruebasalt"></div>
+  </section>
+
+  <section>
     <h2>Alternativas a HyperFrames <small>sin IA generativa</small></h2>
     <p class="nota">Herramientas para hacer vídeo con código, nodos o reglas. Ninguna es «mejor» en todo: depende de lo que quieras hacer.</p>
     <div class="tabla" id="alternativas"></div>
@@ -121,7 +127,7 @@
     ["primer-video", "Intro andaluza", "Hazme una intro animada de 13 segundos con HyperFrames, estilo andaluz moderno: fondo de azulejos, un sol que sale y se pone, tipografía serif gorda y el texto «¡Quillo!»."],
     ["feria-3d", "Feria en 3D", "Hazme un vídeo 3D con Three.js en HyperFrames: la cámara vuela por una calle de feria llena de farolillos de lunares, con casetas y albero, y al final aparece «Todo esto es HTML»."],
     ["red-en-capas", "Red en capas", "Hazme un vídeo de un tramado de líneas finas que se deshila en la red neuronal de una persona, se abre en capas con las funciones del cerebro rotuladas y vuelve a cerrarse. Muy fino y bien hilado."],
-    // pendiente de terminar el render: ["fagos", "Virus al microscopio electrónico", "Hazme un vídeo con estética de microscopio electrónico de barrido (SEM, color falso): bacteriófagos T4 sobre una E. coli, con un zoom continuo desde la bacteria hasta los átomos de la cápside, barra de escala que cambia y la vaina de un fago contrayéndose."],
+    ["fagos", "Virus al microscopio electrónico (avance: 17 de 24 s)", "Hazme un vídeo con estética de microscopio electrónico de barrido (SEM, color falso): bacteriófagos T4 sobre una E. coli, con un zoom continuo desde la bacteria hasta los átomos de la cápside, barra de escala que cambia y la vaina de un fago contrayéndose."],
     ["cuarta-dimension", "El tiempo hecho espacio (4D)", "Hazme un vídeo matemático de la cuarta dimensión: un péndulo doble cuyo recorrido en el tiempo se convierte en una escultura 3D, un conjunto de Julia en cuaterniones que se corta y gira en 4D, un hipercubo y la fibración de Hopf, con las fórmulas en pantalla."],
   ];
   const RAPIDOS = [
@@ -237,6 +243,17 @@
     ["50-ffmpeg-vida", "Juego de la vida con ffmpeg", "Hazme el juego de la vida de Conway usando solo ffmpeg, con estela y moho."],
   ];
   const HECHO_CON = {"a-01-cartel-suizo": "CSS / HTML", "a-02-bauhaus": "CSS / HTML", "a-03-azulejo-generativo": "SVG", "a-04-campo-de-flujo": "Canvas 2D", "a-05-synthwave": "CSS / HTML", "a-06-ascii": "CSS / HTML", "a-07-pixel-art": "Canvas 2D", "a-08-shader-fractal": "Shader WebGL", "a-09-naranjas-3d": "Three.js", "a-10-risografia": "SVG", "a-11-glitch": "CSS / HTML", "a-12-brutalista": "CSS / HTML", "a-13-topografico": "Canvas 2D", "a-14-periodico": "Canvas 2D", "a-15-neon": "CSS / HTML", "a-16-empaquetado-circulos": "Canvas 2D", "a-17-vidriera-voronoi": "Canvas 2D", "a-18-isometrico": "SVG", "a-19-terminal": "CSS / HTML", "a-20-olivo-fractal": "Canvas 2D", "a-21-truchet": "SVG", "a-22-aurora-grano": "SVG", "a-23-ondas": "Canvas 2D", "a-24-tarot": "SVG", "a-25-texto-particulas": "Canvas 2D", "a-26-memphis": "SVG", "a-27-plano-botijo": "SVG", "a-28-ticket-bar": "CSS / HTML", "a-29-caleidoscopio": "Canvas 2D", "a-30-reaccion-difusion": "Canvas 2D", "b-01-bodegon-trazado": "Shader WebGL", "b-02-sierra-atardecer": "Shader WebGL", "b-03-mar-de-alboran": "Shader WebGL", "b-04-planeta-azul": "Shader WebGL", "b-05-atractor-de-seda": "Canvas 2D", "b-06-noche-estrellada-oleo": "Canvas 2D", "b-07-papel-recortado": "Canvas 2D", "b-08-mandelbulb": "Shader WebGL", "b-09-marmol-liquido": "Shader WebGL", "b-10-physarum": "Canvas 2D", "b-11-billete": "SVG", "b-12-acuarela": "Canvas 2D", "b-13-comic-pop": "SVG", "b-14-lamina-botanica": "Canvas 2D", "b-15-puntillismo": "Canvas 2D", "c-01-ukiyoe-neon": "Canvas 2D", "c-02-alhambra-neon": "Canvas 2D", "c-03-roseton-circuito": "Canvas 2D", "c-04-art-deco": "SVG", "c-05-constructivista": "SVG", "c-06-vaporwave-win95": "SVG", "c-07-art-nouveau": "SVG", "c-08-3d-a-lapiz": "Three.js", "c-09-girasoles-gouache": "Canvas 2D", "c-10-mac-1bit": "Canvas 2D", "c-11-punto-de-cruz": "Canvas 2D", "c-12-mosaico-romano": "Canvas 2D", "c-13-piezas-de-juguete": "Canvas 2D", "c-14-jersey-de-punto": "Canvas 2D", "c-15-marqueteria": "Shader WebGL", "c-16-kilim": "Canvas 2D", "c-17-sashiko": "SVG", "c-18-plastilina": "Shader WebGL", "c-19-tiza-pizarra": "Canvas 2D", "c-20-grafiti": "Canvas 2D", "c-21-cianotipia": "Canvas 2D", "c-22-colodion-faro": "Shader WebGL", "c-23-camara-termica": "Canvas 2D", "c-24-rayos-x": "Canvas 2D", "c-25-tilt-shift-pueblo": "Shader WebGL", "c-26-anaglifo-mezquita": "Shader WebGL", "c-27-estereograma": "Canvas 2D", "c-28-offset-paella": "Canvas 2D", "c-29-pixel-sorting": "Canvas 2D", "c-30-slit-scan-noria": "Canvas 2D", "c-31-xilografia": "Canvas 2D", "c-32-espiral-una-linea": "Canvas 2D", "c-33-string-art-ojo": "Canvas 2D", "c-34-sumi-e": "Canvas 2D", "c-35-patente-cafetera": "SVG", "c-36-manuscrito-iluminado": "Canvas 2D + simulación analógica", "c-37-armonografo": "Canvas 2D", "c-38-op-art": "Canvas 2D", "c-39-agujero-negro": "Shader WebGL", "c-40-nubes-volumetricas": "Shader WebGL", "c-41-burbujas-jabon": "Shader WebGL", "c-42-causticas-piscina": "Shader WebGL", "c-43-copos-de-nieve": "Canvas 2D", "c-44-coral-dla": "Canvas 2D", "c-45-nervaduras": "Canvas 2D", "c-46-wfc-pueblo": "Canvas 2D", "c-47-diatomeas": "Canvas 2D", "c-48-relieve-suizo": "Canvas 2D", "d-01-acuarela-vejer": "Canvas 2D + simulación analógica", "d-02-oleo-empaste": "Canvas 2D + simulación analógica", "d-03-carboncillo": "Canvas 2D + simulación analógica", "d-04-polaroids": "Canvas 2D + simulación analógica", "d-05-azulejo-triana": "Canvas 2D + simulación analógica", "d-06-bordado-bastidor": "Canvas 2D + simulación analógica", "d-07-boli-cuaderno": "Canvas 2D + simulación analógica", "d-08-linograbado": "Canvas 2D + simulación analógica", "c-49-ffmpeg-mandelbrot": "ffmpeg (sin navegador)", "c-50-ffmpeg-vida": "ffmpeg (sin navegador)", "v-primer-video": "HyperFrames + GSAP", "v-feria-3d": "HyperFrames + Three.js", "v-red-en-capas": "HyperFrames + Three.js", "v-cuarta-dimension": "Motor propio de shaders + Three.js", "v-fagos": "Motor propio de shaders"};
+  const PRUEBAS_ALT = [
+    ["manim", "Manim · epiciclos de Fourier", "Hazme con Manim unos epiciclos de Fourier: 40 círculos girando que dibujan una estrella de azulejo, con la fórmula al final.", "Manim (Python)"],
+    ["motion-canvas", "Motion Canvas · Pitágoras sin palabras", "Hazme con Motion Canvas una demostración visual del teorema de Pitágoras: los cuadrados de los catetos se trocean y rellenan el de la hipotenusa.", "Motion Canvas (TypeScript, editor en el navegador)"],
+    ["revideo", "Revideo · reloj de sol", "Hazme con Revideo un reloj de sol que recorre las horas mientras el cielo cambia de color, renderizado desde Node sin editor.", "Revideo (TypeScript, render por código)"],
+    ["remotion", "Remotion · el tiempo en Sevilla", "Hazme con Remotion un parte del tiempo animado a partir de una tabla de datos: barras con muelles, contador y titular.", "Remotion (React)"],
+    ["moviepy", "MoviePy · montaje con guitarra", "Hazme con MoviePy un montaje de mis imágenes con zoom lento, fundidos, rótulos y una guitarra sintetizada tocando la cadencia andaluza.", "MoviePy (Python) + síntesis Karplus–Strong"],
+    ["taichi", "Taichi · agua, gelatina y nieve", "Hazme con Taichi una simulación física MPM: un bloque de agua, uno de gelatina y uno de nieve que caen y chocan.", "Taichi (Python, simulación MLS-MPM)"],
+    ["mitsuba", "Mitsuba 3 · cáusticas de verdad", "Hazme con Mitsuba un render espectral de una caja con una esfera de vidrio que proyecta cáusticas, una de oro y una de cerámica.", "Mitsuba 3 (Python, trazado de caminos espectral)"],
+    ["povray", "POV-Ray · patio andaluz", "Hazme con POV-Ray un patio andaluz con fuente de mármol, arcos de herradura y geranios, con luz rebotada y agua que se mueve.", "POV-Ray 3.7 (escena escrita como texto)"],
+    ["lottie", "Lottie · abanico flamenco", "Hazme una animación Lottie de un abanico flamenco que se abre varilla a varilla, con lunares que saltan.", "Lottie (JSON vectorial) + lottie-web"],
+  ];
   const ALTERNATIVAS = [
     ["Remotion", "https://www.remotion.dev", "React → MP4", "El rival directo de HyperFrames. <b>Mejor si piensas en componentes y datos</b>: vídeos con plantillas, subtítulos automáticos, render en la nube."],
     ["Motion Canvas", "https://motioncanvas.io", "TypeScript", "Animación con generadores y editor en vivo. <b>Brutal para vídeos explicativos</b> con código, diagramas y fórmulas."],
@@ -324,6 +341,18 @@
   };
   pintar(RAPIDOS, "a", "rapidos");
   pintar(SERIE2, "b", "serie2");
+  const cajaPA = document.getElementById("pruebasalt");
+  for (const [id, nombre, receta, hecho] of PRUEBAS_ALT) {
+    HECHO_CON["p-" + id] = hecho;
+    const v = document.createElement("video");
+    v.src = `vid/alt-${id}.mp4`;
+    v.poster = `vid/alt-${id}.jpg`;
+    v.controls = true;
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = "metadata";
+    cajaPA.appendChild(tarjeta(v, nombre, receta, "p-" + id));
+  }
   pintar(SERIE4, "d", "serie4");
   pintar(SERIE3, "c", "serie3");
   const cajaAlt = document.getElementById("alternativas");

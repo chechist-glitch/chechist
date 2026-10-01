@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<style>html, body { margin: 0; background: #0e0d12; overflow: hidden; } canvas { display: block; }</style>
+</head>
+<body>
+  <script type="module">
+    // p5.js + canvas-sketch-util: bocetos generativos al estilo de canvas-sketch.
+    // Un bucle perfecto de 8 segundos: 7.000 partículas recorren un campo de flujo que se cierra
+    // sobre sí mismo (ruido 4D muestreado en un círculo del tiempo), dibujando un abanico.
+    import p5 from "p5";
+    import random from "canvas-sketch-util/random";
+    import { lerp } from "canvas-sketch-util/math";
+
+    const W = 1280, H = 720, DUR = 8;
+    random.setSeed("abanico");
+    const paleta = ["#ff4f6d", "#ffb547", "#f7e8c4", "#45c4b0", "#2a6fdb"];
+    let lienzo;
+    new p5((s) => {
+      s.setup = () => {
+        lienzo = s.createCanvas(W, H);
+        s.pixelDensity(1);
+        s.noLoop();
+        window.__listo = true;
+      };
+      s.draw = () => {};
+      window.pintar = (t) => {
+        const fase = (t / DUR) * Math.PI * 2;
+        s.background("#0e0d12");
+        s.noFill();
+        const cx = W / 2, cy = H * 0.86;
+        const ra = Math.cos(fase) * 0.6, rb = Math.sin(fase) * 0.6;
+        const rr = random.createRandom("abanico");
+        for (let i = 0; i < 1400; i++) {
+          // cada hebra nace en el arco inferior del abanico
+          const a0 = lerp(Math.PI * 1.05, Math.PI * 1.95, rr.value());
+          let x = cx + Math.cos(a0) * 60, y = cy + Math.sin(a0) * 60;
+          const color = paleta[Math.floor(rr.value() * paleta.length)];
+          s.stroke(color + "88");
+          s.strokeWeight(rr.range(0.6, 1.8));
+          s.beginShape();
+          for (let k = 0; k < 70; k++) {
+            s.vertex(x, y);
+            const d = Math.hypot(x - cx, y - cy);
+            const radial = Math.atan2(y - cy, x - cx);
+            const n = random.noise4D(x * 0.0022, y * 0.0022, ra, rb);
+            const a = radial + n * 1.3;
+            x += Math.cos(a) * 6;
+            y += Math.sin(a) * 6;
+            if (d > 560) break;
+          }
+          s.endShape();
+        }
+        s.noStroke();
+        s.fill("#f7e8c4");
+        s.circle(cx, cy, 28);
+        s.fill("#ffffff66");
+        s.textFont("DejaVu Sans");
+        s.textSize(16);
+        s.text("p5.js + canvas-sketch-util · bucle de 8 s con ruido 4D", 22, H - 20);
+      };
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<style>html, body { margin: 0; background: #000; overflow: hidden; } canvas { display: block; } .p { position: absolute; left: 22px; bottom: 16px; font: 16px "DejaVu Sans"; color: #ffffffaa; }</style>
+</head>
+<body>
+  <div class="p">Theatre.js · keyframes con curvas sobre una escena Three.js</div>
+  <script type="module">
+    // Theatre.js: línea de tiempo con fotogramas clave y curvas para animar Three.js.
+    // Los keyframes vienen de estado.json (el formato que guarda el editor de Theatre);
+    // aquí solo se mueve la cabeza lectora: sheet.sequence.position = t.
+    import { getProject, types } from "@theatre/core";
+    import * as THREE from "three";
+    import estado from "./estado.json";
+
+    const proyecto = getProject("Feria", { state: estado });
+    const hoja = proyecto.sheet("Escena");
+    const camara = hoja.object("camara", { x: 9, y: 1.2, z: 9 });
+    const luz = hoja.object("luz", { intensidad: 1 });
+    const farol = hoja.object("farolillos", { giro: 0, altura: 4 });
+    const cielo = hoja.object("cielo", { tono: types.number(0.6, { range: [0, 1] }) });
+
+    const W = 1280, H = 720;
+    const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    r.setSize(W, H);
+    r.setPixelRatio(1);
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    document.body.prepend(r.domElement);
+    const escena = new THREE.Scene();
+    escena.fog = new THREE.Fog(0x000000, 10, 40);
+    const cam = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
+    // albero, casetas a rayas y una nube de farolillos
+    const suelo = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: 0xd9a95b, roughness: 1 }));
+    suelo.rotation.x = -Math.PI / 2;
+    escena.add(suelo);
+    const rayas = (() => { const c = document.createElement("canvas"); c.width = 64; c.height = 8; const g = c.getContext("2d"); for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? "#ffffff" : "#c8102e"; g.fillRect(i * 8, 0, 8, 8); } const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+    for (let i = -4; i <= 4; i++) for (const lado of [-1, 1]) {
+      const caseta = new THREE.Group();
+      const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, 2.6), new THREE.MeshStandardMaterial({ map: rayas }));
+      cuerpo.position.y = 1.1;
+      const techo = new THREE.Mesh(new THREE.ConeGeometry(2.1, 1.2, 4), new THREE.MeshStandardMaterial({ map: rayas }));
+      techo.position.y = 2.8; techo.rotation.y = Math.PI / 4;
+      caseta.add(cuerpo, techo);
+      caseta.position.set(lado * 4.2, 0, i * 3.2);
+      escena.add(caseta);
+    }
+    const farolillos = new THREE.Group();
+    const colores = [0xff2d55, 0x34c759, 0xffcc00, 0x5ac8fa, 0xffffff];
+    for (let i = 0; i < 220; i++) {
+      const c = colores[i % colores.length];
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9 }));
+      const z = -14 + (i / 220) * 28, x = Math.sin(i * 1.7) * 3.4;
+      m.position.set(x, Math.sin(i * 0.9) * 0.4, z);
+      m.scale.y = 1.25;
+      farolillos.add(m);
+    }
+    escena.add(farolillos);
+    const hemi = new THREE.HemisphereLight(0xffeedd, 0x332211, 0.6);
+    const sol = new THREE.DirectionalLight(0xffd2a0, 1.5);
+    sol.position.set(5, 10, 3);
+    escena.add(hemi, sol);
+
+    const aplicar = () => {
+      const v = camara.value;
+      cam.position.set(v.x, v.y, v.z);
+      cam.lookAt(0, 2.2, 0);
+      sol.intensity = luz.value.intensidad;
+      farolillos.rotation.z = Math.sin(farol.value.giro) * 0.04;
+      farolillos.position.y = farol.value.altura;
+      farolillos.children.forEach((m, i) => (m.material.emissiveIntensity = 0.5 + 0.6 * Math.sin(farol.value.giro * 3 + i)));
+      const c = new THREE.Color().setHSL(cielo.value.tono, 0.55, 0.12 + 0.25 * (1 - cielo.value.tono));
+      escena.background = c;
+      escena.fog.color = c;
+      r.render(escena, cam);
+    };
+    proyecto.ready.then(() => { aplicar(); window.__listo = true; });
+    window.pintar = (t) => { hoja.sequence.position = t; aplicar(); };
+  </script>
+</body>
+</html>

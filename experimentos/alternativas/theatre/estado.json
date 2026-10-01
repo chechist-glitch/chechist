@@ -1,0 +1,405 @@
+{
+ "sheetsById": {
+  "Escena": {
+   "staticOverrides": {
+    "byObject": {}
+   },
+   "sequence": {
+    "subUnitsPerUnit": 30,
+    "length": 9,
+    "type": "PositionalSequence",
+    "tracksByObject": {
+     "camara": {
+      "trackData": {
+       "t0": {
+        "type": "BasicKeyframedTrack",
+        "__debugName": "camara.x",
+        "keyframes": [
+         {
+          "id": "camara.x0",
+          "position": 0,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 9
+         },
+         {
+          "id": "camara.x1",
+          "position": 3,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 2
+         },
+         {
+          "id": "camara.x2",
+          "position": 6,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": -6
+         },
+         {
+          "id": "camara.x3",
+          "position": 9,
+          "connectedRight": false,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 0
+         }
+        ]
+       },
+       "t1": {
+        "type": "BasicKeyframedTrack",
+        "__debugName": "camara.y",
+        "keyframes": [
+         {
+          "id": "camara.y0",
+          "position": 0,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 1.2
+         },
+         {
+          "id": "camara.y1",
+          "position": 3,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 3.5
+         },
+         {
+          "id": "camara.y2",
+          "position": 6,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 2
+         },
+         {
+          "id": "camara.y3",
+          "position": 9,
+          "connectedRight": false,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 6
+         }
+        ]
+       },
+       "t2": {
+        "type": "BasicKeyframedTrack",
+        "__debugName": "camara.z",
+        "keyframes": [
+         {
+          "id": "camara.z0",
+          "position": 0,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 9
+         },
+         {
+          "id": "camara.z1",
+          "position": 3,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 7
+         },
+         {
+          "id": "camara.z2",
+          "position": 6,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 6
+         },
+         {
+          "id": "camara.z3",
+          "position": 9,
+          "connectedRight": false,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 0.01
+         }
+        ]
+       }
+      },
+      "trackIdByPropPath": {
+       "[\"x\"]": "t0",
+       "[\"y\"]": "t1",
+       "[\"z\"]": "t2"
+      }
+     },
+     "luz": {
+      "trackData": {
+       "t3": {
+        "type": "BasicKeyframedTrack",
+        "__debugName": "luz.intensidad",
+        "keyframes": [
+         {
+          "id": "luz.intensidad0",
+          "position": 0,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 0.2
+         },
+         {
+          "id": "luz.intensidad1",
+          "position": 2,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 2.5
+         },
+         {
+          "id": "luz.intensidad2",
+          "position": 5,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 1.2
+         },
+         {
+          "id": "luz.intensidad3",
+          "position": 9,
+          "connectedRight": false,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 3
+         }
+        ]
+       }
+      },
+      "trackIdByPropPath": {
+       "[\"intensidad\"]": "t3"
+      }
+     },
+     "farolillos": {
+      "trackData": {
+       "t4": {
+        "type": "BasicKeyframedTrack",
+        "__debugName": "farolillos.giro",
+        "keyframes": [
+         {
+          "id": "farolillos.giro0",
+          "position": 0,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 0
+         },
+         {
+          "id": "farolillos.giro1",
+          "position": 9,
+          "connectedRight": false,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 6.28
+         }
+        ]
+       },
+       "t5": {
+        "type": "BasicKeyframedTrack",
+        "__debugName": "farolillos.altura",
+        "keyframes": [
+         {
+          "id": "farolillos.altura0",
+          "position": 0,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 6
+         },
+         {
+          "id": "farolillos.altura1",
+          "position": 2.5,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 3.2
+         },
+         {
+          "id": "farolillos.altura2",
+          "position": 9,
+          "connectedRight": false,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 3.4
+         }
+        ]
+       }
+      },
+      "trackIdByPropPath": {
+       "[\"giro\"]": "t4",
+       "[\"altura\"]": "t5"
+      }
+     },
+     "cielo": {
+      "trackData": {
+       "t6": {
+        "type": "BasicKeyframedTrack",
+        "__debugName": "cielo.tono",
+        "keyframes": [
+         {
+          "id": "cielo.tono0",
+          "position": 0,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 0.62
+         },
+         {
+          "id": "cielo.tono1",
+          "position": 4.5,
+          "connectedRight": true,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 0.75
+         },
+         {
+          "id": "cielo.tono2",
+          "position": 9,
+          "connectedRight": false,
+          "handles": [
+           0.5,
+           1,
+           0.5,
+           0
+          ],
+          "type": "bezier",
+          "value": 0.95
+         }
+        ]
+       }
+      },
+      "trackIdByPropPath": {
+       "[\"tono\"]": "t6"
+      }
+     }
+    }
+   }
+  }
+ },
+ "definitionVersion": "0.4.0",
+ "revisionHistory": [
+  "feria2026"
+ ]
+}
