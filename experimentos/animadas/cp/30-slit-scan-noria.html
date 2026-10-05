@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #0b0b2a; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Slit-scan: la noria de la feria gira, y cada fila de la imagen se toma en un instante distinto
+    fases.marca();
+    // (la de arriba al principio, la de abajo casi media vuelta después). La rueda se retuerce.
+    (async () => {
+      await M.fuentes('18px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(1847);
+      const n = makeNoise(1847);
+      const CX = 540, CY = 600, R = 400;
+      const RAD = 12;
+      const COLS = [[255, 60, 70], [255, 200, 60], [60, 220, 255], [255, 90, 220], [120, 255, 120]];
+      const estrellas = Array.from({ length: 220 }, () => [r() * W, r() * 700, r()]);
+
+      function escena(x, y, t) {
+        // cielo
+        let c = M.mezcla([10, 10, 40], [70, 22, 90], Math.pow(y / H, 1.5));
+        const th = t * Math.PI * 1.7;
+        const px = x - CX, py = y - CY;
+        const d = Math.hypot(px, py);
+        // patas de la noria (fijas)
+        for (const s of [-1, 1]) {
+          const ax = CX + s * 300, ay = 1260;
+          const vx = ax - CX, vy = ay - CY;
+          const L = Math.hypot(vx, vy);
+          const u = ((x - CX) * vx + (y - CY) * vy) / (L * L);
+          if (u > 0 && u < 1) {
+            const dist = Math.abs((x - CX) * vy - (y - CY) * vx) / L;
+            if (dist < 9) c = [50, 50, 70];
+            if (dist < 3 && Math.floor(u * 30) % 2 === 0) c = [255, 220, 150];
+          }
+        }
+        // rueda (gira con t)
+        const a = Math.atan2(py, px) - th;
+        let brillo = [0, 0, 0];
+        if (Math.abs(d - R) < 6 || Math.abs(d - R * 0.9) < 3) c = [200, 205, 225];
+        const segSpoke = (Math.PI * 2) / RAD;
+        const ang = ((a % segSpoke) + segSpoke) % segSpoke;
+        const perp = Math.min(ang, segSpoke - ang) * d;
+        if (perp < 3 && d < R && d > 36) c = [170, 175, 200];
+        if (d < 40) c = d < 30 ? [230, 200, 120] : [90, 90, 110];
+        // bombillas en el aro
+        const nb = 72;
+        const kb = Math.round(((a / (Math.PI * 2)) * nb) % nb);
+        const ab = (kb / nb) * Math.PI * 2 + th;
+        const bx = CX + Math.cos(ab) * R, by = CY + Math.sin(ab) * R;
+        const db = Math.hypot(x - bx, y - by);
+        const cb = COLS[(((kb % 5) + 5) % 5 + Math.floor(t * 12)) % 5];
+        const gl = 50 / (db * db + 12);
+        brillo = brillo.map((v, i) => v + cb[i] * gl);
+        // bombillas en los radios
+        const ks = Math.round(a / segSpoke);
+        const as = ks * segSpoke + th;
+        const tt = Math.round((d - 60) / 34);
+        if (tt >= 0 && tt < 10) {
+          const rr = 60 + tt * 34;
+          const sx = CX + Math.cos(as) * rr, sy = CY + Math.sin(as) * rr;
+          const ds = Math.hypot(x - sx, y - sy);
+          const cs = COLS[(((ks % 5) + 5) % 5 + tt) % 5];
+          brillo = brillo.map((v, i) => v + cs[i] * (26 / (ds * ds + 9)));
+        }
+        // barquillas colgando (no giran: siempre hacia abajo)
+        for (let k = 0; k < RAD; k++) {
+          const ag = k * segSpoke + th;
+          const gx = CX + Math.cos(ag) * R, gy = CY + Math.sin(ag) * R;
+          if (Math.abs(x - gx) < 3 && y > gy && y < gy + 26) c = [180, 180, 200];
+          const qx = x - gx, qy = y - (gy + 58);
+          if (Math.abs(qx) < 38 && Math.abs(qy) < 32) {
+            const ventana = Math.abs(qx) < 28 && qy > -24 && qy < 2;
+            c = ventana ? [255, 226, 150] : M.hex(["#e63946", "#f1c453", "#2a9d8f", "#e76f51", "#8e44ad", "#3a86ff"][k % 6]);
+            if (Math.abs(qy - 16) < 3) c = [255, 255, 255];
+          }
+        }
+        // estrellas y guirnaldas de la feria al fondo
+        if (y > 1150) c = M.mezcla([30, 14, 40], [8, 6, 16], (y - 1150) / 200);
+        for (let g = 0; g < 3; g++) {
+          const gy = 1080 + g * 40 + Math.cos(((x % 180) / 180) * Math.PI * 2) * 22;
+          const dg = Math.abs(y - gy);
+          if (dg < 20) {
+            const bxl = Math.round(x / 30) * 30;
+            const dd = Math.hypot(x - bxl, dg * 1.2);
+            const cg = COLS[(Math.round(x / 30) + g) % 5];
+            brillo = brillo.map((v, i) => v + cg[i] * (14 / (dd * dd + 6)));
+          }
+        }
+        return c.map((v, i) => Math.min(255, v + brillo[i]));
+      }
+
+      const img = ctx.createImageData(W, H);
+      const o = img.data;
+      for (let y = 0; y < H; y++) {
+        const t = y / H;
+        for (let x = 0; x < W; x++) {
+          const c = escena(x, y, t);
+          const k = (y * W + x) * 4;
+          o[k] = c[0]; o[k + 1] = c[1]; o[k + 2] = c[2]; o[k + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      for (const [x, y, b] of estrellas) {
+        ctx.fillStyle = `rgba(255,255,255,${0.2 + b * 0.6})`;
+        ctx.fillRect(x, y, 1.5, 1.5);
+      }
+      // eje del tiempo
+      ctx.strokeStyle = "rgba(255,255,255,.5)";
+      ctx.fillStyle = "rgba(255,255,255,.7)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(1040, 60); ctx.lineTo(1040, H - 60);
+      ctx.moveTo(1032, H - 74); ctx.lineTo(1040, H - 60); ctx.lineTo(1048, H - 74);
+      ctx.stroke();
+      ctx.font = '18px "Plex Mono"';
+      ctx.save();
+      ctx.translate(1058, 380);
+      ctx.rotate(Math.PI / 2);
+      ctx.textAlign = "center";
+      ctx.fillText("cada fila, un instante distinto →", 0, 0);
+      ctx.restore();
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

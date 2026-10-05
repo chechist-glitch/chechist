@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/gl.js"></script>
+<script src="../comun/trazar-video.js"></script>
+<style>body { background: #0a5f86; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Cáusticas de piscina calculadas, no dibujadas: la superficie del agua es una suma de ondas;
+    // cada rayo de sol se desvía según la pendiente y la luz se concentra donde la superficie hace
+    // de lupa. La intensidad es 1/|det J|, el jacobiano de esa desviación. Encima, un flotador.
+    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    trazarVideo({
+      escala: .67,
+      muestras: 48,
+      tono: true,
+      expo: 1.1,
+      vineta: 0.25,
+      grano: 0.012,
+      frag: `
+      float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+      // altura del agua: ondas que viajan en varias direcciones
+      float altura(vec2 p) {
+        float h = 0.;
+        for (int i = 0; i < 9; i++) {
+          float fi = float(i);
+          float a = fi * 2.399 + .3;
+          vec2 d = vec2(cos(a), sin(a));
+          float k = .9 + fi * .45;
+          h += sin(dot(p, d) * k + fi * 1.7) / (k * k) * .55;
+        }
+        return h;
+      }
+      vec2 grad(vec2 p) { vec2 e = vec2(.004, 0.); return vec2(altura(p + e.xy) - altura(p - e.xy), altura(p + e.yx) - altura(p - e.yx)) / (2. * e.x); }
+      // suelo de gresite: teselas pequeñas con juntas y una franja de color
+      vec3 suelo(vec2 q) {
+        vec2 t = q * 9.;
+        vec2 id = floor(t), f = fract(t);
+        float junta = smoothstep(.0, .06, min(min(f.x, f.y), min(1. - f.x, 1. - f.y)));
+        float v = h21(id);
+        vec3 c = mix(vec3(.62, .86, .9), vec3(.42, .74, .86), v);
+        if (abs(q.y + .9) < .25) c = mix(vec3(.08, .3, .6), vec3(.12, .4, .7), v);
+        // línea de calle negra
+        if (abs(q.x - .1) < .09 && q.y > -.4) c = vec3(.05, .07, .12);
+        return mix(vec3(.75, .78, .76), c, junta);
+      }
+      vec3 muestra(vec2 px) {
+        vec2 uv = (px - uRes * .5) / uRes.y * 2.4;
+        float prof = .55;
+        // cáusticas: dónde cae la luz que entra por cada punto de la superficie
+        float K = 1.3, SC = 5.;
+        vec2 w = uv * SC;
+        vec2 g0 = grad(w);
+        vec2 e = vec2(.01, 0.);
+        vec2 gx = (grad(w + e.xy) - grad(w - e.xy)) / (2. * e.x);
+        vec2 gy = (grad(w + e.yx) - grad(w - e.yx)) / (2. * e.x);
+        float det = (1. - K * gx.x) * (1. - K * gy.y) - K * K * gx.y * gy.x;
+        float caus = clamp(1. / max(abs(det), .08), 0., 7.);
+        // el fondo se ve desplazado por la refracción
+        vec2 q = uv + g0 * .025;
+        vec3 base = suelo(q);
+        // flotador: sombra en el fondo (desplazada por el sol) y el propio aro arriba
+        vec2 fc = vec2(.55, .5);
+        float aro = abs(length(uv - fc - vec2(.18, -.22)) - .38) - .13;
+        float sombra = smoothstep(.0, .06, aro);
+        vec3 c = base * (.28 + .42 * caus * sombra) * vec3(.85, .97, 1.05);
+        // color del agua por profundidad
+        c = mix(c, vec3(.0, .32, .48), .35);
+        // superficie: reflejos del cielo y destellos del sol
+        vec3 n = normalize(vec3(-g0 * .35, 1.));
+        float fres = .02 + .3 * pow(1. - n.z, 3.);
+        float sol = pow(max(dot(reflect(vec3(0., 0., -1.), n), normalize(vec3(.3, .2, 1.))), 0.), 3000.) * 4.;
+        c += vec3(.8, .9, 1.) * fres + sol;
+        // aro hinchable a rayas rojas y blancas encima del agua
+        float dA = length(uv - fc);
+        float anillo = abs(dA - .38) - .13;
+        if (anillo < 0.) {
+          float t = clamp(-anillo / .13, 0., 1.);
+          float z = sqrt(1. - pow(1. - t, 2.));
+          vec2 dir = (uv - fc) / dA;
+          vec3 nn = normalize(vec3(dir * (dA - .38) / .13 * 1.2, z));
+          float ang = atan(dir.y, dir.x);
+          vec3 alb = fract(ang / 6.2832 * 8.) < .5 ? vec3(.9, .1, .12) : vec3(.95, .95, .92);
+          float dif = max(dot(nn, normalize(vec3(-.4, .5, .8))), 0.);
+          float esp = pow(max(dot(reflect(vec3(0, 0, -1), nn), normalize(vec3(-.4, .5, .8))), 0.), 40.);
+          c = alb * (.25 + .85 * dif) + esp * .9;
+        }
+        return c;
+      }`,
+    });
+    listo();
+  </script>
+</body>
+</html>

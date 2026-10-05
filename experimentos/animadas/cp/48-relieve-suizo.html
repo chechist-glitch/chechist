@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #efe9d8; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Cartografía en relieve sombreado a la suiza (estilo Imhof): mapa de alturas con ruido
+    fases.marca();
+    // erosionado, sombreado con luz del noroeste, tintas hipsométricas, bruma azul en las sombras,
+    fases.marca();
+    // curvas de nivel, ríos que bajan siguiendo la pendiente y rotulación.
+    (async () => {
+      await M.fuentes('italic 30px "Fraunces"', '18px "Plex Mono"', '900 40px "Fraunces"');
+      const ctx = canvas2d();
+      const n = makeNoise(1906);
+      const n2 = makeNoise(77);
+      const S = 2; // se calcula a media resolución y se interpola
+      const gw = W / S, gh = H / S;
+      const alt = new Float32Array(gw * gh);
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+        const u = x / gw, v = y / gh;
+        // crestas: ruido "ridged" sumado a una gran sierra diagonal
+        let h = 0, amp = 1, f = 3, w = 0;
+        let pu = u, pv = v;
+        for (let o = 0; o < 7; o++) {
+          // cada octava girada para que no se note la rejilla del ruido
+          const a = o * 0.73 + 0.4, cu = Math.cos(a) * pu - Math.sin(a) * pv, cv = Math.sin(a) * pu + Math.cos(a) * pv;
+          let r = 1 - Math.abs(n(cu * f + o * 13, cv * f, 1) * 2 - 1);
+          r = Math.pow(r, 1.6);
+          h += r * amp * (0.6 + w * 0.8);
+          w = r;
+          amp *= 0.48;
+          f *= 2.03;
+        }
+        const sierra = Math.exp(-Math.pow((u * 0.8 + v * 0.6 - 0.75) / 0.32, 2));
+        const valle = Math.exp(-Math.pow((u - 0.25 - v * 0.2 + n2(v * 3, 0.5, 2) * 0.15) / 0.07, 2));
+        alt[y * gw + x] = Math.max(0, h * 0.3 * (0.3 + sierra) + sierra * 0.32 - valle * 0.35 + 0.06);
+      }
+      const A = (x, y) => alt[Math.min(gh - 1, Math.max(0, y)) * gw + Math.min(gw - 1, Math.max(0, x))];
+      const hip0 = M.rampa([[0, "#a9c49a"], [0.15, "#c6d6a4"], [0.3, "#e6dfb4"], [0.45, "#e2c99a"], [0.6, "#cdb08f"], [0.75, "#c2b6ae"], [0.88, "#ece9ea"], [1, "#ffffff"]]);
+      const hip = (t) => hip0(Math.pow(t, 0.85));
+      const L = [-0.62, -0.62, 0.48];
+      const img = ctx.createImageData(W, H);
+      const d = img.data;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const gx = x / S, gy = y / S, x0 = gx | 0, y0 = gy | 0, fx = gx - x0, fy = gy - y0;
+        const h = (A(x0, y0) * (1 - fx) + A(x0 + 1, y0) * fx) * (1 - fy) + (A(x0, y0 + 1) * (1 - fx) + A(x0 + 1, y0 + 1) * fx) * fy;
+        const dx = (A(x0 + 1, y0) - A(x0 - 1, y0)) * 11, dy = (A(x0, y0 + 1) - A(x0, y0 - 1)) * 11;
+        const nm = Math.hypot(dx, dy, 1);
+        const sh = (-dx * L[0] - dy * L[1] + L[2]) / nm;
+        let c = hip(Math.min(1, h / 0.8));
+        // agua: lago en lo más bajo del valle
+        if (h < 0.06) c = M.mezcla([150, 190, 215], [120, 165, 200], (0.06 - h) * 20);
+        const luz = M.clamp(0.5 + (sh - L[2]) * 1.6 + 0.12);
+        // sombras azuladas, luces cálidas (como en los mapas suizos)
+        const sombra = M.mezcla([70, 90, 130], c, 0.55);
+        c = luz < 0.62 ? M.mezcla(sombra, c, luz / 0.62) : M.mezcla(c, [255, 250, 235], (luz - 0.62) * 0.9);
+        // curvas de nivel cada 0,05 (maestras cada 0,25)
+        const nivel = h / 0.05;
+        const fr = Math.abs(nivel - Math.round(nivel));
+        const grad = Math.hypot(dx, dy) / 11 / 0.05 * S;
+        const maestra = Math.round(nivel) % 5 === 0;
+        const ancho = (maestra ? 0.55 : 0.3) * grad;
+        if (h > 0.06 && fr < ancho && grad < 0.6) c = M.mezcla(c, [140, 90, 50], maestra ? 0.42 : 0.2);
+        const k = (y * W + x) * 4;
+        d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; d[k + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      // Ríos: desde muchas fuentes, bajar por máxima pendiente acumulando caudal
+      const caudal = new Float32Array(gw * gh);
+      const r = rng(5);
+      for (let k = 0; k < 2500; k++) {
+        let x = Math.floor(r() * gw), y = Math.floor(r() * gh);
+        for (let p = 0; p < 900; p++) {
+          let bx = x, by = y, bh = A(x, y);
+          for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) { const hh = A(x + ox, y + oy); if (hh < bh) { bh = hh; bx = x + ox; by = y + oy; } }
+          if (bx === x && by === y) break;
+          x = bx; y = by;
+          if (x <= 0 || y <= 0 || x >= gw - 1 || y >= gh - 1) break;
+          caudal[y * gw + x] += 1;
+          if (A(x, y) < 0.06) break;
+        }
+      }
+      ctx.fillStyle = "#4f86b8";
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+        const q = caudal[y * gw + x];
+        if (q < 18) continue;
+        const rad = Math.min(3.2, 0.5 + Math.log(q / 18) * 0.6);
+        ctx.beginPath();
+        ctx.arc(x * S, y * S, rad, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Rotulación
+      ctx.fillStyle = "#3b2f2a";
+      ctx.font = 'italic 30px "Fraunces"';
+      ctx.save();
+      ctx.translate(560, 980);
+      ctx.rotate(-0.55);
+      ctx.letterSpacing = "14px";
+      ctx.fillText("SIERRA  DE  QUILLO", 0, 0);
+      ctx.restore();
+      // cima más alta
+      let mx = 0, my = 0, mh = 0;
+      for (let y = 20; y < gh - 20; y++) for (let x = 20; x < gw - 20; x++) if (A(x, y) > mh) { mh = A(x, y); mx = x; my = y; }
+      ctx.fillStyle = "#3b2f2a";
+      ctx.beginPath(); ctx.moveTo(mx * S, my * S - 9); ctx.lineTo(mx * S + 7, my * S + 4); ctx.lineTo(mx * S - 7, my * S + 4); ctx.fill();
+      ctx.font = 'italic 22px "Fraunces"';
+      ctx.fillText("Pico Chechist", mx * S + 12, my * S - 6);
+      ctx.font = '16px "Plex Mono"';
+      ctx.fillText(`${Math.round(mh * 3100).toLocaleString("es-ES")} m`, mx * S + 12, my * S + 14);
+      ctx.font = 'italic 22px "Fraunces"';
+      ctx.fillStyle = "#2c5c8a";
+      ctx.save(); ctx.translate(225, 470); ctx.rotate(1.45); ctx.fillText("Embalse del Olivar", 0, 0); ctx.restore();
+      // cartela, escala y cuadrícula
+      ctx.strokeStyle = "rgba(60,50,40,.35)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 180) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 180) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.fillStyle = "rgba(244,239,226,.92)";
+      ctx.fillRect(690, 1170, 350, 140);
+      ctx.strokeStyle = "#3b2f2a";
+      ctx.strokeRect(690, 1170, 350, 140);
+      ctx.fillStyle = "#3b2f2a";
+      ctx.font = '900 30px "Fraunces"';
+      ctx.fillText("Hoja 1086 · Quillo", 712, 1210);
+      ctx.font = '16px "Plex Mono"';
+      ctx.fillText("1 : 50 000 · equidistancia 150 m", 712, 1240);
+      for (let k = 0; k < 4; k++) { ctx.fillStyle = k % 2 ? "#f4efe2" : "#3b2f2a"; ctx.fillRect(712 + k * 70, 1260, 70, 10); }
+      ctx.strokeRect(712, 1260, 280, 10);
+      ctx.fillStyle = "#3b2f2a";
+      ctx.fillText("0", 708, 1292); ctx.fillText("2 km", 965, 1292);
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, W - 6, H - 6);
+      M.papel(ctx, 1, 4);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

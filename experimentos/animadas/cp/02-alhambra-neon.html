@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #07060f; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Lacería nazarí (método de Hankin sobre el mosaico 4.8.8) hecha con tubos de neón
+    (async () => {
+      await M.fuentes('30px "Plex Mono"', '60px "DM Serif"');
+      const ctx = canvas2d();
+      const r = rng(1238);
+      const n = makeNoise(1238);
+
+      // Pared de yesería oscura
+      M.porPixel(ctx, (x, y) => {
+        const v = n(x * 0.01, y * 0.01, 5);
+        const k = 14 + v * 18;
+        return [k * 0.9, k * 0.75, k * 1.2];
+      });
+
+      // --- Mosaico de octógonos y cuadrados ---
+      const e = 58;
+      const s = e * (1 + Math.SQRT2);
+      const Roct = e / (2 * Math.sin(Math.PI / 8));
+      const polis = [];
+      const ox = 540, oy = 610;
+      for (let j = -6; j <= 6; j++) for (let i = -5; i <= 5; i++) {
+        const cx = ox + i * s, cy = oy + j * s;
+        const oct = [];
+        for (let k = 0; k < 8; k++) {
+          const a = Math.PI / 8 + (k * Math.PI) / 4;
+          oct.push([cx + Roct * Math.cos(a), cy + Roct * Math.sin(a)]);
+        }
+        polis.push({ v: oct, tipo: 0, c: [cx, cy] });
+        const qx = cx + s / 2, qy = cy + s / 2, d = e / Math.SQRT2;
+        polis.push({ v: [[qx + d, qy], [qx, qy + d], [qx - d, qy], [qx, qy - d]], tipo: 1, c: [qx, qy] });
+      }
+
+      // Rayos de Hankin: desde el punto medio de cada lado, dos rayos a 67.5º
+      const theta = (67.5 * Math.PI) / 180;
+      const segs = [];
+      const cortes = [];
+      const vistos = new Set();
+      function interseca(p, d1, q, d2) {
+        const den = d1[0] * d2[1] - d1[1] * d2[0];
+        const t = ((q[0] - p[0]) * d2[1] - (q[1] - p[1]) * d2[0]) / den;
+        return [p[0] + d1[0] * t, p[1] + d1[1] * t];
+      }
+      for (const pol of polis) {
+        const v = pol.v, m = v.length;
+        const lados = v.map((a, i) => {
+          const b = v[(i + 1) % m];
+          const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+          const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+          // normal hacia dentro
+          let nn = [-u[1], u[0]];
+          if ((pol.c[0] - mid[0]) * nn[0] + (pol.c[1] - mid[1]) * nn[1] < 0) nn = [u[1], -u[0]];
+          const c = Math.cos(theta), sn = Math.sin(theta);
+          return { mid, r1: [-u[0] * c + nn[0] * sn, -u[1] * c + nn[1] * sn], r2: [u[0] * c + nn[0] * sn, u[1] * c + nn[1] * sn] };
+        });
+        for (let i = 0; i < m; i++) {
+          const A = lados[i], B = lados[(i + 1) % m];
+          const X = interseca(A.mid, A.r2, B.mid, B.r1);
+          segs.push({ p: [A.mid, X, B.mid], tipo: pol.tipo });
+        }
+        lados.forEach((l) => {
+          const clave = Math.round(l.mid[0]) + "," + Math.round(l.mid[1]);
+          if (vistos.has(clave)) return;
+          vistos.add(clave);
+          cortes.push([l.mid[0], l.mid[1], cortes.length % 2 ? l.r1 : l.r2]);
+        });
+      }
+
+      // Zócalo de alicatado muy apagado debajo del neón
+      for (const pol of polis) {
+        ctx.beginPath();
+        pol.v.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        ctx.fillStyle = pol.tipo ? "rgba(90,20,80,.22)" : "rgba(20,40,110,.22)";
+        ctx.fill();
+      }
+
+      // Neón en capa aparte (dentro del arco)
+      const neon = M.lienzo();
+      const g = neon.x;
+      g.lineCap = "round";
+      g.lineJoin = "round";
+      const colores = ["#37f5ff", "#ff4fd8"];
+      function tubo(pasada) {
+        for (const sg of segs) {
+          g.beginPath();
+          sg.p.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+          const col = colores[sg.tipo];
+          if (pasada === 0) { g.strokeStyle = col; g.globalAlpha = 0.28; g.lineWidth = 16; }
+          else if (pasada === 1) { g.strokeStyle = col; g.globalAlpha = 1; g.lineWidth = 5; }
+          else { g.strokeStyle = "#fff"; g.globalAlpha = 0.85; g.lineWidth = 1.6; }
+          g.stroke();
+        }
+      }
+      g.filter = "blur(10px)";
+      tubo(0);
+      g.filter = "none";
+      tubo(1);
+      tubo(2);
+      g.globalAlpha = 1;
+      // Los tubos no se tocan: hueco donde se cruzan, alternando cuál pasa por encima
+      g.globalCompositeOperation = "destination-out";
+      cortes.forEach(([x, y], i) => {
+        g.beginPath();
+        g.arc(x, y, 7, 0, Math.PI * 2);
+        g.fill();
+      });
+      g.globalCompositeOperation = "source-over";
+      cortes.forEach(([x, y, d]) => {
+        g.beginPath();
+        g.moveTo(x - d[0] * 10, y - d[1] * 10);
+        g.lineTo(x + d[0] * 10, y + d[1] * 10);
+        g.strokeStyle = "#b9a7ff";
+        g.lineWidth = 5;
+        g.stroke();
+        g.strokeStyle = "#fff";
+        g.lineWidth = 1.6;
+        g.stroke();
+      });
+      // Rosetas doradas en el centro de los octógonos
+      for (const pol of polis) if (!pol.tipo) {
+        g.save();
+        g.shadowColor = "#ffb23f";
+        g.shadowBlur = 14;
+        g.strokeStyle = "#ffd27a";
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.arc(pol.c[0], pol.c[1], 9, 0, Math.PI * 2);
+        g.stroke();
+        g.restore();
+      }
+
+      // Arco de herradura: solo se ve el neón dentro
+      const acx = 540, acy = 560, ar = 420;
+      const arco = new Path2D();
+      const a0 = Math.PI * 0.5 + 1.2, a1 = Math.PI * 0.5 - 1.2 + Math.PI * 2;
+      arco.moveTo(acx + ar * Math.cos(a0), 1180);
+      arco.arc(acx, acy, ar, a0, a1);
+      arco.lineTo(acx + ar * Math.cos(a1), 1180);
+      arco.closePath();
+      ctx.save();
+      ctx.fillStyle = "#050410";
+      ctx.fill(arco);
+      ctx.clip(arco);
+      ctx.drawImage(neon.c, 0, 0);
+      ctx.restore();
+
+      // Marco del arco: alfiz y dovelas en neón dorado
+      ctx.save();
+      ctx.shadowColor = "#ff9e2c";
+      ctx.shadowBlur = 22;
+      ctx.strokeStyle = "#ffcf7a";
+      ctx.lineWidth = 4;
+      ctx.stroke(arco);
+      ctx.beginPath();
+      ctx.arc(acx, acy, ar + 34, a0 - 0.02, a1 + 0.02);
+      ctx.stroke();
+      for (let k = 0; k <= 22; k++) {
+        const a = a0 + ((a1 - a0) * k) / 22;
+        ctx.beginPath();
+        ctx.moveTo(acx + ar * Math.cos(a), acy + ar * Math.sin(a));
+        ctx.lineTo(acx + (ar + 34) * Math.cos(a), acy + (ar + 34) * Math.sin(a));
+        ctx.stroke();
+      }
+      ctx.strokeRect(66, 56, 948, 1160);
+      ctx.restore();
+
+      // Enjutas con ataurique: pequeñas espirales doradas tenues
+      ctx.strokeStyle = "rgba(255,200,120,.22)";
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 70; i++) {
+        const x = 100 + r() * 880, y = 70 + r() * 1130;
+        const dx = x - acx, dy = y - acy;
+        if (Math.hypot(dx, dy) < ar + 60 && y < 1180) continue;
+        if (y > 700 && Math.abs(dx) < ar + 40) continue;
+        ctx.beginPath();
+        for (let t = 0; t < 12; t += 0.2) ctx.lineTo(x + Math.cos(t) * t * 1.6, y + Math.sin(t) * t * 1.6);
+        ctx.stroke();
+      }
+
+      // Cartela inferior
+      ctx.save();
+      ctx.shadowColor = "#37f5ff";
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = "#c9fbff";
+      ctx.font = '26px "Plex Mono"';
+      ctx.textAlign = "center";
+      ctx.fillText("LACERÍA  ·  RUEDA DE OCHO  ·  NEÓN", 540, 1262);
+      ctx.restore();
+      ctx.fillStyle = "rgba(255,210,150,.6)";
+      ctx.font = '18px "Plex Mono"';
+      ctx.textAlign = "center";
+      ctx.fillText("Granada · Sala de Comares · versión eléctrica", 540, 1298);
+
+      M.grano(ctx, 8, 12);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #5c8a3a; } canvas { image-rendering: pixelated; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Wave Function Collapse: cada casilla empieza pudiendo ser cualquier loseta; se colapsa
+    fases.marca();
+    // la más restringida y se propagan las reglas de bordes (camino con camino, agua con agua...).
+    fases.marca();
+    // Las losetas se dibujan en pixel art de 12×12 y se amplían ×6.
+    (async () => {
+      const r = rng(1984);
+      const T = 12, Z = 6, COLS = Math.ceil(W / (T * Z)), FILAS = Math.ceil(H / (T * Z));
+      // bordes: [arriba, derecha, abajo, izquierda]: h = hierba, c = camino, a = agua
+      const L = [];
+      const add = (nombre, b, peso) => L.push({ nombre, b, peso });
+      add("hierba", "hhhh", 22); add("flores", "hhhh", 3); add("arbol", "hhhh", 4); add("casa", "hhhh", 3); add("huerto", "hhhh", 2); add("pozo", "hhhh", 0.4);
+      add("caminoH", "hchc", 1.2); add("caminoV", "chch", 1.2);
+      add("curvaNE", "cchh", 1.2); add("curvaES", "hcch", 1.2); add("curvaSO", "hhcc", 1.2); add("curvaON", "chhc", 1.2);
+      add("rioH", "haha", 1.4); add("rioV", "ahah", 1.4);
+      add("rioNE", "aahh", 0.8); add("rioES", "haah", 0.8); add("rioSO", "hhaa", 0.8); add("rioON", "ahha", 0.8);
+      add("puenteH", "acac", 0.25); add("puenteV", "caca", 0.25);
+      const NT = L.length;
+      const opp = (d) => (d + 2) % 4;
+      const encaja = (a, b, d) => L[a].b[d] === L[b].b[opp(d)];
+      function intenta() {
+        const ola = Array.from({ length: COLS * FILAS }, () => new Set(L.map((_, i) => i).filter((i) => L[i].peso > 0)));
+        const D = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        while (true) {
+          let mejor = -1, me = Infinity;
+          for (let i = 0; i < ola.length; i++) {
+            const s = ola[i].size;
+            if (s === 0) return null;
+            if (s > 1 && s + r() * 0.5 < me) { me = s + r() * 0.5; mejor = i; }
+          }
+          if (mejor < 0) return ola.map((s) => [...s][0]);
+          const opciones = [...ola[mejor]];
+          let tot = opciones.reduce((a, i) => a + L[i].peso, 0), x = r() * tot, elegida = opciones[0];
+          for (const i of opciones) { x -= L[i].peso; if (x <= 0) { elegida = i; break; } }
+          ola[mejor] = new Set([elegida]);
+          const pila = [mejor];
+          while (pila.length) {
+            const c = pila.pop();
+            const cx = c % COLS, cy = (c / COLS) | 0;
+            D.forEach(([dx, dy], d) => {
+              const nx = cx + dx, ny = cy + dy;
+              if (nx < 0 || ny < 0 || nx >= COLS || ny >= FILAS) return;
+              const k = ny * COLS + nx;
+              const antes = ola[k].size;
+              for (const t of [...ola[k]]) if (![...ola[c]].some((a) => encaja(a, t, d))) ola[k].delete(t);
+              if (ola[k].size !== antes) pila.push(k);
+            });
+          }
+        }
+      }
+      let mapa = null;
+      for (let i = 0; i < 40 && !mapa; i++) mapa = intenta();
+
+      // Losetas en pixel art
+      const P = { h1: "#6fae3e", h2: "#5c9a33", h3: "#87c24c", c1: "#d9b77a", c2: "#c49a5c", a1: "#3a8fd6", a2: "#5fb2ee", a3: "#2a6fb0", m: "#7a4f2a", t: "#c4472d", b: "#f2efe6", s: "#2f5d1f", f1: "#ffd23a", f2: "#ff6fa8", p: "#9a9aa2" };
+      const loseta = M.lienzo(T, T);
+      const g = loseta.x;
+      const px = (x, y, c) => { g.fillStyle = P[c] || c; g.fillRect(x, y, 1, 1); };
+      const rect = (x, y, w, h, c) => { g.fillStyle = P[c] || c; g.fillRect(x, y, w, h); };
+      function hierba(seed) {
+        const rr = rng(seed);
+        rect(0, 0, T, T, "h1");
+        for (let i = 0; i < 14; i++) px(Math.floor(rr() * T), Math.floor(rr() * T), rr() < 0.5 ? "h2" : "h3");
+      }
+      const banda = (horiz, a, b, borde) => { if (horiz) { rect(0, 4, T, 4, a); rect(0, 4, T, 1, borde); rect(0, 7, T, 1, borde); } else { rect(4, 0, 4, T, a); rect(4, 0, 1, T, borde); rect(7, 0, 1, T, borde); } };
+      const curva = (dirs, a, borde) => {
+        rect(4, 4, 4, 4, a);
+        for (const d of dirs) { if (d === 0) rect(4, 0, 4, 6, a); if (d === 1) rect(6, 4, 6, 4, a); if (d === 2) rect(4, 6, 4, 6, a); if (d === 3) rect(0, 4, 6, 4, a); }
+        g.fillStyle = P[borde];
+      };
+      const dib = {
+        hierba: (s) => hierba(s),
+        flores: (s) => { hierba(s); const rr = rng(s + 1); for (let i = 0; i < 5; i++) px(1 + Math.floor(rr() * 10), 1 + Math.floor(rr() * 10), rr() < 0.5 ? "f1" : "f2"); },
+        arbol: (s) => { hierba(s); rect(5, 8, 2, 3, "m"); rect(2, 2, 8, 6, "s"); rect(3, 1, 6, 1, "s"); rect(3, 3, 3, 2, "h3"); },
+        casa: (s) => { hierba(s); rect(2, 4, 8, 6, "b"); rect(1, 2, 10, 3, "t"); rect(2, 1, 8, 1, "t"); rect(5, 7, 2, 3, "m"); rect(3, 5, 1, 1, "a3"); rect(8, 5, 1, 1, "a3"); rect(2, 10, 8, 1, "h2"); },
+        huerto: (s) => { hierba(s); for (let y = 1; y < 11; y += 3) { rect(1, y, 10, 2, "m"); for (let x = 2; x < 11; x += 2) px(x, y, "h3"); } },
+        pozo: (s) => { hierba(s); rect(3, 3, 6, 6, "p"); rect(4, 4, 4, 4, "a3"); rect(2, 2, 1, 8, "m"); rect(9, 2, 1, 8, "m"); rect(2, 1, 8, 1, "t"); },
+        caminoH: (s) => { hierba(s); banda(true, "c1", "c2"); },
+        caminoV: (s) => { hierba(s); banda(false, "c1", "c2"); },
+        curvaNE: (s) => { hierba(s); curva([0, 1], "c1", "c2"); }, curvaES: (s) => { hierba(s); curva([1, 2], "c1", "c2"); },
+        curvaSO: (s) => { hierba(s); curva([2, 3], "c1", "c2"); }, curvaON: (s) => { hierba(s); curva([3, 0], "c1", "c2"); },
+        cruce: (s) => { hierba(s); curva([0, 1, 2, 3], "c1", "c2"); px(6, 6, "c2"); },
+        rioH: (s) => { hierba(s); banda(true, "a1", "a3"); px((s * 3) % 12, 5, "a2"); px((s * 7) % 12, 6, "a2"); },
+        rioV: (s) => { hierba(s); banda(false, "a1", "a3"); px(5, (s * 3) % 12, "a2"); px(6, (s * 7) % 12, "a2"); },
+        rioNE: (s) => { hierba(s); curva([0, 1], "a1", "a3"); }, rioES: (s) => { hierba(s); curva([1, 2], "a1", "a3"); },
+        rioSO: (s) => { hierba(s); curva([2, 3], "a1", "a3"); }, rioON: (s) => { hierba(s); curva([3, 0], "a1", "a3"); },
+        puenteH: (s) => { hierba(s); banda(false, "a1", "a3"); rect(0, 4, T, 4, "m"); for (let x = 0; x < T; x += 2) rect(x, 4, 1, 4, "c2"); },
+        puenteV: (s) => { hierba(s); banda(true, "a1", "a3"); rect(4, 0, 4, T, "m"); for (let y = 0; y < T; y += 2) rect(4, y, 4, 1, "c2"); },
+      };
+      const ctx = canvas2d();
+      ctx.imageSmoothingEnabled = false;
+      mapa.forEach((t, i) => {
+        const nom = L[t].nombre;
+        (dib[nom] || dib.hierba)(i * 17 + 3);
+        ctx.drawImage(loseta.c, (i % COLS) * T * Z, ((i / COLS) | 0) * T * Z, T * Z, T * Z);
+      });
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

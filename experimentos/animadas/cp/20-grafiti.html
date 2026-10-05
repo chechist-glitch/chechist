@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #7a3a2a; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Grafiti sobre ladrillo: nube de fondo, extrusión 3D, relleno con degradados de spray,
+    fases.marca();
+    // contorno, chorretones, brillos y firmas. La pintura deja ver las juntas del muro.
+    (async () => {
+      await M.fuentes('100px "Rubik Mono"', '40px "Pacifico"', '40px "Anton"');
+      const ctx = canvas2d();
+      const r = rng(1983);
+      const n = makeNoise(1983);
+
+      // Muro de ladrillo
+      const BW = 124, BH = 42;
+      const junta = (x, y) => {
+        const fila = Math.floor(y / BH);
+        const off = fila % 2 ? BW / 2 : 0;
+        const lx = (x + off) % BW, ly = y % BH;
+        return Math.min(lx, BW - lx, ly, BH - ly);
+      };
+      M.porPixel(ctx, (x, y) => {
+        const fila = Math.floor(y / BH);
+        const col = Math.floor((x + (fila % 2 ? BW / 2 : 0)) / BW);
+        const tono = n(col * 3.1, fila * 7.7, 1);
+        const j = junta(x, y);
+        const v = 0.85 + n(x * 0.05, y * 0.05, 3) * 0.3;
+        if (j < 3.5) return [150 * v, 140 * v, 125 * v];
+        const borde = j < 6 ? 0.85 : 1;
+        return [(150 + tono * 60) * v * borde, (62 + tono * 30) * v * borde, (44 + tono * 18) * v * borde];
+      });
+      // manchas de pintura vieja
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = ["rgba(230,230,220,.2)", "rgba(60,80,120,.18)", "rgba(220,200,90,.15)"][i % 3];
+        ctx.filter = "blur(6px)";
+        ctx.fillRect(r() * W, r() * H, 120 + r() * 260, 60 + r() * 200);
+        ctx.filter = "none";
+      }
+
+      const P = M.lienzo();
+      const g = P.x;
+      // Letras: cada una con su giro, escala y desnivel
+      const palabra = "QUILLO";
+      const letras = [];
+      let x = 70;
+      palabra.split("").forEach((l, i) => {
+        const tam = 250 + (i % 2 ? 30 : 0) + r() * 24;
+        g.font = `${tam}px "Rubik Mono"`;
+        const w = g.measureText(l).width * 0.86;
+        letras.push({ l, x, y: 700 + Math.sin(i * 1.3) * 40, tam, ang: (r() - 0.5) * 0.25 });
+        x += w;
+      });
+      const escala = 940 / (x - 70);
+      const pinta = (fn) => letras.forEach((t) => {
+        g.save();
+        g.translate(70 + (t.x - 70) * escala, t.y);
+        g.rotate(t.ang);
+        g.font = `${t.tam * escala}px "Rubik Mono"`;
+        fn(t);
+        g.restore();
+      });
+
+      // 1. Nube de fondo
+      g.fillStyle = "#b8f1ff";
+      g.strokeStyle = "#141026";
+      g.lineWidth = 10;
+      const nube = new Path2D();
+      for (let i = 0; i < 26; i++) {
+        const a = (i / 26) * Math.PI * 2;
+        nube.moveTo(540 + Math.cos(a) * 470 + 90, 640 + Math.sin(a) * 250);
+        nube.arc(540 + Math.cos(a) * 470, 640 + Math.sin(a) * 250, 90 + r() * 40, 0, Math.PI * 2);
+      }
+      nube.ellipse(540, 640, 480, 260, 0, 0, Math.PI * 2);
+      g.stroke(nube);
+      g.fill(nube);
+      for (let i = 0; i < 40; i++) {
+        g.fillStyle = "#141026";
+        g.beginPath();
+        g.arc(80 + r() * 920, 360 + r() * 560, 3 + r() * 9, 0, Math.PI * 2);
+        g.fill();
+      }
+      // 2. Extrusión 3D
+      for (let k = 22; k > 0; k--) pinta((t) => { g.fillStyle = k > 20 ? "#141026" : `rgb(${60 + k * 2},${22 + k},${100 + k * 2})`; g.fillText(t.l, k * 0.9, k * 1.2); });
+      // 3. Contorno grueso
+      pinta((t) => { g.lineJoin = "round"; g.strokeStyle = "#141026"; g.lineWidth = 26; g.strokeText(t.l, 0, 0); });
+      pinta((t) => { g.strokeStyle = "#fff"; g.lineWidth = 12; g.strokeText(t.l, 0, 0); });
+      // 4. Relleno con degradado y "fades" de spray
+      const relleno = M.lienzo();
+      const f = relleno.x;
+      const gr = f.createLinearGradient(0, 480, 0, 820);
+      gr.addColorStop(0, "#ffe14d");
+      gr.addColorStop(0.45, "#ff8a1f");
+      gr.addColorStop(1, "#ff2e7a");
+      f.fillStyle = gr;
+      f.fillRect(0, 0, W, H);
+      for (let i = 0; i < 26000; i++) {
+        const y = 560 + (r() - 0.5) * 200 * r();
+        const xx = r() * W;
+        f.fillStyle = `rgba(255,255,255,${0.12 * r()})`;
+        f.fillRect(xx, y, 2, 2);
+      }
+      for (let i = 0; i < 10; i++) {
+        f.strokeStyle = `rgba(200,40,120,${0.12 + r() * 0.1})`;
+        f.lineWidth = 6 + r() * 10;
+        f.filter = "blur(3px)";
+        f.beginPath();
+        const yy = 640 + r() * 60;
+        f.moveTo(r() * W, yy);
+        f.lineTo(r() * W, yy + (r() - 0.5) * 60);
+        f.stroke();
+      }
+      f.filter = "none";
+      // máscara con todas las letras (destination-in por letra dejaría solo la intersección)
+      const mascara = M.lienzo();
+      letras.forEach((t) => {
+        const m = mascara.x;
+        m.save();
+        m.translate(70 + (t.x - 70) * escala, t.y);
+        m.rotate(t.ang);
+        m.font = `${t.tam * escala}px "Rubik Mono"`;
+        m.fillText(t.l, 0, 0);
+        m.restore();
+      });
+      f.globalCompositeOperation = "destination-in";
+      f.drawImage(mascara.c, 0, 0);
+      g.drawImage(relleno.c, 0, 0);
+      // 5. Chorretones desde la base de las letras
+      for (let i = 0; i < 22; i++) {
+        const t = letras[Math.floor(r() * letras.length)];
+        const bx = 70 + (t.x - 70) * escala + 20 + r() * 110, by = t.y + 6;
+        const largo = 30 + r() * 150;
+        g.strokeStyle = r() < 0.5 ? "#ff2e7a" : "#141026";
+        g.lineWidth = 3 + r() * 4;
+        g.beginPath();
+        g.moveTo(bx, by);
+        g.lineTo(bx + (r() - 0.5) * 3, by + largo);
+        g.stroke();
+        g.fillStyle = g.strokeStyle;
+        g.beginPath();
+        g.arc(bx, by + largo, g.lineWidth * 0.9, 0, Math.PI * 2);
+        g.fill();
+      }
+      // 6. Brillos y estrellas
+      g.fillStyle = "#fff";
+      pinta((t) => {
+        g.fillRect(14, -t.tam * escala * 0.62, 10, 26);
+        g.fillRect(14, -t.tam * escala * 0.62 + 34, 10, 8);
+      });
+      const estrella = (x, y, s) => {
+        g.beginPath();
+        for (let k = 0; k < 8; k++) {
+          const a = (k * Math.PI) / 4, rr = k % 2 ? s * 0.25 : s;
+          g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+        }
+        g.fill();
+      };
+      [[120, 470, 34], [990, 520, 44], [860, 880, 26], [300, 420, 20]].forEach(([x, y, s]) => estrella(x, y, s));
+
+      // Sobrespray: halo difuso detrás de todo
+      ctx.save();
+      ctx.filter = "blur(10px)";
+      ctx.globalAlpha = 0.4;
+      ctx.drawImage(P.c, 0, 0);
+      ctx.restore();
+      ctx.globalAlpha = 0.96;
+      ctx.drawImage(P.c, 0, 0);
+      ctx.globalAlpha = 1;
+      // La pintura se hunde en las juntas: se oscurecen otra vez
+      const img = ctx.getImageData(0, 0, W, H);
+      const d = img.data;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const j = junta(x, y);
+        if (j < 4) { const k = (y * W + x) * 4; const m = 0.62 + j * 0.08; d[k] *= m; d[k + 1] *= m; d[k + 2] *= m; }
+      }
+      ctx.putImageData(img, 0, 0);
+
+      // Firmas con rotulador
+      ctx.fillStyle = "#101010";
+      ctx.font = '64px "Pacifico"';
+      ctx.save();
+      ctx.translate(640, 1080);
+      ctx.rotate(-0.12);
+      ctx.fillText("chechist", 0, 0);
+      ctx.restore();
+      ctx.font = '40px "Anton"';
+      ctx.fillStyle = "#1f5fd1";
+      ctx.fillText("CREW 26", 120, 1100);
+      ctx.fillStyle = "#f2f2f2";
+      ctx.font = '30px "Pacifico"';
+      ctx.fillText("lo mejor está por pintar", 110, 250);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

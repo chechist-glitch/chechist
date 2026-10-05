@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #f3eee2; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Sumi-e: montañas en aguada que se corren en el papel y bambú a pincel seco.
+    fases.marca();
+    // Cada pincelada son ~20 cerdas que siguen el mismo trazo; al final se quedan sin tinta.
+    const ctx = canvas2d();
+    const r = rng(1420);
+    const n = makeNoise(1420);
+
+    fases.marca();
+    // Papel de arroz con fibras largas
+    M.porPixel(ctx, (x, y) => {
+      const v = 0.97 + (n(x * 0.01, y * 0.01, 3) - 0.5) * 0.05;
+      return [243 * v, 238 * v, 226 * v];
+    });
+    ctx.strokeStyle = "rgba(160,140,110,.08)";
+    for (let i = 0; i < 700; i++) {
+      const x = r() * W, y = r() * H, a = r() * 6.28, l = 20 + r() * 60;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (r() - 0.5) * 10, y + Math.sin(a) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l);
+      ctx.stroke();
+    }
+
+    fases.marca();
+    // Montañas en aguada: capas grises con borde que "sangra"
+    const aguada = M.lienzo();
+    const a = aguada.x;
+    for (const [base, amp, esc, alfa, s] of [[760, 330, 0.004, 0.18, 1], [880, 260, 0.006, 0.28, 2], [980, 160, 0.008, 0.38, 3]]) {
+      a.fillStyle = `rgba(40,42,48,${alfa})`;
+      a.beginPath();
+      a.moveTo(0, H);
+      for (let x = 0; x <= W; x += 3) a.lineTo(x, base - amp * Math.pow(n(x * esc + s * 10, s, 4), 1.6) * 1.4);
+      a.lineTo(W, H);
+      a.fill();
+      // la tinta se diluye hacia abajo (niebla)
+      const niebla = a.createLinearGradient(0, base - 120, 0, base + 80);
+      niebla.addColorStop(0, "rgba(243,238,226,0)");
+      niebla.addColorStop(1, "rgba(243,238,226,1)");
+      a.fillStyle = niebla;
+      a.fillRect(0, base - 120, W, H);
+    }
+    ctx.save();
+    ctx.filter = "blur(2.5px)";
+    ctx.drawImage(aguada.c, 0, 0);
+    ctx.restore();
+
+    fases.marca();
+    // --- Pincel de cerdas ---
+    function pincelada(pts, ancho, tinta = 0.85, seco = 0.6) {
+      const N = 22;
+      const L = pts.length;
+      for (let b = 0; b < N; b++) {
+        const off = (b / (N - 1) - 0.5) * 2;
+        const carga = 0.35 + r() * 0.65;
+        const umbral = seco + r() * 0.35;
+        ctx.strokeStyle = `rgba(18,18,22,${tinta * carga * (1 - Math.abs(off) * 0.25)})`;
+        ctx.lineWidth = (ancho / N) * 2.2;
+        ctx.lineCap = "round";
+        let dibujando = false;
+        for (let i = 1; i < L; i++) {
+          const t = i / (L - 1);
+          const [x0, y0, w0] = pts[i - 1], [x1, y1, w1] = pts[i];
+          const dx = x1 - x0, dy = y1 - y0, m = Math.hypot(dx, dy) || 1;
+          const nx = -dy / m, ny = dx / m;
+          const seca = t > umbral && n(i * 0.25, b * 3.3, 1) > 0.45;
+          if (seca) { if (dibujando) { ctx.stroke(); dibujando = false; } continue; }
+          if (!dibujando) { ctx.beginPath(); ctx.moveTo(x0 + nx * off * w0 * 0.5, y0 + ny * off * w0 * 0.5); dibujando = true; }
+          ctx.lineTo(x1 + nx * off * w1 * 0.5, y1 + ny * off * w1 * 0.5);
+        }
+        if (dibujando) ctx.stroke();
+      }
+    }
+    fases.marca();
+    // Caña de bambú: cada tramo es una pasada de pincel plano, cargado en los bordes,
+    fases.marca();
+    // más claro en el centro y seco al final (se ve el papel entre las cerdas)
+    function tramo(x0, y0, x1, y1, ancho) {
+      const L = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(y1 - y0, x1 - x0) - Math.PI / 2;
+      ctx.save();
+      ctx.translate(x0, y0);
+      ctx.rotate(ang);
+      const g = ctx.createLinearGradient(-ancho / 2, 0, ancho / 2, 0);
+      g.addColorStop(0, "rgba(22,22,26,.78)");
+      g.addColorStop(0.18, "rgba(34,34,38,.6)");
+      g.addColorStop(0.7, "rgba(38,38,42,.58)");
+      g.addColorStop(1, "rgba(22,22,26,.74)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(-ancho / 2, 4);
+      ctx.quadraticCurveTo(0, -3, ancho / 2, 4);
+      ctx.lineTo(ancho / 2 * 0.96, L - 2);
+      ctx.quadraticCurveTo(0, L + 3, -ancho / 2 * 0.96, L - 2);
+      ctx.closePath();
+      ctx.fill();
+      // cerdas secas: rayas de papel hacia el final del tramo
+      ctx.strokeStyle = "rgba(243,238,226,.85)";
+      for (let i = 0; i < 16; i++) {
+        const x = (r() - 0.5) * ancho * 0.9;
+        const y = L * (0.6 + r() * 0.3);
+        ctx.lineWidth = 0.5 + r() * 1.1;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + (r() - 0.5) * 2, L);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    function cana(x0, y0, x1, y1, ancho, tramos) {
+      for (let k = 0; k < tramos; k++) {
+        const t0 = k / tramos + 0.004, t1 = (k + 1) / tramos - 0.004;
+        const xa = M.lerp(x0, x1, t0) + Math.sin(t0 * 3) * 6, ya = M.lerp(y0, y1, t0);
+        const xb = M.lerp(x0, x1, t1) + Math.sin(t1 * 3) * 6, yb = M.lerp(y0, y1, t1);
+        tramo(xb, yb, xa, ya, ancho);
+        // nudo: dos toques cortos y oscuros
+        const xm = xb, ym = yb;
+        pincelada([[xm - ancho * 0.62, ym + 2, 3], [xm - ancho * 0.1, ym - 1, 4]], 4, 0.95, 0.95);
+        pincelada([[xm + ancho * 0.05, ym - 1, 4], [xm + ancho * 0.62, ym + 3, 3]], 4, 0.95, 0.95);
+      }
+    }
+    fases.marca();
+    // Hoja: fina al empezar, ancha en medio, afilada al final
+    function hoja(x, y, ang, largo, ancho) {
+      const pts = [];
+      for (let i = 0; i <= 20; i++) {
+        const t = i / 20;
+        const a2 = ang + Math.sin(t * Math.PI) * 0.12;
+        pts.push([x + Math.cos(a2) * largo * t, y + Math.sin(a2) * largo * t, ancho * Math.pow(Math.sin(Math.pow(t, 0.7) * Math.PI), 0.9) + 1]);
+      }
+      pincelada(pts, ancho, 0.9, 0.82);
+    }
+    cana(700, H + 40, 640, -40, 46, 6);
+    cana(820, H + 40, 860, 140, 34, 5);
+    cana(560, H + 40, 520, 420, 24, 4);
+    fases.marca();
+    // ramillas y grupos de hojas
+    const grupos = [[652, 430, -2.4], [652, 650, -0.6], [848, 400, -2.7], [856, 640, -0.4], [530, 640, -2.2], [645, 200, -0.8]];
+    for (const [x, y, a0] of grupos) {
+      const rx = x + Math.cos(a0) * 70, ry = y + Math.sin(a0) * 70;
+      pincelada([[x, y, 5], [(x + rx) / 2, (y + ry) / 2 - 6, 4], [rx, ry, 3]], 5, 0.9, 0.95);
+      for (let k = 0; k < 4; k++) hoja(rx, ry, a0 + (k - 1.5) * 0.45 + (r() - 0.5) * 0.2 + 0.5, 150 + r() * 70, 26 + r() * 8);
+    }
+    fases.marca();
+    // Sello rojo y columna de "caligrafía" abstracta
+    ctx.fillStyle = "#b8242a";
+    ctx.fillRect(150, 980, 74, 74);
+    ctx.strokeStyle = "#f3eee2";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(165, 995); ctx.lineTo(209, 995); ctx.lineTo(209, 1039); ctx.lineTo(177, 1039); ctx.lineTo(177, 1010); ctx.lineTo(195, 1010); ctx.lineTo(195, 1025);
+    ctx.stroke();
+    fases.marca(); fases.preparar(); listo();
+  </script>
+</body>
+</html>

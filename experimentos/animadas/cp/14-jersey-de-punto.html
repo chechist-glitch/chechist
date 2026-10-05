@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #2a0d10; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Jersey de punto con cenefas de estilo nórdico: cada punto es una "V" de dos lazadas de lana
+    const ctx = canvas2d();
+    const r = rng(1224);
+    const n = makeNoise(1224);
+    const SW = 20, SH = 16;
+    const COLS = Math.ceil(W / SW) + 1, FILAS = Math.ceil(H / SH) + 2;
+    const LANA = { R: "#b3262d", C: "#f1e6cf", N: "#1f2d4d", V: "#2f6b44", A: "#e0a528", M: "#6e3b26" };
+    const rej = Array.from({ length: FILAS }, () => new Array(COLS).fill("R"));
+    const pon = (x, y, c) => { if (y >= 0 && y < FILAS) rej[y][((x % COLS) + COLS) % COLS] = c; };
+    const repite = (filas, y0, ancho, mapa) => {
+      for (let x = 0; x < COLS; x++) filas.forEach((f, j) => { const ch = f[x % ancho]; if (mapa[ch]) pon(x, y0 + j, mapa[ch]); });
+    };
+
+    fases.marca();
+    // Cenefas
+    const franja = (y, c) => { for (let x = 0; x < COLS; x++) pon(x, y, c); };
+    fases.marca();
+    // 1. dientes
+    franja(3, "C");
+    repite(["X...", "XX..", "XXX.", "XX..", "X..."], 4, 4, { X: "C" });
+    franja(9, "C");
+    fases.marca();
+    // 2. estrella nórdica de ocho puntas sobre azul
+    for (let y = 12; y < 31; y++) franja(y, "N");
+    const estrella = [
+      "......X.......X.......", ".....XXX.....XXX......", "....X.XXX...XXX.X.....", "...XX..XXX.XXX..XX....", "..XXXX..XXXXX..XXXX...",
+      ".XXXXXX..XXX..XXXXXX..", "..XXXXXX.....XXXXXX...", "...XXXXXX...XXXXXX....", "..........X..........", "...XXXXXX...XXXXXX....",
+      "..XXXXXX.....XXXXXX...", ".XXXXXX..XXX..XXXXXX..", "..XXXX..XXXXX..XXXX...", "...XX..XXX.XXX..XX....", "....X.XXX...XXX.X.....",
+      ".....XXX.....XXX......", "......X.......X.......",
+    ];
+    repite(estrella, 13, 21, { X: "C" });
+    for (let x = 0; x < COLS; x++) if (x % 21 === 17) for (let y = 14; y < 29; y += 2) pon(x, y, "A");
+    fases.marca();
+    // 3. rombos pequeños
+    franja(33, "C");
+    repite(["..X...", ".XAX..", "XAAAX.", ".XAX..", "..X..."], 35, 6, { X: "V", A: "A" });
+    franja(41, "C");
+    fases.marca();
+    // 4. texto con letra de 3×5
+    const F = { F: "111100110100100", E: "111100110100111", L: "100100100100111", I: "111010010010111", Z: "111001010100111", S: "011100010001110", T: "111010010010010", A: "010101111101101", " ": "000000000000000" };
+    for (let y = 43; y < 54; y++) franja(y, "C");
+    const frase = "FELIZ SIESTA";
+    const x0 = Math.floor((COLS - frase.length * 4) / 2);
+    [...frase].forEach((l, i) => { for (let k = 0; k < 15; k++) if (F[l][k] === "1") pon(x0 + i * 4 + (k % 3), 46 + Math.floor(k / 3), "R"); });
+    repite(["X.", ".X"], 43, 2, { X: "A" });
+    repite(["X.", ".X"], 52, 2, { X: "A" });
+    fases.marca();
+    // 5. abetos
+    franja(56, "C");
+    for (let y = 58; y < 72; y++) franja(y, "V");
+    repite([
+      "....X.....", "...XXX....", "..XXXXX...", "...XXX....", "..XXXXX...", ".XXXXXXX..", "..XXXXX...", ".XXXXXXX..", "XXXXXXXXX.", "....M.....", "....M.....",
+    ], 59, 10, { X: "C", M: "M" });
+    repite(["X.........", "...........", ".....X....", "..........", "........X.", ".X........"], 58, 10, { X: "A" });
+    franja(73, "C");
+    franja(75, "N");
+    franja(76, "N");
+
+    fases.marca();
+    // Punto: dos lazadas inclinadas formando una V
+    function lazada(cx, cy, lado, col) {
+      const base = M.hex(col);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(lado * 0.52);
+      const rx = SW * 0.3, ry = SH * 0.78;
+      const g = ctx.createLinearGradient(-rx, 0, rx, 0);
+      g.addColorStop(0, M.rgb(base.map((v) => v * 0.45)));
+      g.addColorStop(0.45, M.rgb(base.map((v) => Math.min(255, v * 1.1 + 14))));
+      g.addColorStop(1, M.rgb(base.map((v) => v * 0.55)));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // fibras de la lana
+      ctx.strokeStyle = M.rgb(base.map((v) => v * 0.7), 0.5);
+      ctx.lineWidth = 0.7;
+      for (let k = -2; k <= 2; k++) {
+        ctx.beginPath();
+        ctx.ellipse(k * rx * 0.25, 0, rx * 0.15, ry * 0.9, 0, -1.2, 1.2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.fillStyle = "#1a0709";
+    ctx.fillRect(0, 0, W, H);
+    const ondula = (x, y) => [x + (n(x * 0.004, y * 0.004, 2) - 0.5) * 14, y + (n(x * 0.004 + 9, y * 0.004, 2) - 0.5) * 10];
+    const PUÑO = 78;
+    for (let j = 0; j < FILAS; j++) for (let i = 0; i < COLS; i++) {
+      const [x, y] = ondula(i * SW, j * SH - 10);
+      if (j >= PUÑO) {
+        // Puño elástico: dos del derecho, dos del revés
+        const derecho = i % 4 < 2;
+        if (!derecho) {
+          ctx.fillStyle = "#5e1418";
+          ctx.beginPath();
+          ctx.ellipse(x, y, SW * 0.45, SH * 0.32, 0, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
+        lazada(x - SW * 0.2, y, -1, LANA.R);
+        lazada(x + SW * 0.2, y, 1, LANA.R);
+        continue;
+      }
+      const col = LANA[rej[j][i]];
+      lazada(x - SW * 0.21, y, -1, col);
+      lazada(x + SW * 0.21, y, 1, col);
+    }
+    fases.marca();
+    // Pelusa suelta
+    ctx.lineWidth = 0.6;
+    for (let k = 0; k < 900; k++) {
+      const x = r() * W, y = r() * H, a = r() * Math.PI * 2, l = 4 + r() * 14;
+      ctx.strokeStyle = `rgba(255,240,230,${0.05 + r() * 0.12})`;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (r() - 0.5) * 6, y + Math.sin(a) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l);
+      ctx.stroke();
+    }
+    fases.marca();
+    // Luz suave de ventana
+    const luz = ctx.createRadialGradient(300, 250, 50, 540, 675, 1000);
+    luz.addColorStop(0, "rgba(255,240,220,.12)");
+    luz.addColorStop(1, "rgba(0,0,0,.35)");
+    ctx.fillStyle = luz;
+    ctx.fillRect(0, 0, W, H);
+    fases.marca(); fases.preparar(); listo();
+  </script>
+</body>
+</html>

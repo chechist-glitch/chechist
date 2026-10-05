@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/svg-dibuja.js"></script>
+<style>body { background: #1b2847; } svg { position: absolute; inset: 0; }</style>
+</head>
+<body>
+  <script>
+    // Sashiko y boro: parches de algodón índigo cosidos con puntada corrida blanca.
+    // SVG puro: los patrones son trazados con stroke-dasharray.
+    const r = rng(1603);
+    const hilo = `stroke="#efe8d8" stroke-width="3.2" stroke-linecap="round" fill="none" stroke-dasharray="9 7"`;
+    let s = `<svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="tela" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency=".9 .08" numOctaves="2" seed="5" result="a"/>
+        <feTurbulence type="fractalNoise" baseFrequency=".08 .9" numOctaves="2" seed="8" result="b"/>
+        <feBlend in="a" in2="b" mode="multiply" result="c"/>
+        <feColorMatrix in="c" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -.9 .75" result="sombra"/>
+        <feComposite in="sombra" in2="SourceGraphic" operator="in" result="s2"/>
+        <feBlend in="s2" in2="SourceGraphic" mode="multiply"/>
+      </filter>
+      <filter id="sombra"><feDropShadow dx="3" dy="4" stdDeviation="3" flood-color="#050a18" flood-opacity=".6"/></filter>
+    </defs>`;
+
+    // Patrones (cada uno devuelve el atributo d de un path)
+    function seigaiha(w, h, R) {
+      let d = "";
+      for (let row = 0, y = 0; y < h + R; row++, y += R / 2) for (let x = row % 2 ? R : 0; x < w + R * 2; x += R * 2)
+        for (const k of [1, 0.55]) d += `M ${x - R * k} ${y} A ${R * k} ${R * k} 0 0 1 ${x + R * k} ${y} `;
+      return d;
+    }
+    function asanoha(w, h, L) {
+      let d = "";
+      const hh = (L * Math.sqrt(3)) / 2;
+      for (let j = -1; j * hh < h + hh; j++) for (let i = -1; i * L < w + L; i++) {
+        const ox = i * L + (j % 2 ? L / 2 : 0), oy = j * hh;
+        const tris = [[[ox, oy], [ox + L, oy], [ox + L / 2, oy + hh]], [[ox + L, oy], [ox + L * 1.5, oy + hh], [ox + L / 2, oy + hh]]];
+        for (const t of tris) {
+          const c = [(t[0][0] + t[1][0] + t[2][0]) / 3, (t[0][1] + t[1][1] + t[2][1]) / 3];
+          d += `M ${t[0][0]} ${t[0][1]} L ${t[1][0]} ${t[1][1]} L ${t[2][0]} ${t[2][1]} Z `;
+          for (const v of t) d += `M ${v[0]} ${v[1]} L ${c[0]} ${c[1]} `;
+        }
+      }
+      return d;
+    }
+    function shippo(w, h, R) {
+      let d = "";
+      for (let y = 0; y < h + R; y += R) for (let x = 0; x < w + R; x += R) d += `M ${x + R * 0.707} ${y} A ${R * 0.707} ${R * 0.707} 0 1 1 ${x - R * 0.707} ${y} A ${R * 0.707} ${R * 0.707} 0 1 1 ${x + R * 0.707} ${y} `;
+      return d;
+    }
+    function kikko(w, h, R) {
+      let d = "";
+      const hx = R * 1.5, hy = R * Math.sqrt(3);
+      for (let i = 0; i * hx < w + R; i++) for (let j = 0; j * hy < h + R; j++) {
+        const cx = i * hx, cy = j * hy + (i % 2 ? hy / 2 : 0);
+        d += "M ";
+        for (let k = 0; k <= 6; k++) { const a = (k * Math.PI) / 3; d += `${cx + R * 0.8 * Math.cos(a)} ${cy + R * 0.8 * Math.sin(a)} `; }
+      }
+      return d;
+    }
+    function rayas(w, h, sep) {
+      let d = "";
+      for (let y = sep / 2; y < h; y += sep) d += `M 0 ${y + (r() - 0.5) * 3} L ${w} ${y + (r() - 0.5) * 3} `;
+      return d;
+    }
+    function cruces(w, h, sep) {
+      let d = "";
+      for (let y = sep / 2; y < h; y += sep) for (let x = ((y / sep) | 0) % 2 ? sep : sep / 2; x < w; x += sep) d += `M ${x - 8} ${y} L ${x + 8} ${y} M ${x} ${y - 8} L ${x} ${y + 8} `;
+      return d;
+    }
+
+    // Fondo: tela índigo con rayas de remiendo
+    s += `<g filter="url(#tela)"><rect width="1080" height="1350" fill="#1b2847"/></g>`;
+    s += `<path d="${rayas(1080, 1350, 26)}" ${hilo} opacity=".75"/>`;
+
+    // Parches
+    const parches = [
+      [60, 70, 520, 470, -1.5, "#24365e", "seigaiha"],
+      [540, 40, 480, 400, 2, "#2d4371", "asanoha"],
+      [110, 520, 430, 420, 1.2, "#16213d", "shippo"],
+      [500, 450, 520, 360, -2.2, "#3b5487", "kikko"],
+      [40, 950, 560, 350, 0.8, "#2a3d68", "cruces"],
+      [560, 820, 470, 470, -1, "#1f2f55", "seigaiha2"],
+      [380, 360, 260, 230, 4, "#6a7fa8", "asanoha2"],
+    ];
+    for (const [x, y, w, h, rotd, col, tipo] of parches) {
+      const id = "p" + x + y;
+      s += `<g transform="translate(${x} ${y}) rotate(${rotd} ${w / 2} ${h / 2})">`;
+      s += `<clipPath id="${id}"><rect x="10" y="10" width="${w - 20}" height="${h - 20}"/></clipPath>`;
+      s += `<g filter="url(#sombra)"><rect width="${w}" height="${h}" fill="${col}"/></g>`;
+      s += `<g filter="url(#tela)"><rect width="${w}" height="${h}" fill="${col}"/></g>`;
+      const d = tipo === "seigaiha" ? seigaiha(w, h, 70) : tipo === "seigaiha2" ? seigaiha(w, h, 52) : tipo === "asanoha" ? asanoha(w, h, 90) : tipo === "asanoha2" ? asanoha(w, h, 60) : tipo === "shippo" ? shippo(w, h, 70) : tipo === "kikko" ? kikko(w, h, 44) : cruces(w, h, 44);
+      s += `<g clip-path="url(#${id})"><path d="${d}" ${tipo === "cruces" ? hilo.replace('stroke-dasharray="9 7"', "") : hilo}/></g>`;
+      // dobladillo cosido alrededor del parche
+      s += `<rect x="9" y="9" width="${w - 18}" height="${h - 18}" ${hilo} stroke-dasharray="7 5"/>`;
+      s += `</g>`;
+    }
+    // Un hilo suelto con la aguja
+    s += `<path d="M 890 1180 C 960 1120, 1010 1200, 980 1260 S 900 1320, 1040 1330" stroke="#efe8d8" stroke-width="3" fill="none"/>`;
+    s += `<line x1="830" y1="1220" x2="900" y2="1170" stroke="#c9ccd2" stroke-width="3.5" stroke-linecap="round"/>`;
+    s += `</svg>`;
+    document.body.innerHTML = s;
+    dibujarSVG(document.querySelector("svg")); listo();
+  </script>
+</body>
+</html>

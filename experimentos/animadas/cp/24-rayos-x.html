@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #0a0d12; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Radiografía de un guitarrista: cada material suma "densidad" (madera poca, hueso media,
+    fases.marca();
+    // metal mucha) en una capa aditiva; luego densidad → brillo como en la placa, con grano y tinte
+    (async () => {
+      await M.fuentes('bold 30px "Plex Mono"', '18px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(1895);
+      const D = M.lienzo();
+      const g = D.x;
+      g.fillStyle = "#000";
+      g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = "lighter";
+      const dens = (v) => `rgba(255,255,255,${v})`;
+
+      g.save();
+      g.translate(610, 640);
+      g.rotate(-0.42);
+      g.scale(0.9, 0.9);
+      // Cuerpo: dos óvalos unidos, con aros y tapa (más densos en el borde)
+      const cuerpo = new Path2D();
+      const media = (y) => {
+        const a = 150 * Math.sqrt(Math.max(0, 1 - ((y - 120) / 130) ** 2));
+        const b = 200 * Math.sqrt(Math.max(0, 1 - ((y - 390) / 190) ** 2));
+        const k = 30, h = Math.max(0, Math.min(1, 0.5 + (0.5 * (a - b)) / k));
+        return a * h + b * (1 - h) + k * h * (1 - h) * 0.6;
+      };
+      for (let y = -10; y <= 580; y += 4) cuerpo.lineTo(media(y), y);
+      for (let y = 580; y >= -10; y -= 4) cuerpo.lineTo(-media(y), y);
+      cuerpo.closePath();
+      g.fillStyle = dens(0.13);
+      g.fill(cuerpo);
+      g.strokeStyle = dens(0.22);
+      g.lineWidth = 10;
+      g.stroke(cuerpo);
+      // varetas del abanico bajo la tapa
+      g.strokeStyle = dens(0.08);
+      g.lineWidth = 6;
+      for (let k = -3; k <= 3; k++) {
+        g.beginPath();
+        g.moveTo(0, 240);
+        g.lineTo(k * 55, 520);
+        g.stroke();
+      }
+      g.fillStyle = dens(0.12);
+      g.fillRect(-160, 176, 320, 14);
+      // boca y roseta
+      g.fillStyle = "#000";
+      g.globalCompositeOperation = "destination-out";
+      g.beginPath();
+      g.arc(0, 170, 46, 0, Math.PI * 2);
+      g.fill();
+      g.globalCompositeOperation = "lighter";
+      g.strokeStyle = dens(0.25);
+      for (let k = 0; k < 4; k++) { g.lineWidth = 3; g.beginPath(); g.arc(0, 170, 54 + k * 5, 0, Math.PI * 2); g.stroke(); }
+      // puente y hueso
+      g.fillStyle = dens(0.25);
+      g.fillRect(-70, 410, 140, 22);
+      g.fillStyle = dens(0.45);
+      g.fillRect(-45, 408, 90, 5);
+      // mástil y diapasón
+      g.fillStyle = dens(0.2);
+      g.beginPath();
+      g.moveTo(-27, 40); g.lineTo(27, 40); g.lineTo(24, -520); g.lineTo(-24, -520);
+      g.fill();
+      g.fillStyle = dens(0.14);
+      g.fillRect(-27, -520, 54, 560);
+      // trastes de metal: posición real de cada traste en una escala de 1.100 px
+      const cejilla = -520;
+      for (let k = 1; k <= 19; k++) {
+        const y = cejilla + 1100 * (1 - Math.pow(2, -k / 12));
+        if (y > 150) break;
+        g.fillStyle = dens(0.75);
+        g.fillRect(-28, y - 1.5, 56, 3);
+      }
+      g.fillStyle = dens(0.4);
+      g.fillRect(-28, cejilla - 6, 56, 6);
+      // clavijero con sus mecánicas: engranajes y ejes
+      g.fillStyle = dens(0.18);
+      g.beginPath();
+      g.moveTo(-30, -526); g.lineTo(30, -526); g.lineTo(42, -700); g.lineTo(-42, -700);
+      g.fill();
+      for (let k = 0; k < 3; k++) for (const s of [-1, 1]) {
+        const y = -560 - k * 45;
+        g.strokeStyle = dens(0.6);
+        g.lineWidth = 7;
+        g.beginPath();
+        g.moveTo(s * 10, y);
+        g.lineTo(s * 70, y);
+        g.stroke();
+        g.fillStyle = dens(0.5);
+        g.beginPath();
+        for (let d = 0; d < 24; d++) {
+          const a = (d / 24) * Math.PI * 2, rr = d % 2 ? 13 : 16;
+          g.lineTo(s * 36 + Math.cos(a) * rr, y + 16 + Math.sin(a) * rr);
+        }
+        g.fill();
+        g.fillStyle = dens(0.3);
+        g.beginPath();
+        g.ellipse(s * 86, y, 16, 11, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+      // cuerdas (las graves entorchadas brillan más)
+      for (let k = 0; k < 6; k++) {
+        const x0 = -18 + k * 7.2, x1 = -36 + k * 14.4;
+        g.strokeStyle = dens(k < 3 ? 0.55 : 0.28);
+        g.lineWidth = k < 3 ? 2.4 : 1.6;
+        g.beginPath();
+        g.moveTo(x0, cejilla);
+        g.lineTo(x1, 412);
+        g.stroke();
+      }
+
+      // Mano: huesos con cortical más densa en el borde y huecos en las articulaciones
+      function hueso(x0, y0, x1, y1, w, v = 0.32) {
+        const L = Math.hypot(x1 - x0, y1 - y0), a = Math.atan2(y1 - y0, x1 - x0);
+        g.save();
+        g.translate(x0, y0);
+        g.rotate(a);
+        g.fillStyle = dens(v);
+        g.beginPath();
+        g.roundRect(3, -w / 2, L - 6, w, w / 2);
+        g.fill();
+        g.strokeStyle = dens(v * 0.9);
+        g.lineWidth = 3;
+        g.stroke();
+        // cabezas articulares
+        g.fillStyle = dens(v * 0.5);
+        g.beginPath();
+        g.ellipse(L - 8, 0, 8, w * 0.62, 0, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+      const dedos = [-330, -290, -250, -212];
+      dedos.forEach((y, i) => {
+        const fl = 1 - Math.abs(i - 1.2) * 0.08;
+        hueso(-250, y + 55 - i * 4, -150, y, 15);
+        hueso(-150, y, -85 * fl, y - 6, 14);
+        hueso(-85 * fl, y - 6, -40, y - 2, 12);
+        hueso(-40, y - 2, -8, y + 2, 10, 0.36);
+        if (i === 2) {
+          // anillo en el anular
+          g.strokeStyle = dens(1);
+          g.lineWidth = 7;
+          g.beginPath();
+          g.ellipse(-130, y - 1, 5, 13, 0, 0, Math.PI * 2);
+          g.stroke();
+        }
+      });
+      // pulgar por detrás del mástil
+      hueso(-275, -160, -190, -200, 17);
+      hueso(-190, -200, -120, -226, 15);
+      hueso(-120, -226, -72, -240, 12);
+      // carpo: guijarros
+      for (let k = 0; k < 8; k++) {
+        g.fillStyle = dens(0.26);
+        g.beginPath();
+        g.ellipse(-300 + (k % 4) * 22, -255 + Math.floor(k / 4) * 34 + (k % 2) * 8, 14, 12, k, 0, Math.PI * 2);
+        g.fill();
+      }
+      // radio y cúbito saliendo del cuadro
+      hueso(-330, -270, -760, -300, 28, 0.3);
+      hueso(-330, -215, -760, -190, 22, 0.28);
+      // carne de la mano y el antebrazo (tejido blando)
+      g.filter = "blur(14px)";
+      g.fillStyle = dens(0.07);
+      g.beginPath();
+      g.ellipse(-190, -260, 150, 110, -0.1, 0, Math.PI * 2);
+      g.fill();
+      g.beginPath();
+      g.ellipse(-560, -250, 260, 95, 0.04, 0, Math.PI * 2);
+      g.fill();
+      g.filter = "none";
+      g.restore();
+
+      // Densidad → brillo de placa
+      const src = g.getImageData(0, 0, W, H).data;
+      const img = ctx.createImageData(W, H);
+      const d = img.data;
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W, y = (i / W) | 0;
+        const v = src[i * 4] / 255;
+        let b = 1 - Math.exp(-v * 2.2);
+        b = b * 0.92 + 0.05 + (r() - 0.5) * 0.05;
+        const q = Math.hypot(x / W - 0.5, y / H - 0.5);
+        b *= 1 - q * 0.5;
+        d[i * 4] = 200 * b + 8;
+        d[i * 4 + 1] = 225 * b + 12;
+        d[i * 4 + 2] = 245 * b + 18;
+        d[i * 4 + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      ctx.filter = "blur(0.8px)";
+      ctx.drawImage(ctx.canvas, 0, 0);
+      ctx.filter = "none";
+
+      // Marcas de la placa
+      ctx.fillStyle = "#eaf4ff";
+      ctx.font = 'bold 44px "Plex Mono"';
+      ctx.fillText("L", 60, 110);
+      ctx.fillStyle = "rgba(220,235,255,.85)";
+      ctx.fillRect(700, 1230, 330, 76);
+      ctx.fillStyle = "#0a0d12";
+      ctx.font = '18px "Plex Mono"';
+      ctx.fillText("GUITARRISTA, M. · 28-09-2026", 714, 1258);
+      ctx.fillText("AP · 60 kV · 4 mAs · MANO IZQ.", 714, 1288);
+      // pinzas de colgar la placa
+      for (const x of [260, 820]) {
+        ctx.fillStyle = "#9aa3ad";
+        ctx.fillRect(x - 30, 0, 60, 26);
+        ctx.fillStyle = "#5c6570";
+        ctx.fillRect(x - 36, 22, 72, 10);
+      }
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

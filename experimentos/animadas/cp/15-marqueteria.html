@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/gl.js"></script>
+<script src="../comun/trazar-video.js"></script>
+<style>body { background: #3a2415; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Marquetería: rosa de los vientos en maderas distintas (arce, nogal, cerezo, ébano, acebo)
+    // sobre un parqué de roble. Todo con vetas procedurales en un shader.
+    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    trazarVideo({
+      escala: .67,
+      muestras: 48,
+      tono: false,
+      expo: 1,
+      vineta: 0.3,
+      grano: 0.012,
+      frag: `
+      float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+      float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+        return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 5; i++) { s += a * vn(p); p = p * 2.03 + 7.1; a *= .5; } return s; }
+      mat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+
+      // Veta de madera: anillos de crecimiento deformados + poros alargados
+      vec3 madera(vec2 p, float ang, int tipo, float semilla) {
+        vec2 q = rot(ang) * p + semilla * 137.;
+        float anillo = q.y * .05 + fbm(q * vec2(.003, .018)) * 3. + fbm(q * .02) * .25;
+        float f = fract(anillo);
+        float tardia = smoothstep(.0, .12, f) * smoothstep(.55, .25, f);
+        float poros = vn(vec2(q.x * .015, q.y * 1.3));
+        float ray = vn(vec2(q.x * .2, q.y * .05));
+        vec3 a, b;
+        if (tipo == 0) { a = vec3(.93, .80, .58); b = vec3(.80, .62, .40); }        // arce
+        else if (tipo == 1) { a = vec3(.40, .25, .15); b = vec3(.22, .13, .07); }   // nogal
+        else if (tipo == 2) { a = vec3(.70, .38, .22); b = vec3(.52, .26, .14); }   // cerezo
+        else if (tipo == 3) { a = vec3(.075, .06, .05); b = vec3(.03, .025, .02); } // ébano
+        else if (tipo == 4) { a = vec3(.76, .57, .35); b = vec3(.60, .42, .24); }   // roble
+        else { a = vec3(.94, .90, .80); b = vec3(.88, .83, .72); }                  // acebo
+        vec3 c = mix(a, b, tardia * .8);
+        c *= .9 + .16 * poros + .05 * ray;
+        return c;
+      }
+
+      vec3 muestra(vec2 px) {
+        vec2 C = vec2(540., 700.);
+        vec2 p = px - C;
+        float rr = length(p);
+        float ang = atan(p.y, p.x);
+        vec3 col;
+        float linea = 99.;
+        float dBorde = min(min(px.x, px.y), min(uRes.x - px.x, uRes.y - px.y));
+
+        if (dBorde < 58.) {
+          // marco de nogal con hilos de acebo y ébano
+          bool vertical = min(px.x, uRes.x - px.x) < min(px.y, uRes.y - px.y);
+          col = madera(px, vertical ? 1.5708 : 0., 1, 3.);
+          if (dBorde > 44. && dBorde < 50.) col = madera(px, vertical ? 1.5708 : 0., 5, 4.);
+          if (dBorde > 50.) col = madera(px, vertical ? 1.5708 : 0., 3, 5.);
+          linea = min(min(abs(dBorde - 44.), abs(dBorde - 50.)), abs(dBorde - 58.));
+          // inglete en las esquinas
+          vec2 e = min(px, uRes - px);
+          linea = min(linea, abs(e.x - e.y) * .7);
+        } else if (rr > 446.) {
+          // parqué de roble: cuadros de tres tablillas que alternan dirección
+          vec2 q = px - 58.;
+          vec2 celda = floor(q / 124.);
+          vec2 l = mod(q, 124.);
+          bool alterna = mod(celda.x + celda.y, 2.) < 1.;
+          float tabla = floor((alterna ? l.y : l.x) / (124. / 3.));
+          col = madera(px, alterna ? 0. : 1.5708, 4, tabla + celda.x * 3.1 + celda.y * 7.3);
+          col *= .92 + .1 * h21(celda * 3.1 + tabla);
+          float t = mod(alterna ? l.y : l.x, 124. / 3.);
+          linea = min(min(l.x, l.y), min(124. - l.x, 124. - l.y));
+          linea = min(linea * 1.4, min(t, 124. / 3. - t) * 2.2);
+          linea = min(linea, abs(rr - 446.));
+        } else {
+          // Medallón
+          vec2 bm = vec2(abs(p.x), p.y);  // hoja de arce "a libro abierto"
+          col = madera(bm, 1.5708, 0, 1.);
+          linea = min(abs(rr - 404.), abs(rr - 446.));
+          if (rr > 426.) { col = madera(rot(ang) * p, 0., 1, 2.); linea = min(linea, abs(rr - 426.)); }
+          else if (rr > 416.) { col = madera(p, 0., 5, 3.); linea = min(linea, abs(rr - 416.)); }
+          else if (rr > 404.) col = madera(p, 0., 3, 6.);
+          else if (rr > 378.) {
+            // diente de perro alternando nogal y acebo
+            float N = 96.;
+            float k = ang / 6.28318 * N;
+            float f = fract(k);
+            float u = (rr - 378.) / 26.;
+            bool oscuro = f < u;
+            col = oscuro ? madera(p, ang, 1, floor(k)) : madera(p, ang, 5, floor(k));
+            linea = min(linea, abs(rr - 378.));
+            linea = min(linea, abs(f - u) * 16.);
+          } else linea = min(linea, abs(rr - 378.));
+          // Rosa de los vientos: 16 puntas en tres tamaños, cada una partida en dos maderas
+          for (int capa = 0; capa < 3; capa++) {
+            float n = capa == 0 ? 8. : 4.;
+            float off = capa == 0 ? .3927 : (capa == 1 ? .7854 : 0.);
+            float L = capa == 0 ? 190. : (capa == 1 ? 285. : 372.);
+            float w = capa == 0 ? 30. : (capa == 1 ? 46. : 60.);
+            for (int k = 0; k < 8; k++) {
+              if (float(k) >= n) break;
+              float a = off + float(k) * 6.28318 / n;
+              vec2 d = vec2(cos(a), sin(a));
+              float s = dot(p, d), t = dot(p, vec2(-d.y, d.x));
+              float lim = w * (1. - s / L);
+              if (s > 0. && s < L && abs(t) < lim) {
+                bool claro = t > 0.;
+                int tipo = claro ? (capa == 0 ? 2 : 5) : (capa == 0 ? 1 : 1);
+                if (capa == 2 && claro) tipo = 5;
+                if (capa == 1 && !claro) tipo = 2;
+                col = madera(rot(-a) * p, 0., tipo, float(k) + float(capa) * 11.);
+                float borde = (lim - abs(t)) * cos(atan(w / L));
+                linea = min(borde, abs(t) * 1.2);
+              }
+            }
+          }
+          if (rr < 34.) { col = madera(p, 0., 3, 9.); linea = abs(rr - 34.); }
+          if (rr < 22.) { col = madera(p, 0., 5, 10.); linea = min(abs(rr - 22.), abs(rr - 34.)); }
+        }
+        // filete oscuro entre piezas
+        col = mix(vec3(.05, .035, .02), col, smoothstep(.35, 1.3, linea));
+        // barniz: brillo amplio y un poco de reflejo
+        vec2 uv = px / uRes;
+        float brillo = exp(-pow(length((uv - vec2(.32, .78)) * vec2(1., 1.3)), 2.) * 5.) * .22;
+        col = col * (1. + brillo) + brillo * .12;
+        return pow(col, vec3(2.2));
+      }`,
+    });
+    listo();
+  </script>
+</body>
+</html>

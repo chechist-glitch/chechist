@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/svg-dibuja.js"></script>
+<style>body { background: #0b0b0c; } svg { position: absolute; inset: 0; }</style>
+</head>
+<body>
+  <script>
+    // Art déco en SVG puro: rayos de sol, zigurat escalonado, abanicos y oro
+    const r = rng(1929);
+    const cx = 540;
+    let s = `<svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="oro" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fbeab0"/><stop offset=".35" stop-color="#d4a53c"/>
+        <stop offset=".55" stop-color="#8f6216"/><stop offset=".8" stop-color="#e7c66b"/><stop offset="1" stop-color="#a87a25"/>
+      </linearGradient>
+      <linearGradient id="oroH" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#8f6216"/><stop offset=".5" stop-color="#fbeab0"/><stop offset="1" stop-color="#8f6216"/>
+      </linearGradient>
+      <radialGradient id="noche" cx=".5" cy=".62" r=".6">
+        <stop offset="0" stop-color="#16362f"/><stop offset="1" stop-color="#050807"/>
+      </radialGradient>
+      <pattern id="rayas" width="14" height="14" patternUnits="userSpaceOnUse">
+        <rect width="14" height="14" fill="#0b0b0c"/><rect width="1" height="14" fill="#1d1a14"/>
+      </pattern>
+    </defs>
+    <rect width="1080" height="1350" fill="url(#rayas)"/>`;
+
+    // Zigurat escalonado (varias líneas anidadas)
+    const escalon = (off) => {
+      const pasos = [[130, 150], [230, 230], [330, 310], [420, 390]];
+      let d = `M ${cx - pasos[0][0] + off} ${pasos[0][1] + off}`;
+      d += ` L ${cx + pasos[0][0] - off} ${pasos[0][1] + off}`;
+      for (let i = 1; i < pasos.length; i++) {
+        d += ` L ${cx + pasos[i - 1][0] - off} ${pasos[i][1] + off} L ${cx + pasos[i][0] - off} ${pasos[i][1] + off}`;
+      }
+      d += ` L ${cx + pasos[3][0] - off} 1010 L ${cx - pasos[3][0] + off} 1010`;
+      for (let i = pasos.length - 1; i > 0; i--) {
+        d += ` L ${cx - pasos[i][0] + off} ${pasos[i][1] + off} L ${cx - pasos[i - 1][0] + off} ${pasos[i][1] + off}`;
+      }
+      return d + " Z";
+    };
+    s += `<clipPath id="zig"><path d="${escalon(40)}"/></clipPath>`;
+    s += `<path d="${escalon(40)}" fill="url(#noche)"/>`;
+    // Rayos de sol desde el pie
+    s += `<g clip-path="url(#zig)">`;
+    const N = 44;
+    for (let i = 0; i < N; i++) {
+      const a0 = Math.PI + (i / N) * Math.PI, a1 = Math.PI + ((i + 0.5) / N) * Math.PI;
+      const R = 1200;
+      s += `<path d="M ${cx} 1010 L ${cx + R * Math.cos(a0)} ${1010 + R * Math.sin(a0)} L ${cx + R * Math.cos(a1)} ${1010 + R * Math.sin(a1)} Z" fill="url(#oro)" opacity=".2"/>`;
+    }
+    // Sol semicircular con anillos
+    for (let k = 0; k < 7; k++) {
+      s += `<path d="M ${cx - 300 + k * 38} 1010 A ${300 - k * 38} ${300 - k * 38} 0 0 1 ${cx + 300 - k * 38} 1010" fill="none" stroke="url(#oro)" stroke-width="${k % 2 ? 3 : 8}"/>`;
+    }
+    s += `<path d="M ${cx - 70} 1010 A 70 70 0 0 1 ${cx + 70} 1010 Z" fill="url(#oro)"/>`;
+    // Torre (Giralda estilizada) en el centro
+    s += `<g fill="#0b0b0c" stroke="url(#oro)" stroke-width="3">
+      <rect x="${cx - 46}" y="560" width="92" height="400"/>
+      <rect x="${cx - 36}" y="470" width="72" height="90"/>
+      <rect x="${cx - 26}" y="410" width="52" height="60"/>
+      <rect x="${cx - 16}" y="370" width="32" height="40"/>
+      <path d="M ${cx - 12} 370 Q ${cx} 320 ${cx + 12} 370 Z"/>
+    </g>`;
+    for (let y = 590; y < 940; y += 44) s += `<rect x="${cx - 8}" y="${y}" width="16" height="26" rx="8" fill="url(#oro)"/>`;
+    for (let x = -30; x <= 30; x += 20) s += `<rect x="${cx + x - 4}" y="485" width="8" height="40" rx="4" fill="url(#oro)"/>`;
+    s += `<line x1="${cx}" y1="300" x2="${cx}" y2="330" stroke="url(#oro)" stroke-width="4"/>`;
+    s += `<circle cx="${cx}" cy="296" r="8" fill="url(#oro)"/>`;
+    s += `</g>`;
+    // Marcos del zigurat
+    for (const [off, w] of [[0, 5], [16, 2], [28, 2], [40, 4]]) s += `<path d="${escalon(off)}" fill="none" stroke="url(#oro)" stroke-width="${w}"/>`;
+    // Cristalera lateral de rombos esmeralda
+    for (let y = 460; y < 990; y += 46) for (const sx of [-1, 1]) {
+      const x = cx + sx * 390;
+      s += `<path d="M ${x} ${y} l 16 20 l -16 20 l -16 -20 Z" fill="#0f5c4d" stroke="url(#oro)" stroke-width="2"/>`;
+    }
+
+    // Columnas acanaladas a los lados
+    for (const x0 of [40, 990]) {
+      s += `<rect x="${x0}" y="100" width="50" height="920" fill="#0b0b0c" stroke="url(#oro)" stroke-width="3"/>`;
+      for (let k = 1; k < 5; k++) s += `<line x1="${x0 + k * 10}" y1="112" x2="${x0 + k * 10}" y2="1008" stroke="url(#oro)" stroke-width="1.5"/>`;
+      s += `<rect x="${x0 - 12}" y="80" width="74" height="22" fill="url(#oroH)"/>`;
+      s += `<rect x="${x0 - 12}" y="1018" width="74" height="22" fill="url(#oroH)"/>`;
+    }
+
+    // Friso de abanicos
+    const fy = 1112;
+    s += `<rect x="40" y="1040" width="1000" height="80" fill="#0f5c4d"/>`;
+    for (let i = 0; i < 9; i++) {
+      const fx = 95 + i * 111;
+      s += `<path d="M ${fx - 52} ${fy} A 52 52 0 0 1 ${fx + 52} ${fy} Z" fill="#0b0b0c" stroke="url(#oro)" stroke-width="3"/>`;
+      for (let k = 1; k < 8; k++) {
+        const a = Math.PI + (k / 8) * Math.PI;
+        s += `<line x1="${fx}" y1="${fy}" x2="${fx + 52 * Math.cos(a)}" y2="${fy + 52 * Math.sin(a)}" stroke="url(#oro)" stroke-width="1.6"/>`;
+      }
+      s += `<path d="M ${fx - 22} ${fy} A 22 22 0 0 1 ${fx + 22} ${fy} Z" fill="url(#oro)"/>`;
+    }
+    s += `<rect x="40" y="1112" width="1000" height="6" fill="url(#oroH)"/>`;
+
+    // Tipografía
+    s += `<text x="540" y="1232" text-anchor="middle" font-family="Bebas" font-size="122" letter-spacing="22" fill="url(#oro)">GRAN CASINO</text>`;
+    s += `<line x1="150" y1="1262" x2="400" y2="1262" stroke="url(#oroH)" stroke-width="2"/>`;
+    s += `<line x1="680" y1="1262" x2="930" y2="1262" stroke="url(#oroH)" stroke-width="2"/>`;
+    s += `<path d="M 540 1250 l 10 12 l -10 12 l -10 -12 Z" fill="#0f5c4d" stroke="url(#oro)" stroke-width="2"/>`;
+    s += `<text x="540" y="1308" text-anchor="middle" font-family="DM Serif" font-size="30" letter-spacing="10" fill="#e7c66b">EXPOSICIÓN · SEVILLA · MCMXXIX</text>`;
+    s += `<text x="540" y="70" text-anchor="middle" font-family="Bebas" font-size="30" letter-spacing="16" fill="#e7c66b">NOCHE DE GALA · ORQUESTA · CHAMPÁN</text>`;
+    s += `</svg>`;
+    document.body.innerHTML = s;
+    dibujarSVG(document.querySelector("svg")); listo();
+  </script>
+</body>
+</html>

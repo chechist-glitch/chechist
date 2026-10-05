@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #000; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Preparación victoriana de diatomeas vista en campo oscuro: algas de cristal colocadas
+    fases.marca();
+    // a mano en simetría. Cada concha se dibuja con sus filas de poros (areolas) y costillas;
+    fases.marca();
+    // en campo oscuro solo brillan los bordes, con un poco de aberración cromática.
+    (async () => {
+      await M.fuentes('15px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(1860);
+      const L = M.lienzo();
+      const g = L.x;
+      g.globalCompositeOperation = "lighter";
+      const anillo = (x, y, rx, ry, a, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, Math.PI * 2); g.stroke(); };
+      const punto = (x, y, rad, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill(); };
+      // Céntrica: disco con radios de poros que se multiplican hacia fuera
+      function centrica(cx, cy, R, tono, sectores = 0) {
+        anillo(cx, cy, R, R, 0, `hsla(${tono},80%,70%,.9)`, 2.2);
+        anillo(cx, cy, R * 0.93, R * 0.93, 0, `hsla(${tono},70%,60%,.5)`, 1.2);
+        for (let ring = 0; ring < 16; ring++) {
+          const rr = R * (0.08 + ring * 0.054);
+          const nn = Math.floor(8 + ring * 6);
+          for (let k = 0; k < nn; k++) {
+            const a = (k / nn) * Math.PI * 2 + ring * 0.02;
+            if (sectores && Math.floor((a / (Math.PI * 2)) * sectores * 2) % 2) continue;
+            punto(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, R * 0.018 + ring * 0.05, `hsla(${tono + ring * 3},80%,${55 + ring * 1.5}%,.55)`);
+          }
+        }
+        punto(cx, cy, R * 0.06, `hsla(${tono},80%,80%,.7)`);
+      }
+      // Pennada: navícula con rafe central y estrías transversales
+      function pennada(cx, cy, LL, A, ang, tono) {
+        g.save();
+        g.translate(cx, cy);
+        g.rotate(ang);
+        g.strokeStyle = `hsla(${tono},80%,70%,.9)`;
+        g.lineWidth = 2;
+        g.beginPath();
+        for (let t = 0; t <= Math.PI * 2 + 0.01; t += 0.05) g.lineTo(Math.cos(t) * LL, Math.sin(t) * A * Math.pow(Math.abs(Math.cos(t * 0.5 + Math.PI / 2)) * 0 + Math.abs(Math.sin(t)), 0.7) * Math.sign(Math.sin(t)));
+        g.stroke();
+        g.strokeStyle = `hsla(${tono},80%,75%,.7)`;
+        g.beginPath(); g.moveTo(-LL * 0.85, 0); g.lineTo(-LL * 0.05, 0); g.moveTo(LL * 0.05, 0); g.lineTo(LL * 0.85, 0); g.stroke();
+        punto(0, 0, A * 0.18, `hsla(${tono},80%,80%,.6)`);
+        for (let x = -LL * 0.9; x <= LL * 0.9; x += LL / 22) {
+          const h = A * Math.pow(Math.max(0, 1 - (x / LL) ** 2), 0.7) * 0.85;
+          for (let y = A * 0.15; y < h; y += A * 0.13) for (const s of [-1, 1]) punto(x, s * y, 1.1, `hsla(${tono + 10},80%,65%,.5)`);
+        }
+        g.restore();
+      }
+      // Triangular (Triceratium)
+      function triangular(cx, cy, R, ang, tono) {
+        const v = [0, 1, 2].map((k) => [cx + Math.cos(ang + (k * 2 * Math.PI) / 3) * R, cy + Math.sin(ang + (k * 2 * Math.PI) / 3) * R]);
+        g.strokeStyle = `hsla(${tono},80%,70%,.9)`;
+        g.lineWidth = 2.2;
+        g.beginPath();
+        v.forEach(([x, y], i) => { const [nx, ny] = v[(i + 1) % 3]; i ? g.lineTo(x, y) : g.moveTo(x, y); g.quadraticCurveTo((x + nx) / 2 + (cx - (x + nx) / 2) * -0.15, (y + ny) / 2 + (cy - (y + ny) / 2) * -0.15, nx, ny); });
+        g.stroke();
+        for (let i = 0; i < 400; i++) {
+          let a = r(), b = r();
+          if (a + b > 1) { a = 1 - a; b = 1 - b; }
+          const x = v[0][0] + (v[1][0] - v[0][0]) * a + (v[2][0] - v[0][0]) * b, y = v[0][1] + (v[1][1] - v[0][1]) * a + (v[2][1] - v[0][1]) * b;
+          // poros en rejilla hexagonal aproximada
+          const gx = Math.round(x / 9) * 9, gy = Math.round(y / 8) * 8 + (Math.round(x / 9) % 2) * 4;
+          punto(gx, gy, 2, `hsla(${tono + 20},80%,60%,.18)`);
+        }
+        v.forEach(([x, y]) => anillo(x + (cx - x) * 0.12, y + (cy - y) * 0.12, 9, 9, 0, `hsla(${tono},80%,80%,.8)`, 1.5));
+      }
+      // Composición en roseta: centro, corona de pennadas, triangulares y céntricas pequeñas
+      const CX = 540, CY = 620;
+      centrica(CX, CY, 120, 200, 0);
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        pennada(CX + Math.cos(a) * 225, CY + Math.sin(a) * 225, 70, 15, a, 40 + (k % 2) * 140);
+      }
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + Math.PI / 6;
+        triangular(CX + Math.cos(a) * 345, CY + Math.sin(a) * 345, 52, a, 280);
+        centrica(CX + Math.cos(a + Math.PI / 6) * 360, CY + Math.sin(a + Math.PI / 6) * 360, 34, 120, 6);
+      }
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2;
+        centrica(CX + Math.cos(a) * 450, CY + Math.sin(a) * 450, 13, 180 + (k % 3) * 40, 0);
+      }
+      // Campo oscuro: halo y aberración cromática
+      const halo = A0();
+      function A0() {
+        const o = M.lienzo();
+        o.x.fillStyle = "#000";
+        o.x.fillRect(0, 0, W, H);
+        o.x.filter = "blur(6px)";
+        o.x.drawImage(L.c, 0, 0);
+        return o.c;
+      }
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.7;
+      ctx.drawImage(halo, 0, 0);
+      ctx.globalAlpha = 1;
+      // canales desplazados
+      const sep = (col, dx, dy) => {
+        const o = M.lienzo();
+        o.x.fillStyle = "#000";
+        o.x.fillRect(0, 0, W, H);
+        o.x.drawImage(L.c, dx, dy);
+        o.x.globalCompositeOperation = "multiply";
+        o.x.fillStyle = col;
+        o.x.fillRect(0, 0, W, H);
+        ctx.drawImage(o.c, 0, 0);
+      };
+      sep("#ff0000", 1.5, 0);
+      sep("#00ff00", 0, 0);
+      sep("#0000ff", -1.5, 0.5);
+      ctx.globalCompositeOperation = "source-over";
+      // círculo del campo del microscopio
+      const v = ctx.createRadialGradient(CX, CY, 420, CX, CY, 560);
+      v.addColorStop(0, "rgba(0,0,0,0)");
+      v.addColorStop(1, "rgba(0,0,0,1)");
+      ctx.fillStyle = v;
+      ctx.fillRect(0, 0, W, H);
+      // motas y barra de escala
+      for (let i = 0; i < 120; i++) { ctx.fillStyle = `rgba(200,220,255,${r() * 0.25})`; ctx.beginPath(); ctx.arc(CX + (r() - 0.5) * 900, CY + (r() - 0.5) * 900, r() * 1.5, 0, 6.28); ctx.fill(); }
+      ctx.fillStyle = "#e9f2ff";
+      ctx.fillRect(820, 1240, 160, 4);
+      ctx.font = '15px "Plex Mono"';
+      ctx.fillText("50 µm", 870, 1268);
+      ctx.fillText("campo oscuro · ×400 · preparación de 1878", 60, 1268);
+      M.grano(ctx, 8, 9);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

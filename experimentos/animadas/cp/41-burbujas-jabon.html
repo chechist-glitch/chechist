@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/gl.js"></script>
+<script src="../comun/trazar-video.js"></script>
+<style>body { background: #1a2410; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Pompas de jabón: esferas con película fina; el color sale de la interferencia de la luz
+    // que rebota en las dos caras de una capa de agua de unos cientos de nanómetros,
+    // calculada para cada longitud de onda. La película es más fina arriba (el agua escurre).
+    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    trazarVideo({
+      escala: .67,
+      muestras: 48,
+      tono: true,
+      expo: 1.05,
+      vineta: 0.3,
+      grano: 0.015,
+      frag: `
+      float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+      float h31(vec3 p) { p = fract(p * .1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+      float vn3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+        return mix(mix(mix(h31(i), h31(i + vec3(1,0,0)), f.x), mix(h31(i + vec3(0,1,0)), h31(i + vec3(1,1,0)), f.x), f.y),
+                   mix(mix(h31(i + vec3(0,0,1)), h31(i + vec3(1,0,1)), f.x), mix(h31(i + vec3(0,1,1)), h31(i + vec3(1,1,1)), f.x), f.y), f.z); }
+      float fbm(vec3 p) { float s = 0., a = .5; for (int i = 0; i < 5; i++) { s += a * vn3(p); p = p * 2.02 + 1.3; a *= .5; } return s; }
+      // Jardín desenfocado de fondo (bokeh) y cielo para los reflejos
+      vec3 jardin(vec2 q) {
+        vec3 c = mix(vec3(.08, .14, .05), vec3(.35, .5, .2), smoothstep(-.6, .7, q.y));
+        for (int i = 0; i < 26; i++) {
+          vec2 cen = vec2(h21(vec2(float(i), 1.)) * 2.4 - 1.2, h21(vec2(float(i), 2.)) * 1.6 - .5);
+          float rad = .05 + .09 * h21(vec2(float(i), 3.));
+          float d = length(q - cen);
+          vec3 k = h21(vec2(float(i), 4.)) < .3 ? vec3(1., .85, .5) : (h21(vec2(float(i), 5.)) < .5 ? vec3(.6, .9, .4) : vec3(1., .5, .6));
+          c += k * smoothstep(rad, rad * .9, d) * .18 * (.7 + .3 * smoothstep(rad * .6, rad, d));
+        }
+        return c;
+      }
+      vec3 entorno(vec3 d) {
+        vec3 c = mix(vec3(.35, .45, .25), vec3(.75, .85, 1.), smoothstep(-.2, .6, d.y));
+        // ventana luminosa a la izquierda: el reflejo típico de las pompas
+        vec2 v = vec2(atan(d.x, d.z), d.y);
+        float win = step(abs(v.x + 2.1), .35) * step(abs(v.y - .35), .3);
+        float marco = step(abs(v.x + 2.1), .015) + step(abs(v.y - .35), .012);
+        c += vec3(3.5) * win * (1. - clamp(marco, 0., 1.));
+        c += vec3(1.2, 1.1, .9) * pow(max(dot(d, normalize(vec3(.6, .7, -.3))), 0.), 60.) * 8.;
+        return c;
+      }
+      // Reflectancia de película fina (dos haces) para una longitud de onda
+      float pelicula(float espesor, float cosT, float lambda) {
+        float fase = 4. * PI * 1.33 * espesor * cosT / lambda;
+        return .5 - .5 * cos(fase + PI);
+      }
+      const int NB = 5;
+      vec4 B[NB] = vec4[NB](vec4(-.35, .15, 0., .62), vec4(.62, .62, .7, .38), vec4(.45, -.55, -.4, .3), vec4(-.85, -.75, .5, .22), vec4(.05, .95, 1.2, .18));
+      vec3 muestra(vec2 px) {
+        vec2 uv = (px - uRes * .5) / uRes.y;
+        vec3 ro = vec3(0., 0., -4.);
+        vec3 rd = normalize(vec3(uv, 1.7));
+        vec3 col = jardin(uv * 1.1 + rnd2() * .004);
+        // pompas de atrás hacia delante (ordenadas por z descendente)
+        for (int i = NB - 1; i >= 0; i--) {
+          vec3 c = B[i].xyz; float R = B[i].w;
+          vec3 oc = ro - c;
+          float b = dot(oc, rd), cc = dot(oc, oc) - R * R, h = b * b - cc;
+          if (h < 0.) continue;
+          h = sqrt(h);
+          // dos caras: delante y detrás de la pompa
+          for (int cara = 1; cara >= 0; cara--) {
+            float t = cara == 0 ? -b - h : -b + h;
+            vec3 p = ro + rd * t;
+            vec3 n = normalize(p - c) * (cara == 0 ? 1. : -1.);
+            float cosI = abs(dot(n, -rd));
+            float cosT = sqrt(1. - (1. - cosI * cosI) / (1.33 * 1.33));
+            vec3 q = (p - c) / R;
+            // espesor: escurre hacia abajo, con remolinos
+            float esp = mix(120., 900., smoothstep(.9, -.7, q.y)) + 260. * (fbm(q * 2.5 + float(i) * 3.1 + vec3(0., q.y * 2., 0.)) - .5);
+            vec3 fr = vec3(pelicula(esp, cosT, 650.), pelicula(esp, cosT, 540.), pelicula(esp, cosT, 450.));
+            float fres = .04 + .96 * pow(1. - cosI, 5.);
+            vec3 refl = entorno(reflect(rd, n)) * (fr * 1.6 * (.25 + fres));
+            float cuanto = clamp(.12 + fres, 0., 1.);
+            col = col * (1. - cuanto * .5) + refl * (cara == 0 ? 1. : .55);
+          }
+        }
+        return col;
+      }`,
+    });
+    listo();
+  </script>
+</body>
+</html>

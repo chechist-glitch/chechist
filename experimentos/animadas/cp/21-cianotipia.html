@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #f4f1e8; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Cianotipia (fotograma): objetos puestos sobre papel emulsionado y expuestos al sol.
+    fases.marca();
+    // Se construye una máscara de "luz bloqueada" y el papel se tiñe de azul de Prusia donde no la hay.
+    (async () => {
+      await M.fuentes('italic 26px "Fraunces"');
+      const ctx = canvas2d();
+      const r = rng(1842);
+      const n = makeNoise(1842);
+
+      const nitido = M.lienzo(), suave = M.lienzo();
+      const a = nitido.x, b = suave.x;
+      for (const g of [a, b]) { g.fillStyle = "#fff"; g.strokeStyle = "#fff"; g.lineCap = "round"; }
+
+      // Helecho: raquis curvo con pinnas alternas hechas de pínnulas
+      function helecho(g, x0, y0, largo, ang, curva) {
+        const pasos = 60;
+        let x = x0, y = y0, a0 = ang;
+        const pts = [];
+        for (let i = 0; i <= pasos; i++) {
+          pts.push([x, y, a0]);
+          x += Math.cos(a0) * (largo / pasos);
+          y += Math.sin(a0) * (largo / pasos);
+          a0 += curva / pasos;
+        }
+        g.lineWidth = 4;
+        g.beginPath();
+        pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py)));
+        g.stroke();
+        for (let i = 4; i < pasos - 1; i += 3) {
+          const [px, py, pa] = pts[i];
+          const t = i / pasos;
+          const lp = largo * 0.2 * Math.sin(Math.PI * (0.15 + t * 0.85)) * (1 - t * 0.4);
+          for (const lado of [-1, 1]) {
+            const aa = pa + lado * (1.15 - t * 0.3);
+            g.lineWidth = 1.6;
+            g.beginPath();
+            g.moveTo(px, py);
+            let qx = px, qy = py, qa = aa;
+            const np = Math.max(3, Math.floor(lp / 11));
+            for (let k = 0; k < np; k++) {
+              qx += Math.cos(qa) * (lp / np);
+              qy += Math.sin(qa) * (lp / np);
+              qa -= lado * 0.03;
+              g.lineTo(qx, qy);
+              const tam = (1 - k / np) * lp * 0.045 + 1.8;
+              for (const s of [-1, 1]) {
+                g.save();
+                g.translate(qx, qy);
+                g.rotate(qa + s * 1.2);
+                g.beginPath();
+                g.ellipse(tam * 0.9, 0, tam, tam * 0.45, 0, 0, Math.PI * 2);
+                g.fill();
+                g.restore();
+              }
+            }
+            g.stroke();
+          }
+        }
+      }
+      // Rama de olivo
+      function olivo(g, x0, y0, largo, ang) {
+        let x = x0, y = y0;
+        g.lineWidth = 5;
+        g.beginPath();
+        g.moveTo(x, y);
+        const pts = [];
+        for (let i = 0; i <= 40; i++) {
+          const t = i / 40;
+          x = x0 + Math.cos(ang + Math.sin(t * 3) * 0.15) * largo * t;
+          y = y0 + Math.sin(ang + Math.sin(t * 3) * 0.15) * largo * t;
+          g.lineTo(x, y);
+          pts.push([x, y]);
+        }
+        g.stroke();
+        for (let i = 3; i < 40; i += 4) {
+          const [px, py] = pts[i];
+          for (const lado of [-1, 1]) {
+            g.save();
+            g.translate(px, py);
+            g.rotate(ang + lado * 0.6 + (r() - 0.5) * 0.3);
+            g.beginPath();
+            g.ellipse(40, 0, 42, 7, 0, 0, Math.PI * 2);
+            g.fill();
+            g.restore();
+          }
+        }
+        for (const i of [14, 23, 31]) {
+          const [px, py] = pts[i];
+          g.beginPath();
+          g.ellipse(px + 24, py + 30, 15, 20, 0.4, 0, Math.PI * 2);
+          g.fill();
+          g.lineWidth = 2;
+          g.beginPath();
+          g.moveTo(px, py);
+          g.lineTo(px + 20, py + 12);
+          g.stroke();
+        }
+      }
+      // Diente de león
+      function dienteDeLeon(g, x, y, R) {
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.quadraticCurveTo(x - 30, y + 240, x + 10, y + 420);
+        g.stroke();
+        g.beginPath();
+        g.arc(x, y, 14, 0, Math.PI * 2);
+        g.fill();
+        for (let i = 0; i < 70; i++) {
+          const an = (i / 70) * Math.PI * 2 + r() * 0.05, l = R * (0.85 + r() * 0.15);
+          const ex = x + Math.cos(an) * l, ey = y + Math.sin(an) * l;
+          g.lineWidth = 0.9;
+          g.beginPath();
+          g.moveTo(x, y);
+          g.lineTo(ex, ey);
+          g.stroke();
+          for (let k = 0; k < 7; k++) {
+            const b2 = an + (k / 7 - 0.5) * 1.8;
+            g.lineWidth = 0.5;
+            g.beginPath();
+            g.moveTo(ex, ey);
+            g.lineTo(ex + Math.cos(b2) * 16, ey + Math.sin(b2) * 16);
+            g.stroke();
+          }
+        }
+      }
+
+      // Composición
+      helecho(a, 180, 1260, 760, -1.35, 0.5);
+      helecho(b, 800, 1290, 600, -1.95, -0.35);
+      olivo(a, 560, 180, 470, 0.55);
+      dienteDeLeon(a, 330, 330, 120);
+      // Puntilla de ganchillo en la esquina: disco con agujeros
+      const px = 930, py = 1130;
+      a.beginPath();
+      a.arc(px, py, 240, 0, Math.PI * 2);
+      a.fill();
+      a.globalCompositeOperation = "destination-out";
+      for (let ring = 0; ring < 6; ring++) {
+        const R = 40 + ring * 36, cnt = 8 + ring * 7;
+        for (let k = 0; k < cnt; k++) {
+          const an = (k / cnt) * Math.PI * 2 + ring * 0.2;
+          a.beginPath();
+          a.arc(px + Math.cos(an) * R, py + Math.sin(an) * R, ring % 2 ? 9 : 13, 0, Math.PI * 2);
+          a.fill();
+        }
+      }
+      for (let k = 0; k < 40; k++) {
+        const an = (k / 40) * Math.PI * 2;
+        a.beginPath();
+        a.arc(px + Math.cos(an) * 252, py + Math.sin(an) * 252, 22, 0, Math.PI * 2);
+        a.fill();
+      }
+      a.globalCompositeOperation = "source-over";
+      for (let k = 0; k < 40; k++) {
+        const an = ((k + 0.5) / 40) * Math.PI * 2;
+        a.beginPath();
+        a.arc(px + Math.cos(an) * 250, py + Math.sin(an) * 250, 16, 0, Math.PI * 2);
+        a.fill();
+      }
+      // Lo que no toca el papel sale borroso y a medias
+      const mezcla = M.lienzo();
+      mezcla.x.drawImage(nitido.c, 0, 0);
+      mezcla.x.filter = "blur(1.6px)";
+      mezcla.x.globalAlpha = 0.7;
+      mezcla.x.drawImage(suave.c, 0, 0);
+      mezcla.x.filter = "blur(1px)";
+      mezcla.x.globalAlpha = 1;
+      mezcla.x.drawImage(nitido.c, 0, 0);
+      const mask = mezcla.x.getImageData(0, 0, W, H).data;
+
+      // Papel y emulsión dada a brochazos
+      const X0 = 70, Y0 = 80, X1 = W - 70, Y1 = H - 80;
+      M.porPixel(ctx, (x, y) => {
+        const papel = 0.96 + (n(x * 0.5, y * 0.5, 2) - 0.5) * 0.06 + (n(x * 0.01, y * 0.01, 2) - 0.5) * 0.04;
+        let c = [244 * papel, 241 * papel, 232 * papel];
+        // borde irregular de la brocha
+        const bx = Math.min(x - X0, X1 - x) + (n(y * 0.02, 1, 3) - 0.5) * 60 + (n(y * 0.08, 5, 2) - 0.5) * 12;
+        const by = Math.min(y - Y0, Y1 - y) + (n(x * 0.02, 9, 3) - 0.5) * 50 + (n(x * 0.08, 7, 2) - 0.5) * 10;
+        let em = M.smooth(-4, 6, Math.min(bx, by));
+        // pinceladas que se salen por arriba y por abajo
+        const trazo = n(x * 0.004, y * 0.08, 2);
+        if (em < 1 && trazo > 0.62 && (y < Y0 + 20 || y > Y1 - 20)) em = Math.max(em, M.clamp((trazo - 0.62) * 8) * 0.8);
+        if (em <= 0) return c;
+        const k = ((y | 0) * W + (x | 0)) * 4;
+        const bloqueo = mask[k] / 255;
+        const expo = 1 - bloqueo;
+        const mancha = n(x * 0.006, y * 0.006, 4);
+        const azul = M.mezcla([22, 62, 130], [8, 36, 88], mancha * 1.3);
+        const claro = M.mezcla(c, [150, 185, 215], 0.25);
+        const col = M.mezcla(claro, azul, Math.pow(expo, 0.8));
+        return M.mezcla(c, col, em);
+      });
+      M.grano(ctx, 10, 4);
+      ctx.fillStyle = "rgba(20,50,100,.8)";
+      ctx.font = 'italic 26px "Fraunces"';
+      ctx.fillText("a la manera de Anna Atkins · helechos, olivo y puntilla · 12 min al sol de Écija", 76, H - 34);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

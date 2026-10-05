@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #1f2b24; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Pizarra de clase: todo se dibuja limpio en una capa y luego se "tiza":
+    fases.marca();
+    // la capa se multiplica por una máscara de grano con vetas y se le añade polvo
+    (async () => {
+      await M.fuentes('60px "Pacifico"', 'italic 40px "Fraunces"', '40px "Space Mono"');
+      const ctx = canvas2d();
+      const r = rng(1492);
+      const n = makeNoise(1492);
+      const MX = 56, MY = 56, PIE = 150;
+
+      // Pizarra con borrones de tiza vieja
+      M.porPixel(ctx, (x, y) => {
+        const v = n(x * 0.003, y * 0.003, 4);
+        const k = 0.9 + v * 0.25;
+        return [30 * k, 44 * k, 37 * k];
+      });
+      ctx.save();
+      ctx.filter = "blur(18px)";
+      for (let i = 0; i < 22; i++) {
+        const x = MX + r() * (W - MX * 2), y = MY + r() * (H - MY - PIE);
+        ctx.strokeStyle = `rgba(230,240,230,${0.03 + r() * 0.05})`;
+        ctx.lineWidth = 40 + r() * 70;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        for (let k = 0; k < 6; k++) ctx.lineTo(x + (r() - 0.5) * 300, y + (r() - 0.5) * 80);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // --- Capa de dibujo limpio ---
+      const L = M.lienzo();
+      const g = L.x;
+      g.lineCap = "round";
+      g.lineJoin = "round";
+      const BL = "#f3f1ea", AM = "#f4e27a", RO = "#f2a0b5", AZ = "#9fd3f2";
+      const temblor = (pts) => pts.map(([x, y]) => [x + (r() - 0.5) * 2.5, y + (r() - 0.5) * 2.5]);
+      function linea(pts, col, w = 5) {
+        g.strokeStyle = col;
+        g.lineWidth = w;
+        g.beginPath();
+        temblor(pts).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.stroke();
+      }
+      function curva(fn, t0, t1, col, w = 5, pasos = 80) {
+        const pts = [];
+        for (let i = 0; i <= pasos; i++) pts.push(fn(t0 + ((t1 - t0) * i) / pasos));
+        linea(pts, col, w);
+      }
+      function texto(t, x, y, fuente, col, ang = 0) {
+        g.save();
+        g.translate(x, y);
+        g.rotate(ang);
+        g.font = fuente;
+        g.fillStyle = col;
+        g.fillText(t, 0, 0);
+        g.restore();
+      }
+      function flecha(x0, y0, x1, y1, col) {
+        curva((t) => [M.lerp(x0, x1, t), M.lerp(y0, y1, t) - Math.sin(t * Math.PI) * 30], 0, 1, col, 4, 30);
+        const a = Math.atan2(y1 - y0, x1 - x0);
+        linea([[x1 - Math.cos(a - 0.5) * 20, y1 - Math.sin(a - 0.5) * 20], [x1, y1], [x1 - Math.cos(a + 0.5) * 20, y1 - Math.sin(a + 0.5) * 20]], col, 4);
+      }
+
+      texto("Lección 7: la paella", 110, 190, '64px "Pacifico"', BL, -0.02);
+      curva((t) => [110 + t * 620, 214 + Math.sin(t * 9) * 3], 0, 1, AM, 5);
+      texto("lunes, 28 sept.", 790, 130, 'italic 34px "Fraunces"', BL, 0.02);
+
+      // Paellera en perspectiva
+      const px = 390, py = 520;
+      curva((t) => [px + Math.cos(t) * 250, py + Math.sin(t) * 105], 0, Math.PI * 2, BL, 6, 120);
+      curva((t) => [px + Math.cos(t) * 220, py + Math.sin(t) * 88], 0, Math.PI * 2, BL, 3, 120);
+      curva((t) => [px + Math.cos(t) * 250, py + 26 + Math.sin(t) * 105], 0, Math.PI, BL, 5, 60);
+      for (const s of [-1, 1]) {
+        linea([[px + s * 250, py + 6], [px + s * 320, py - 6], [px + s * 330, py + 14], [px + s * 252, py + 30]], BL, 5);
+      }
+      // granos de arroz, gambas y limón
+      for (let i = 0; i < 120; i++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r());
+        const x = px + Math.cos(a) * 205 * d, y = py + Math.sin(a) * 80 * d;
+        linea([[x, y], [x + 7, y + 2]], AM, 3.5);
+      }
+      for (const [x, y, s] of [[px - 90, py - 20, 1], [px + 60, py + 30, -1], [px + 120, py - 30, 1]]) {
+        curva((t) => [x + Math.cos(t) * 34 * s, y + Math.sin(t) * 26], -0.3, Math.PI * 1.4, RO, 7, 30);
+        linea([[x + 34 * s, y - 8], [x + 60 * s, y - 34]], RO, 3);
+      }
+      curva((t) => [px - 20 + Math.cos(t) * 40, py + 45 + Math.sin(t) * 16], 0, Math.PI * 2, AM, 5, 40);
+      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; linea([[px - 20, py + 45], [px - 20 + Math.cos(a) * 38, py + 45 + Math.sin(a) * 15]], AM, 2.5); }
+
+      // Etiquetas con flechas
+      texto("arroz bomba", 720, 400, 'italic 40px "Fraunces"', AM);
+      flecha(710, 390, px + 150, py - 40, AM);
+      texto("gambas", 740, 560, 'italic 40px "Fraunces"', RO);
+      flecha(730, 548, px + 190, py + 10, RO);
+      texto("¡sin chorizo!", 120, 710, '48px "Pacifico"', BL, -0.05);
+      curva((t) => [100 + Math.cos(t) * 190 + 160, 695 + Math.sin(t) * 50], 0, Math.PI * 2.1, RO, 4, 60);
+
+      // Fórmula
+      texto("(arroz + caldo) · t² = felicidad", 110, 850, 'italic 46px "Fraunces"', BL);
+      texto("t ≈ 18 min  ⟹  socarrat", 110, 920, 'italic 38px "Fraunces"', AZ);
+
+      // Gráfica de temperatura
+      const gx = 600, gy = 1130;
+      linea([[gx, gy], [gx + 380, gy]], BL, 4);
+      linea([[gx, gy], [gx, gy - 200]], BL, 4);
+      linea([[gx + 370, gy - 8], [gx + 382, gy], [gx + 370, gy + 8]], BL, 4);
+      curva((t) => [gx + t * 360, gy - 20 - 150 * (1 - Math.exp(-t * 4)) + Math.sin(t * 25) * 6 * t], 0, 1, AZ, 5);
+      texto("fuego", gx + 10, gy - 210, 'italic 30px "Fraunces"', BL);
+      texto("tiempo", gx + 280, gy + 40, 'italic 30px "Fraunces"', BL);
+      // Sol y estrellitas
+      curva((t) => [210 + Math.cos(t) * 50, 1060 + Math.sin(t) * 50], 0, Math.PI * 2, AM, 5, 50);
+      for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2; linea([[210 + Math.cos(a) * 64, 1060 + Math.sin(a) * 64], [210 + Math.cos(a) * 92, 1060 + Math.sin(a) * 92]], AM, 4); }
+      texto("Deberes: pág. 42", 110, 1172, '40px "Pacifico"', BL, 0.02);
+
+      // --- Tizado: grano + vetas + huecos ---
+      const img = g.getImageData(0, 0, W, H);
+      const d = img.data;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const k = (y * W + x) * 4;
+        if (!d[k + 3]) continue;
+        const grano = r();
+        const veta = n(x * 0.9 + y * 0.35, y * 0.12, 2);
+        const m = M.clamp((grano * 0.55 + veta * 0.75 - 0.42) * 2.4);
+        d[k + 3] *= m;
+      }
+      g.putImageData(img, 0, 0);
+      // polvo alrededor de los trazos
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.filter = "blur(4px)";
+      ctx.drawImage(L.c, 0, 0);
+      ctx.restore();
+      ctx.globalAlpha = 0.92;
+      ctx.drawImage(L.c, 0, 0);
+      ctx.globalAlpha = 1;
+
+      // Marco de madera y repisa con tizas y borrador
+      const madera = (x, y, w, h, horiz) => {
+        for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx += 3) {
+          const v = n(horiz ? xx * 0.004 : xx * 0.2, horiz ? yy * 0.2 : yy * 0.004, 3);
+          ctx.fillStyle = `rgb(${120 + v * 60},${76 + v * 40},${40 + v * 22})`;
+          ctx.fillRect(xx, yy, 3, 1);
+        }
+      };
+      madera(0, 0, W, MY, true);
+      madera(0, H - PIE, W, PIE, true);
+      madera(0, 0, MX, H, false);
+      madera(W - MX, 0, MX, H, false);
+      ctx.fillStyle = "rgba(0,0,0,.35)";
+      ctx.fillRect(MX, H - PIE, W - MX * 2, 10);
+      ctx.fillRect(MX, MY, W - MX * 2, 8);
+      // tizas
+      for (const [x, col, l] of [[180, "#f3f1ea", 80], [300, "#f4e27a", 60], [360, "#f2a0b5", 44]]) {
+        const gr = ctx.createLinearGradient(0, H - 118, 0, H - 100);
+        gr.addColorStop(0, "#fff");
+        gr.addColorStop(1, col);
+        ctx.fillStyle = gr;
+        ctx.beginPath();
+        ctx.roundRect(x, H - 122, l, 20, 8);
+        ctx.fill();
+      }
+      // borrador de fieltro
+      ctx.fillStyle = "#6b4a2e";
+      ctx.fillRect(660, H - 140, 220, 34);
+      ctx.fillStyle = "#3a3a3a";
+      ctx.fillRect(660, H - 108, 220, 14);
+      ctx.fillStyle = "rgba(240,240,230,.35)";
+      ctx.fillRect(664, H - 98, 212, 4);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

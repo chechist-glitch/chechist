@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #06101f; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Copos de nieve que crecen solos: autómata celular de Reiter en rejilla hexagonal.
+    fases.marca();
+    // Cada celda guarda "agua"; las heladas reciben vapor (gamma) y el resto se difunde (alfa).
+    fases.marca();
+    // Pequeños cambios en beta y gamma dan formas totalmente distintas: placas, dendritas, estrellas.
+    (async () => {
+      await M.fuentes('16px "Plex Mono"', 'italic 30px "Fraunces"');
+      const ctx = canvas2d();
+      const n = makeNoise(1611);
+      function copo(N, alfa, beta, gamma, pasos) {
+        let s = new Float32Array(N * N).fill(beta);
+        let t = new Float32Array(N * N);
+        const u = new Float32Array(N * N);
+        const rec = new Uint8Array(N * N);
+        const helada = new Uint8Array(N * N);
+        const c = N >> 1;
+        s[c * N + c] = 1;
+        helada[c * N + c] = 1;
+        // vecinos hexagonales en coordenadas axiales
+        const V = [-1, 1, -N, N, -N + 1, N - 1];
+        for (let p = 0; p < pasos; p++) {
+          for (let k = N; k < N * N - N; k++) {
+            let r = helada[k];
+            if (!r) for (let v = 0; v < 6; v++) if (helada[k + V[v]]) { r = 1; break; }
+            rec[k] = r;
+            u[k] = r ? 0 : s[k];
+          }
+          for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+            const k = j * N + i;
+            const suma = u[k - 1] + u[k + 1] + u[k - N] + u[k + N] + u[k - N + 1] + u[k + N - 1];
+            t[k] = (rec[k] ? s[k] + gamma : 0) + (1 - alfa / 2) * u[k] + (alfa / 12) * suma;
+          }
+          [s, t] = [t, s];
+          let lejos = false;
+          for (let k = 0; k < N * N; k++) if (s[k] >= 1 && !helada[k]) {
+            helada[k] = 1;
+            const q = (k % N) - c, r = ((k / N) | 0) - c;
+            if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) > c * 0.82) lejos = true;
+          }
+          if (lejos) break;
+          for (let i = 0; i < N; i++) { s[i] = s[(N - 1) * N + i] = s[i * N] = s[i * N + N - 1] = beta; }
+        }
+        return { s, helada, N };
+      }
+      // fondo: terciopelo azul oscuro
+      M.porPixel(ctx, (x, y) => {
+        const v = 0.7 + 0.3 * n(x * 0.003, y * 0.003, 3);
+        const g = 1 - 0.6 * Math.hypot(x / W - 0.5, y / H - 0.45);
+        return [8 * v * g + 4, 22 * v * g + 6, 44 * v * g + 10];
+      });
+      const lista = [
+        [300, 330, 230, 1, 0.4, 0.001, 4000, "β 0,40 · γ 0,001"],
+        [790, 330, 230, 1, 0.8, 0.002, 4000, "β 0,80 · γ 0,002"],
+        [300, 870, 230, 1, 0.35, 0.0005, 4000, "β 0,35 · γ 0,0005"],
+        [790, 870, 230, 1, 0.55, 0.004, 4000, "β 0,55 · γ 0,004"],
+      ];
+      const N = 181;
+      for (const [cx, cy, R, alfa, beta, gamma, pasos, et] of lista) {
+        const { s, helada } = copo(N, alfa, beta, gamma, pasos);
+        const esc = R / (N / 2) / 0.9;
+        const capa = M.lienzo(R * 2, R * 2);
+        const g = capa.x;
+        for (let k = 0; k < N * N; k++) {
+          if (!helada[k]) continue;
+          const q = (k % N) - (N >> 1), r = ((k / N) | 0) - (N >> 1);
+          const x = R + esc * 1.5 * q * 0.62, y = R + esc * Math.sqrt(3) * (r + q / 2) * 0.62;
+          const masa = M.clamp((s[k] - 1) * 1.5 + 0.35);
+          let borde = 0;
+          for (const v of [-1, 1, -N, N, -N + 1, N - 1]) if (!helada[k + v]) borde++;
+          const b = 0.42 + 0.4 * masa + borde * 0.1;
+          g.fillStyle = `rgb(${190 * b + 40},${220 * b + 30},${255 * Math.min(1, b + 0.1)})`;
+          g.beginPath();
+          g.arc(x, y, esc * 0.62, 0, Math.PI * 2);
+          g.fill();
+        }
+        ctx.save();
+        ctx.filter = "blur(0.6px)";
+        ctx.drawImage(capa.c, cx - R, cy - R);
+        ctx.restore();
+        ctx.fillStyle = "rgba(190,215,255,.75)";
+        ctx.font = '16px "Plex Mono"';
+        ctx.textAlign = "center";
+        ctx.fillText(et, cx, cy + R + 28);
+      }
+      // brillo suave (bloom) de todo el hielo
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.filter = "blur(10px)";
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(ctx.canvas, 0, 0);
+      ctx.restore();
+      ctx.fillStyle = "#dce9ff";
+      ctx.font = 'italic 32px "Fraunces"';
+      ctx.textAlign = "center";
+      ctx.fillText("Cuatro copos, una sola regla", 540, 1220);
+      ctx.font = '16px "Plex Mono"';
+      ctx.fillStyle = "rgba(190,215,255,.7)";
+      ctx.fillText("autómata de Reiter · rejilla hexagonal de 181 × 181 · difusión de vapor y congelación", 540, 1256);
+      M.grano(ctx, 6, 2);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

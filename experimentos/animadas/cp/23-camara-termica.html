@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #000; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Cámara térmica: la escena se pinta como mapa de temperaturas en gris,
+    fases.marca();
+    // se reduce a la resolución de un sensor (270×338), se desenfoca y se colorea con la paleta "hierro"
+    (async () => {
+      await M.fuentes('20px "Plex Mono"', 'bold 20px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(3701);
+      const n = makeNoise(3701);
+      const SW = 270, SH = 338;
+      const T = M.lienzo(SW, SH);
+      const g = T.x;
+      g.scale(SW / W, SH / H);
+      const t = (v) => `rgb(${v * 255},${v * 255},${v * 255})`;
+
+      // Pared, ventana fría y radiador caliente
+      g.fillStyle = t(0.3);
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = t(0.08);
+      g.fillRect(90, 110, 330, 380);
+      g.fillStyle = t(0.18);
+      g.fillRect(100, 120, 150, 360);
+      for (let i = 0; i < 9; i++) {
+        g.fillStyle = t(0.78 - (i % 2) * 0.1);
+        g.fillRect(620 + i * 44, 560, 32, 230);
+      }
+      g.fillStyle = t(0.9);
+      g.fillRect(610, 540, 400, 16);
+      // Sofá
+      g.fillStyle = t(0.36);
+      g.beginPath();
+      g.roundRect(20, 780, 1040, 420, 60);
+      g.fill();
+      g.fillStyle = t(0.4);
+      g.beginPath();
+      g.roundRect(80, 700, 920, 200, 50);
+      g.fill();
+      // Huella caliente donde alguien estuvo sentado
+      const huella = g.createRadialGradient(820, 960, 10, 820, 960, 200);
+      huella.addColorStop(0, t(0.62));
+      huella.addColorStop(1, t(0.38));
+      g.fillStyle = huella;
+      g.beginPath();
+      g.ellipse(820, 960, 200, 110, 0, 0, Math.PI * 2);
+      g.fill();
+      // Gato hecho un ovillo
+      const cuerpo = g.createRadialGradient(430, 930, 20, 440, 940, 260);
+      cuerpo.addColorStop(0, t(0.9));
+      cuerpo.addColorStop(1, t(0.68));
+      g.fillStyle = cuerpo;
+      g.beginPath();
+      g.ellipse(440, 950, 250, 150, -0.08, 0, Math.PI * 2);
+      g.fill();
+      // cola enroscada (más fría hacia la punta)
+      for (let k = 0; k < 40; k++) {
+        const a = Math.PI * 0.1 + (k / 40) * Math.PI * 0.95;
+        g.fillStyle = t(0.72 - k * 0.006);
+        g.beginPath();
+        g.arc(440 + Math.cos(a) * 250, 960 + Math.sin(a) * 120, 34 - k * 0.3, 0, Math.PI * 2);
+        g.fill();
+      }
+      // cabeza, orejas frías, ojos y nariz calientes
+      g.fillStyle = t(0.86);
+      g.beginPath();
+      g.ellipse(250, 890, 105, 90, 0.2, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = t(0.55);
+      for (const [x1, y1, x2, y2, x3, y3] of [[175, 830, 170, 730, 240, 800], [270, 810, 320, 720, 340, 820]]) {
+        g.beginPath();
+        g.moveTo(x1, y1);
+        g.lineTo(x2, y2);
+        g.lineTo(x3, y3);
+        g.fill();
+      }
+      g.fillStyle = t(1);
+      g.beginPath();
+      g.ellipse(215, 895, 18, 8, 0.2, 0, Math.PI * 2);
+      g.ellipse(290, 910, 18, 8, 0.2, 0, Math.PI * 2);
+      g.fill();
+      g.beginPath();
+      g.arc(248, 940, 12, 0, Math.PI * 2);
+      g.fill();
+      // patas
+      g.fillStyle = t(0.8);
+      for (const x of [330, 400]) { g.beginPath(); g.ellipse(x, 1060, 50, 30, 0, 0, Math.PI * 2); g.fill(); }
+      // Mesita y taza de café hirviendo
+      g.fillStyle = t(0.24);
+      g.fillRect(760, 520, 260, 26);
+      g.fillStyle = t(1);
+      g.beginPath();
+      g.roundRect(830, 420, 110, 110, 14);
+      g.fill();
+      g.lineWidth = 18;
+      g.strokeStyle = t(0.85);
+      g.beginPath();
+      g.arc(945, 470, 32, -1.3, 1.3);
+      g.stroke();
+      // vapor
+      for (let i = 0; i < 280; i++) {
+        const y = 410 - r() * 330;
+        const k = (410 - y) / 330;
+        const x = 885 + Math.sin(y * 0.03 + i) * 30 * k + (n(y * 0.01, i * 0.1, 2) - 0.5) * 120 * k;
+        g.fillStyle = `rgba(255,255,255,${0.1 * (1 - k)})`;
+        g.beginPath();
+        g.arc(x, y, 12 + 30 * k, 0, Math.PI * 2);
+        g.fill();
+      }
+      // Manchas de humedad y ruido de sensor
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.filter = "blur(1.6px)";
+      g.drawImage(T.c, 0, 0);
+      g.filter = "none";
+
+      // Paleta "hierro"
+      const hierro = M.rampa([[0, "#000000"], [0.12, "#1b0a4a"], [0.3, "#6a0f8e"], [0.48, "#c42b6b"], [0.62, "#f0512a"], [0.78, "#fca21a"], [0.92, "#fde365"], [1, "#ffffff"]]);
+      const src = g.getImageData(0, 0, SW, SH).data;
+      const col = M.lienzo(SW, SH);
+      const img = col.x.createImageData(SW, SH);
+      for (let i = 0; i < SW * SH; i++) {
+        let v = src[i * 4] / 255 + (r() - 0.5) * 0.025 + (n((i % SW) * 0.05, Math.floor(i / SW) * 0.05, 2) - 0.5) * 0.04;
+        const c = hierro(M.clamp(v));
+        img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 255;
+      }
+      col.x.putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(col.c, 0, 0, W, H);
+
+      // Interfaz de la cámara
+      ctx.strokeStyle = "#fff";
+      ctx.fillStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = "rgba(0,0,0,.6)";
+      ctx.shadowBlur = 4;
+      ctx.font = 'bold 22px "Plex Mono"';
+      const cruz = (x, y) => {
+        ctx.beginPath();
+        ctx.moveTo(x - 30, y); ctx.lineTo(x - 10, y); ctx.moveTo(x + 10, y); ctx.lineTo(x + 30, y);
+        ctx.moveTo(x, y - 30); ctx.lineTo(x, y - 10); ctx.moveTo(x, y + 10); ctx.lineTo(x, y + 30);
+        ctx.stroke();
+      };
+      cruz(430, 930);
+      ctx.fillText("38.6 °C", 460, 910);
+      ctx.strokeRect(815, 300, 150, 250);
+      ctx.fillText("MÁX 71.2 °C", 790, 285);
+      ctx.strokeRect(80, 100, 350, 400);
+      ctx.fillText("MÍN 11.4 °C", 90, 530);
+      ctx.font = '20px "Plex Mono"';
+      ctx.fillText("TERMO · 320×240 · ε 0,95", 30, 44);
+      ctx.fillText("28/09/2026  16:47", 30, 72);
+      ctx.fillText("SIESTA DETECTADA", 30, H - 36);
+      // batería
+      ctx.strokeRect(W - 90, 26, 54, 24);
+      ctx.fillRect(W - 36, 33, 5, 10);
+      ctx.fillRect(W - 86, 30, 34, 16);
+      // barra de escala
+      const bx = W - 60, by0 = 150, by1 = 1150;
+      for (let y = by0; y < by1; y++) {
+        const c = hierro(1 - (y - by0) / (by1 - by0));
+        ctx.fillStyle = M.rgb(c);
+        ctx.fillRect(bx, y, 24, 1);
+      }
+      ctx.strokeRect(bx, by0, 24, by1 - by0);
+      ctx.textAlign = "right";
+      ctx.fillText("71.2", bx - 10, by0 + 16);
+      ctx.fillText("11.4", bx - 10, by1);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

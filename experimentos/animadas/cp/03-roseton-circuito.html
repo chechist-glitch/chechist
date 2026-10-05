@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #0b4a2a; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Rosetón gótico donde el plomo de la vidriera son pistas de una placa de circuito
+    (async () => {
+      await M.fuentes('20px "Plex Mono"', 'bold 20px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(1248);
+      const n = makeNoise(1248);
+      const CX = 540, CY = 610, ROUT = 470;
+      const SEG = (Math.PI * 2) / 12;
+      const hash = (a, b, c) => {
+        let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 2147483647);
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+      };
+      const VID = {
+        azul: [30, 70, 230], rubi: [210, 20, 50], oro: [255, 170, 20], verde: [30, 160, 80],
+        morado: [120, 50, 190], cian: [40, 170, 220], blanco: [230, 220, 190],
+      };
+
+      // Devuelve [color de vidrio, distancia al plomo más cercano]
+      function roseton(x, y) {
+        const dx = x - CX, dy = y - CY;
+        const rr = Math.hypot(dx, dy);
+        const a = Math.atan2(dy, dx) + Math.PI / 2;
+        const k0 = Math.floor((a + SEG / 2) / SEG);
+        const phi = a - k0 * SEG;
+        const k = ((k0 % 12) + 12) % 12;
+        const u = rr * Math.sin(phi), v = rr * Math.cos(phi);
+        if (rr > ROUT) return [null, rr - ROUT];
+        if (rr < 72) {
+          return [VID.oro, 72 - rr, hash(1, 0, 0)];
+        }
+        let dPlomo = Math.min(rr - 72, ROUT - rr);
+        // Corona exterior de 48 piezas
+        if (rr > 428) {
+          const kk = Math.floor(((a + Math.PI * 4) / (Math.PI * 2)) * 48);
+          const frac = (((a + Math.PI * 4) / (Math.PI * 2)) * 48) % 1;
+          dPlomo = Math.min(dPlomo, rr - 428, Math.min(frac, 1 - frac) * ((Math.PI * 2 * rr) / 48));
+          return [kk % 2 ? VID.rubi : VID.oro, dPlomo, hash(kk, 7, 1)];
+        }
+        dPlomo = Math.min(dPlomo, 428 - rr);
+        // Lanceta (arco apuntado) en el eje del gajo
+        if (v > 96 && v < 318) {
+          const hw = 0.2 * v * Math.sqrt(M.clamp((318 - v) / 80));
+          if (Math.abs(u) < hw) {
+            const d = Math.min(hw - Math.abs(u), v - 96);
+            const dr = Math.hypot(u, v - 236);
+            if (dr < 26) return [VID.blanco, Math.min(d, 26 - dr), hash(k, 3, 0)];
+            if (v < 150) return [VID.verde, Math.min(d, Math.abs(dr - 26), 150 - v), hash(k, 4, 0)];
+            return [k % 2 ? VID.rubi : VID.cian, Math.min(d, dr - 26, v - 150), hash(k, 5, 0)];
+          }
+          dPlomo = Math.min(dPlomo, Math.abs(u) - hw);
+        }
+        // Medallones entre lancetas
+        for (const sgn of [-1, 1]) {
+          const mu = 368 * Math.sin((sgn * Math.PI) / 24), mv = 368 * Math.cos(Math.PI / 24);
+          const dm = Math.hypot(u - mu, v - mv);
+          if (dm < 48) {
+            if (dm < 20) return [VID.oro, 20 - dm, hash(k, sgn, 9)];
+            // cuatrifolio: cuatro pétalos
+            const ang = Math.atan2(v - mv, u - mu);
+            const petalo = 0.5 + 0.5 * Math.cos(ang * 4);
+            return [petalo > 0.5 ? VID.morado : VID.azul, Math.min(48 - dm, dm - 20, Math.abs(petalo - 0.5) * dm * 0.8), hash(k, sgn, 2 + (petalo > 0.5))];
+          }
+          dPlomo = Math.min(dPlomo, dm - 48);
+        }
+        // Fondo azul partido en piezas por una rejilla polar
+        const fr = rr / 44, fa = ((a + Math.PI) * (Math.floor(fr) + 0.5) * 44) / 52;
+        const cr = Math.floor(fr), ca = Math.floor(fa);
+        const bordes = Math.min(fr - cr, 1 - (fr - cr)) * 44;
+        const bordesA = Math.min(fa - ca, 1 - (fa - ca)) * 52;
+        const piezas = Math.min(bordes, bordesA) * 0.9;
+        return [hash(cr, ca, 5) < 0.1 ? VID.morado : VID.azul, Math.min(dPlomo, piezas + 2.2), hash(cr, ca, 3)];
+      }
+
+      M.porPixel(ctx, (x, y) => {
+        const [vid, dp, h] = roseton(x, y);
+        const dx = x - CX, dy = y - CY, rr = Math.hypot(dx, dy);
+        const ancho = rr < 80 || rr > 425 ? 4.5 : 3;
+        const cobre = (t) => {
+          const lum = 0.55 + 0.6 * Math.sqrt(Math.max(0, t));
+          return [205 * lum, 160 * lum, 70 * lum];
+        };
+        if (vid === null) {
+          if (dp < 12) return cobre(1 - Math.abs(dp - 6) / 6);
+          // Placa: máscara verde con fibra de vidrio
+          const f = n(x * 0.02, y * 0.02, 3), f2 = n(x * 0.6, y * 0.05, 1);
+          return [10 + f * 16, 78 + f * 30 + f2 * 8, 44 + f * 16];
+        }
+        if (dp < ancho) return cobre(1 - dp / ancho);
+        // Vidrio iluminado por detrás: color de la pieza, moteado y más brillo al centro
+        const var_ = 0.75 + h * 0.5;
+        const mot = 0.72 + 0.55 * n(x * 0.018 + h * 50, y * 0.018, 4) + 0.12 * n(x * 0.2, y * 0.2, 1);
+        const luz = (1.15 - (rr / ROUT) * 0.45) * var_ * mot;
+        const borde = M.smooth(ancho, ancho + 6, dp);
+        const k = luz * (0.55 + 0.45 * borde);
+        return [Math.min(255, vid[0] * k + 30 * (1 - borde)), Math.min(255, vid[1] * k), Math.min(255, vid[2] * k)];
+      });
+
+      // Pistas que salen del rosetón hacia el borde de la placa
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const pads = [];
+      for (let i = 0; i < 56; i++) {
+        const a = (i / 56) * Math.PI * 2 + 0.02;
+        const pts = [];
+        let rr = ROUT + 12;
+        let x = CX + Math.cos(a) * rr, y = CY + Math.sin(a) * rr;
+        pts.push([x, y]);
+        const l1 = 20 + r() * 60;
+        x += Math.cos(a) * l1; y += Math.sin(a) * l1;
+        pts.push([x, y]);
+        // se alinea a la dirección de 45º más cercana
+        const d45 = Math.round(a / (Math.PI / 4)) * (Math.PI / 4) + (r() < 0.5 ? 0.785 : -0.785) * (r() < 0.6);
+        const l2 = 40 + r() * 170;
+        x += Math.cos(d45) * l2; y += Math.sin(d45) * l2;
+        pts.push([x, y]);
+        const d3 = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
+        const l3 = 30 + r() * 220;
+        x += Math.cos(d3) * l3; y += Math.sin(d3) * l3;
+        pts.push([x, y]);
+        ctx.beginPath();
+        pts.forEach(([px, py], j) => (j ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+        ctx.strokeStyle = "rgba(60,170,95,.9)";
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(120,220,140,.35)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        pads.push([x, y]);
+      }
+      for (const [x, y] of pads) {
+        ctx.fillStyle = "#d9ae5a";
+        ctx.beginPath();
+        ctx.arc(x, y, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1b1206";
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Vías en los nudos del plomo
+      function via(x, y, rad = 6) {
+        const g = ctx.createRadialGradient(x - rad * 0.3, y - rad * 0.3, 1, x, y, rad);
+        g.addColorStop(0, "#fff0c0");
+        g.addColorStop(1, "#b0822e");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#140d04";
+        ctx.beginPath();
+        ctx.arc(x, y, rad * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (let k = 0; k < 12; k++) {
+        const a = k * SEG - Math.PI / 2;
+        via(CX + Math.cos(a) * 318, CY + Math.sin(a) * 318, 7);
+        via(CX + Math.cos(a) * 96, CY + Math.sin(a) * 96, 5);
+        via(CX + Math.cos(a + SEG / 2) * 428, CY + Math.sin(a + SEG / 2) * 428, 6);
+      }
+
+      // Chip central
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = "#c9a04e";
+      for (let i = 0; i < 8; i++) for (const s of [-1, 1]) {
+        ctx.fillRect(-35 + i * 10, s * 44 - (s > 0 ? 0 : 10), 5, 10);
+        ctx.fillRect(s * 44 - (s > 0 ? 0 : 10), -35 + i * 10, 10, 5);
+      }
+      ctx.fillStyle = "#16161a";
+      ctx.fillRect(-42, -42, 84, 84);
+      ctx.strokeStyle = "#333";
+      ctx.strokeRect(-38, -38, 76, 76);
+      ctx.fillStyle = "#9a9aa2";
+      ctx.font = 'bold 14px "Plex Mono"';
+      ctx.textAlign = "center";
+      ctx.fillText("RS-1248", 0, 4);
+      ctx.beginPath();
+      ctx.arc(-28, -28, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Componentes y serigrafía en las esquinas
+      function smd(x, y, w, h, cuerpo, et) {
+        ctx.fillStyle = "#d8b060";
+        ctx.fillRect(x - 4, y, 6, h);
+        ctx.fillRect(x + w - 2, y, 6, h);
+        ctx.fillStyle = cuerpo;
+        ctx.fillRect(x + 2, y, w - 4, h);
+        ctx.fillStyle = "#f2f2e8";
+        ctx.font = '13px "Plex Mono"';
+        ctx.textAlign = "left";
+        ctx.fillText(et, x, y - 6);
+      }
+      [[70, 90], [900, 90], [70, 1160], [880, 1150]].forEach(([bx, by], q) => {
+        for (let i = 0; i < 4; i++) smd(bx + (i % 2) * 60, by + Math.floor(i / 2) * 44, 32, 16, i % 2 ? "#2a2a2a" : "#b58a55", (i % 2 ? "C" : "R") + (q * 4 + i + 1));
+      });
+      ctx.strokeStyle = "#f2f2e8";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(24, 24, W - 48, H - 48);
+      ctx.fillStyle = "#f2f2e8";
+      ctx.font = 'bold 22px "Plex Mono"';
+      ctx.textAlign = "center";
+      ctx.fillText("ROSETÓN · REV 1.3 · CATEDRAL DE SEVILLA", 540, 1250);
+      ctx.font = '15px "Plex Mono"';
+      ctx.fillText("vidrio emplomado sobre FR-4 · 12 gajos · 48 dovelas · hecho a mano con píxeles", 540, 1282);
+      for (const [x, y] of [[48, 48], [W - 48, 48], [48, H - 48], [W - 48, H - 48]]) via(x, y, 14);
+
+      M.grano(ctx, 7, 3);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>

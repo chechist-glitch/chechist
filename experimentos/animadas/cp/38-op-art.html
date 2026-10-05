@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #111; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Op art a lo Vasarely: un tablero de celdas que se deforma con una lente esférica,
+    fases.marca();
+    // y en cada celda una figura (círculo o rombo) que cambia de tamaño y color con la curvatura
+    const ctx = canvas2d();
+    const N = 17;
+    const CX = 540, CY = 640, RL = 400;
+    const lente = (x, y) => {
+      const dx = x - CX, dy = y - CY, d = Math.hypot(dx, dy);
+      if (d >= RL) return [x, y, 0];
+      const t = d / RL;
+      const k = Math.sin((t * Math.PI) / 2) / (t || 1);
+      return [CX + dx * k, CY + dy * k, 1 - t * t];
+    };
+    const pal = [M.hex("#0c1a4a"), M.hex("#1f4fd1"), M.hex("#3aa0ff"), M.hex("#f5f3ea"), M.hex("#ff4d2e"), M.hex("#ffb000")];
+    ctx.fillStyle = "#0b0b10";
+    ctx.fillRect(0, 0, W, H);
+    const M0 = 40, paso = (W - M0 * 2) / N;
+    const filas = Math.floor((H - M0 * 2) / paso);
+    const oy = (H - filas * paso) / 2;
+    for (let j = 0; j < filas; j++) for (let i = 0; i < N; i++) {
+      const x0 = M0 + i * paso, y0 = oy + j * paso;
+      const esq = [[x0, y0], [x0 + paso, y0], [x0 + paso, y0 + paso], [x0, y0 + paso]].map(([x, y]) => lente(x, y));
+      const c = lente(x0 + paso / 2, y0 + paso / 2);
+      const z = c[2];
+      const par = (i + j) % 2;
+      // fondo de la celda: degradado de azules según la altura de la bola
+      const fondo = M.mezcla(par ? pal[0] : pal[1], par ? pal[4] : pal[5], z * 0.9);
+      ctx.fillStyle = M.rgb(fondo);
+      ctx.beginPath();
+      esq.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
+      // figura interior
+      const tam = 0.22 + 0.2 * z + 0.06 * Math.sin(i * 0.7 + j * 0.5);
+      const fig = M.mezcla(par ? pal[3] : pal[2], par ? pal[0] : pal[3], z);
+      ctx.fillStyle = M.rgb(fig);
+      ctx.beginPath();
+      const rombo = (i * 3 + j * 5) % 7 === 0 || z > 0.75;
+      for (let k = 0; k < 40; k++) {
+        const a = (k / 40) * Math.PI * 2;
+        let u = Math.cos(a), v = Math.sin(a);
+        if (rombo) { const s = Math.abs(u) + Math.abs(v); u /= s; v /= s; }
+        const px = 0.5 + u * tam, py = 0.5 + v * tam;
+        // interpolación bilineal dentro de la celda deformada
+        const top = [M.lerp(esq[0][0], esq[1][0], px), M.lerp(esq[0][1], esq[1][1], px)];
+        const bot = [M.lerp(esq[3][0], esq[2][0], px), M.lerp(esq[3][1], esq[2][1], px)];
+        const q = [M.lerp(top[0], bot[0], py), M.lerp(top[1], bot[1], py)];
+        k ? ctx.lineTo(...q) : ctx.moveTo(...q);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    fases.marca();
+    // brillo de la esfera
+    const br = ctx.createRadialGradient(CX - 140, CY - 160, 10, CX, CY, RL);
+    br.addColorStop(0, "rgba(255,255,255,.18)");
+    br.addColorStop(0.6, "rgba(255,255,255,0)");
+    br.addColorStop(1, "rgba(0,0,0,.25)");
+    ctx.fillStyle = br;
+    ctx.beginPath(); ctx.arc(CX, CY, RL, 0, Math.PI * 2); ctx.fill();
+    M.grano(ctx, 6, 4);
+    fases.marca(); fases.preparar(); listo();
+  </script>
+</body>
+</html>

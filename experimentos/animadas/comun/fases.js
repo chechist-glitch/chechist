@@ -5,6 +5,7 @@ function crearFases({ fuente = "c", VW = 720, VH = 900, t0 = 0.3, t1 = 8.8, entr
   const fotos = [];
   const src = document.getElementById(fuente);
   const marca = () => {
+    if (src.width < 500) return; // el lienzo aún no tiene su tamaño
     const c = document.createElement("canvas"); c.width = VW; c.height = VH;
     const g = c.getContext("2d"); g.drawImage(src, 0, 0, VW, VH);
     fotos.push(g.getImageData(0, 0, VW, VH).data);

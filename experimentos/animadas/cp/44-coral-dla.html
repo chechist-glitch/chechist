@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../comun/fases.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #031018; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    const fases = crearFases({});
+    // Agregación limitada por difusión: partículas que caminan al azar (con algo de corriente hacia abajo)
+    fases.marca();
+    // se quedan pegadas al tocar el arrecife. Así crecen corales, rayos y escarcha.
+    (async () => {
+      await M.fuentes('16px "Plex Mono"');
+      const ctx = canvas2d();
+      const r = rng(2001);
+      const n = makeNoise(2001);
+      const GW = 360, GH = 450, K = 3;
+      const ed = new Int32Array(GW * GH).fill(-1);
+      // semillas: suelo rocoso irregular
+      const suelo = (x) => Math.floor(5 + 8 * n(x * 0.03, 1, 3));
+      for (let x = 0; x < GW; x++) for (let y = GH - suelo(x); y < GH; y++) ed[y * GW + x] = 0;
+      // el coral solo puede arrancar de unas pocas rocas: el resto del suelo no pega
+      const semillas = [40, 105, 170, 230, 300];
+      const pega = (k) => { const x = k % GW, y = (k / GW) | 0; return ed[k] > 0 || (ed[k] === 0 && semillas.some((sx) => Math.abs(x - sx) < 3) && y <= GH - suelo(x) + 1); };
+      let cima = GH - 16;
+      const OBJ = 16000;
+      let pegadas = 0;
+      const vec = [-1, 1, -GW, GW, -GW - 1, -GW + 1, GW - 1, GW + 1];
+      while (pegadas < OBJ) {
+        let x = Math.floor(r() * GW), y = Math.max(0, cima - 30);
+        for (let pasos = 0; pasos < 20000; pasos++) {
+          const d = r();
+          if (d < 0.25) x--; else if (d < 0.5) x++; else if (d < 0.735) y--; else y++;
+          x = (x + GW) % GW;
+          if (y < 0) y = 0;
+          if (y >= GH) break;
+          const k = y * GW + x;
+          let toca = false;
+          if (ed[k] === 0) break;
+          for (const v of vec) { const kk = k + v; if (kk >= 0 && kk < GW * GH && pega(kk)) { toca = true; break; } }
+          if (toca && r() < 0.35) {
+            ed[k] = ++pegadas;
+            if (y < cima + 40) cima = Math.min(cima, y);
+            break;
+          }
+        }
+        if (cima < 8) break;
+      }
+      // pintado: agua profunda con rayos de luz
+      M.porPixel(ctx, (x, y) => {
+        const t = y / H;
+        let c = M.mezcla([10, 70, 110], [2, 14, 28], Math.pow(t, 0.8));
+        const rayo = Math.max(0, Math.sin(x * 0.012 + y * 0.004 + n(x * 0.003, y * 0.002, 2) * 4)) ** 8 * (1 - t);
+        return c.map((v) => v + rayo * 40);
+      });
+      const pal = M.rampa([[0, "#3a2440"], [0.2, "#7a2a5a"], [0.45, "#e2506b"], [0.7, "#ff9a6b"], [0.9, "#ffd6a0"], [1, "#fff4e0"]]);
+      const capa = M.lienzo();
+      const g = capa.x;
+      for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+        const e = ed[y * GW + x];
+        if (e < 0) continue;
+        const t = e === 0 ? 0 : Math.pow(e / pegadas, 0.7);
+        const prof = 1 - y / GH;
+        const c = e === 0 ? [40, 34, 38] : pal(t).map((v) => v * (0.75 + 0.35 * prof));
+        g.fillStyle = M.rgb(c);
+        g.beginPath();
+        g.arc(x * K + K / 2, y * K + K / 2, K * 0.75, 0, Math.PI * 2);
+        g.fill();
+      }
+      // sombra y brillo
+      ctx.save();
+      ctx.filter = "blur(6px)";
+      ctx.globalAlpha = 0.6;
+      ctx.globalCompositeOperation = "multiply";
+      ctx.drawImage(capa.c, 4, 8);
+      ctx.restore();
+      ctx.drawImage(capa.c, 0, 0);
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.filter = "blur(8px)";
+      ctx.globalAlpha = 0.45;
+      ctx.drawImage(capa.c, 0, 0);
+      ctx.restore();
+      // partículas en suspensión
+      for (let i = 0; i < 500; i++) {
+        ctx.fillStyle = `rgba(200,240,255,${r() * 0.35})`;
+        ctx.beginPath();
+        ctx.arc(r() * W, r() * H, r() * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "rgba(200,235,255,.75)";
+      ctx.font = '16px "Plex Mono"';
+      ctx.fillText(`agregación limitada por difusión · ${pegadas.toLocaleString("es-ES")} partículas pegadas una a una`, 40, H - 36);
+      M.grano(ctx, 7, 3);
+      fases.marca(); fases.preparar(); listo();
+    })();
+  </script>
+</body>
+</html>
