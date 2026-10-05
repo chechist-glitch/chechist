@@ -111,7 +111,7 @@
       let hechos = 1;
       window.pintar = (t) => {
         const u = Math.min(1, Math.max(0, (t - 0.5) / 8));
-        const hasta = Math.floor(nodos.length * u);
+        const hasta = Math.floor(nodos.length * u * u);
         while (hechos < hasta) {
           const nd = nodos[hechos++];
           if (nd.padre < 0) continue;

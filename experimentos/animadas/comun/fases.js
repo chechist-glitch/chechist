@@ -25,7 +25,16 @@ function crearFases({ fuente = "c", VW = 720, VH = 900, t0 = 0.3, t1 = 8.8, entr
     }
     // Fuera las fases que no acercan a la imagen final (lienzos usados de borrador, mapas
     // intermedios...) y las que casi no cambian nada. Cada transición dura según lo que cambia.
+    // fuera las fotos casi vacías (lienzo aún transparente); los huecos transparentes que queden
+    // se rellenan con el color medio de la imagen final (si no, saldrían negros)
     const fin = fotos[fotos.length - 1];
+    const alfa = (a) => { let s = 0, c = 0; for (let k = 3; k < a.length; k += 4 * 13) { s += a[k]; c++; } return s / c; };
+    const llenas = fotos.filter((f, i) => i === fotos.length - 1 || alfa(f) > 200);
+    fotos.length = 0; fotos.push(...llenas);
+    let mr = 0, mg = 0, mb = 0, mc = 0;
+    for (let k = 0; k < fin.length; k += 4 * 17) { mr += fin[k]; mg += fin[k + 1]; mb += fin[k + 2]; mc++; }
+    mr /= mc; mg /= mc; mb /= mc;
+    for (const f of fotos) for (let k = 0; k < f.length; k += 4) if (f[k + 3] < 255) { const a = f[k + 3] / 255; f[k] = f[k] * a + mr * (1 - a); f[k + 1] = f[k + 1] * a + mg * (1 - a); f[k + 2] = f[k + 2] * a + mb * (1 - a); f[k + 3] = 255; }
     const dist = (a) => { let s = 0, c = 0; for (let k = 0; k < a.length; k += 4 * 7) { s += Math.abs(a[k] - fin[k]) + Math.abs(a[k + 1] - fin[k + 1]) + Math.abs(a[k + 2] - fin[k + 2]); c++; } return s / c; };
     const ds = fotos.map(dist);
     // una fase vale si casi todos sus píxeles son o como al principio o como al final
