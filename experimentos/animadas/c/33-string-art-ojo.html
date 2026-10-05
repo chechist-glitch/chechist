@@ -4,18 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #2a1d14; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Hilo y clavos: 240 clavos en círculo y un solo hilo que va de clavo en clavo.
-    fases.marca();
     // Algoritmo voraz: en cada paso se elige el clavo cuyo tramo tapa más "oscuridad" pendiente
-    fases.marca();
     // de la imagen objetivo (un ojo), y esa oscuridad se da por cubierta.
     (async () => {
       await M.fuentes('italic 24px "Fraunces"', '18px "Plex Mono"');
@@ -108,35 +104,51 @@
         const borde = d > RC + 30 ? 0.7 : 1;
         return [214 * v * borde, 184 * v * borde, 140 * v * borde];
       });
-      // Hilo
-      ctx.strokeStyle = "rgba(18,16,22,.26)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      camino.forEach((i, k) => {
-        const [gx, gy] = clavos[i];
-        const x = CX + (gx - G / 2) * K, y = CY + (gy - G / 2) * K;
-        k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      // En el vídeo se ve tejer: el hilo va de clavo en clavo siguiendo el camino calculado,
+      // cada vez más deprisa, y el ojo aparece de la nada. Al final se rotula la tabla.
+      const madera = M.lienzo(); madera.x.drawImage(ctx.canvas, 0, 0);
+      const hilo = M.lienzo();
+      const hx = hilo.x;
+      hx.strokeStyle = "rgba(18,16,22,.26)"; hx.lineWidth = 1;
+      const pos = (i) => { const [gx, gy] = clavos[i]; return [CX + (gx - G / 2) * K, CY + (gy - G / 2) * K]; };
+      const clavosC = M.lienzo();
+      clavos.forEach((_, i) => {
+        const [x, y] = pos(i);
+        const g = clavosC.x;
+        g.fillStyle = "rgba(0,0,0,.35)";
+        g.beginPath(); g.arc(x + 1.5, y + 2, 3.4, 0, Math.PI * 2); g.fill();
+        const gr = g.createRadialGradient(x - 1, y - 1, 0.5, x, y, 3.4);
+        gr.addColorStop(0, "#f4f4f4"); gr.addColorStop(1, "#6f6f73");
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, 3.4, 0, Math.PI * 2); g.fill();
       });
-      ctx.stroke();
-      // Clavos
-      clavos.forEach(([gx, gy]) => {
-        const x = CX + (gx - G / 2) * K, y = CY + (gy - G / 2) * K;
-        ctx.fillStyle = "rgba(0,0,0,.35)";
-        ctx.beginPath(); ctx.arc(x + 1.5, y + 2, 3.4, 0, Math.PI * 2); ctx.fill();
-        const g = ctx.createRadialGradient(x - 1, y - 1, 0.5, x, y, 3.4);
-        g.addColorStop(0, "#f4f4f4");
-        g.addColorStop(1, "#6f6f73");
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI * 2); ctx.fill();
-      });
-      ctx.fillStyle = "#e9d8bd";
-      ctx.font = 'italic 26px "Fraunces"';
-      ctx.textAlign = "center";
-      ctx.fillText("un hilo, 240 clavos, 4.200 vueltas", 540, 1210);
-      ctx.font = '18px "Plex Mono"';
-      ctx.fillStyle = "rgba(233,216,189,.7)";
-      ctx.fillText("0 → " + camino.slice(1, 9).join(" → ") + " → …", 540, 1250);
-      fases.marca(); fases.preparar(); listo();
+      let hecho = 0;
+      window.pintar = (t) => {
+        const u = Math.min(1, Math.max(0, (t - 0.4) / 8.4));
+        const hasta = Math.floor((camino.length - 1) * u * u);
+        while (hecho < hasta) {
+          const [x0, y0] = pos(camino[hecho]), [x1, y1] = pos(camino[hecho + 1]);
+          hx.beginPath(); hx.moveTo(x0, y0); hx.lineTo(x1, y1); hx.stroke();
+          hecho++;
+        }
+        ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+        ctx.drawImage(madera.c, 0, 0);
+        ctx.drawImage(hilo.c, 0, 0);
+        // el tramo que se está tensando ahora, más marcado
+        if (hecho < camino.length - 1) {
+          const [x0, y0] = pos(camino[hecho]), [x1, y1] = pos(camino[Math.min(camino.length - 1, hecho + 1)]);
+          ctx.strokeStyle = "rgba(160,40,40,.8)"; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + (x1 - x0) * ((t * 24) % 1), y0 + (y1 - y0) * ((t * 24) % 1)); ctx.stroke();
+        }
+        ctx.drawImage(clavosC.c, 0, 0);
+        ctx.fillStyle = "#e9d8bd";
+        ctx.font = 'italic 26px "Fraunces"';
+        ctx.textAlign = "center";
+        ctx.fillText(`un hilo, 240 clavos, ${hecho.toLocaleString("es-ES")} vueltas`, 540, 1210);
+        ctx.font = '18px "Plex Mono"';
+        ctx.fillStyle = "rgba(233,216,189,.7)";
+        ctx.fillText("0 → " + camino.slice(1, 9).join(" → ") + " → …", 540, 1250);
+      };
+      listo();
     })();
   </script>
 </body>

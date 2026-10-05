@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #efe7d4; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Dechado de punto de cruz: el diseño es una rejilla de 72×90 celdas
-    fases.marca();
     // y cada celda se borda con dos puntadas cruzadas de hilo con volumen.
     const ctx = canvas2d();
     const r = rng(1950);
@@ -23,7 +21,6 @@
     const rej = Array.from({ length: CH }, () => new Array(CW).fill(0));
     const pon = (x, y, c) => { if (x >= 0 && y >= 0 && x < CW && y < CH) rej[y][x] = c; };
 
-    fases.marca();
     // Letra de 3×5 píxeles
     const F = {
       A: "010101111101101", B: "110101110101110", C: "011100100100011", D: "110101101101110", E: "111100110100111",
@@ -44,7 +41,6 @@
     const ancho = (t, esc = 1) => t.length * 4 * esc - esc;
     const dibujo = (filas, x0, y0, mapa) => filas.forEach((f, j) => [...f].forEach((ch, i) => mapa[ch] && pon(x0 + i, y0 + j, mapa[ch])));
 
-    fases.marca();
     // Marco y cenefas
     for (let x = 1; x < CW - 1; x++) { pon(x, 1, 6); pon(x, CH - 2, 6); }
     for (let y = 1; y < CH - 1; y++) { pon(1, y, 6); pon(CW - 2, y, 6); }
@@ -59,7 +55,6 @@
     const corazon = ["01010", "11111", "11111", "01110", "00100"];
     for (let i = 0; i < 10; i++) dibujo(corazon, 6 + i * 6, 36, { 1: [1, 7, 5][i % 3] });
 
-    fases.marca();
     // Maceta con claveles y dos pajaritos
     const maceta = ["11111111111111111111", "22222222222222222222", ".111111111111111111.", ".111111111111111111.", "..1111111111111111..", "..1111111111111111..", "...11111111111111...", "...11111111111111...", "....111111111111....", "....111111111111...."];
     dibujo(maceta, 26, 66, { 1: 4, 2: 8 });
@@ -77,7 +72,6 @@
     texto("Q.C.", 8, 79, 8);
     texto("C.H.", CW - 8 - ancho("C.H."), 79, 8);
 
-    fases.marca();
     // --- Tela de Aida ---
     M.porPixel(ctx, (x, y) => {
       const u = ((x - OX) / S) % 1, v = ((y - OY) / S) % 1;
@@ -89,7 +83,6 @@
       return [239 * k * m, 231 * k * m, 212 * k * m];
     });
 
-    fases.marca();
     // Puntada: un hilo diagonal con degradado, torsión y sombra
     function puntada(cx, cy, ang, col) {
       const base = M.hex(col);
@@ -128,7 +121,6 @@
       puntada(cx, cy, -Math.PI / 4 + (r() - 0.5) * 0.06, HILOS[c]);
       puntada(cx, cy, Math.PI / 4 + (r() - 0.5) * 0.06, HILOS[c]);
     }
-    fases.marca();
     // Pespunte oscuro alrededor de la maceta y los pájaros
     ctx.strokeStyle = "#3a261c";
     ctx.lineWidth = 2.2;
@@ -149,7 +141,8 @@
     };
     contorno([4, 8]);
     contorno([9, 10, 5]);
-    fases.marca(); fases.preparar(); listo();
+    // En el vídeo la pieza se hace celda a celda, en el orden de su oficio.
+    revelarPorCeldas({ cw: 13, ch: 13, ox: 72, oy: 90, cols: 72, filas: 90, orden: 'zigzag', base: null, tenue: 0.16 }); listo();
   </script>
 </body>
 </html>

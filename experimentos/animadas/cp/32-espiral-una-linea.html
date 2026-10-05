@@ -4,16 +4,13 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #f4efe3; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Una sola línea continua: una espiral que tiembla más donde la imagen es más oscura.
-    fases.marca();
     // Es como lo dibujaría un plóter con un solo rotulador y sin levantarlo nunca.
     (async () => {
       await M.fuentes('italic 24px "Fraunces"');
@@ -50,13 +47,10 @@
         }
         return M.clamp(d);
       }
-      ctx.fillStyle = "#f4efe3";
-      ctx.fillRect(0, 0, W, H);
+      // En el vídeo el plóter dibuja la espiral desde el centro hacia fuera, sin levantar el
+      // rotulador; la Giralda aparece sola a medida que la línea pasa por encima.
       const CX = 540, CY = 640, PASO = 7.2, RMAX = 900;
-      ctx.strokeStyle = "#1b1e2e";
-      ctx.lineWidth = 1.7;
-      ctx.lineJoin = "round";
-      ctx.beginPath();
+      const pts = [];
       let fase = 0, largo = 0, px = CX, py = CY;
       for (let th = 0; ; th += 0.0) {
         const rr = (th / (Math.PI * 2)) * PASO;
@@ -66,18 +60,45 @@
         fase += 1;
         const off = Math.sin(fase * 1.6) * dosc * PASO * 0.62;
         const x = CX + Math.cos(th) * (rr + off), y = CY + Math.sin(th) * (rr + off);
-        th === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        pts.push([x, y]);
         largo += Math.hypot(x - px, y - py);
         px = x; py = y;
         th += 1.6 / Math.max(rr, 3);
       }
-      ctx.stroke();
       ctx.fillStyle = "#f4efe3";
-      ctx.fillRect(0, H - 80, W, 80);
-      ctx.fillStyle = "#1b1e2e";
-      ctx.font = 'italic 24px "Fraunces"';
-      ctx.fillText(`La Giralda · una sola línea de ${Math.round(largo).toLocaleString("es-ES")} píxeles, sin levantar el rotulador`, 60, H - 40);
-      fases.marca(); fases.preparar(); listo();
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "#1b1e2e";
+      ctx.lineWidth = 1.7;
+      ctx.lineJoin = "round";
+      const tinta = M.lienzo();
+      tinta.x.strokeStyle = "#1b1e2e"; tinta.x.lineWidth = 1.7; tinta.x.lineJoin = "round"; tinta.x.lineCap = "round";
+      let hecho = 0;
+      window.pintar = (t) => {
+        // velocidad constante de rotulador: la longitud recorrida crece lineal con el tiempo
+        const u = Math.min(1, Math.max(0, (t - 0.2) / 8.8));
+        const hasta = Math.floor(pts.length * u); // velocidad de rotulador constante
+        if (hasta > hecho + 1) {
+          tinta.x.beginPath(); tinta.x.moveTo(...pts[Math.max(0, hecho - 1)]);
+          for (let k = hecho; k < hasta; k++) tinta.x.lineTo(...pts[k]);
+          tinta.x.stroke();
+          hecho = hasta;
+        }
+        ctx.fillStyle = "#f4efe3"; ctx.fillRect(0, 0, W, H);
+        ctx.drawImage(tinta.c, 0, 0);
+        if (hecho > 0 && hecho < pts.length) {
+          const [x, y] = pts[hecho - 1];
+          ctx.fillStyle = "rgba(0,0,0,.2)"; ctx.beginPath(); ctx.arc(x + 5, y + 7, 7, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = "#f4efe3";
+        ctx.fillRect(0, H - 80, W, 80);
+        if (t > 9.1) {
+          ctx.fillStyle = "#1b1e2e";
+          ctx.font = 'italic 24px "Fraunces"';
+          ctx.fillText(`La Giralda · una sola línea de ${Math.round(largo).toLocaleString("es-ES")} píxeles, sin levantar el rotulador`, 60, H - 40);
+        }
+      };
+      listo();
     })();
   </script>
 </body>

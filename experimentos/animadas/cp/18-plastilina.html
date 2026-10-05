@@ -13,9 +13,11 @@
   <script>
     // Diorama de plastilina: formas blandas unidas con "smooth min", abolladuras y huellas,
     // luz de ventana grande con sombras suaves y desenfoque de lente
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: stop-motion de plastilina: la cámara se mueve a saltos de 12 fotos por segundo alrededor del diorama.
     trazarVideo({
       escala: .67,
+      modo: "anima",
+      porFotograma: 2,
       muestras: 48,
       tono: true,
       expo: 0.95,
@@ -149,8 +151,11 @@
 
       vec3 muestra(vec2 px) {
         vec2 uv = (px - uRes * .5) / uRes.y;
-        vec3 ro = vec3(3.9, 3.1, 8.0);
+        // stop-motion: la cámara se mueve a saltitos de 12 por segundo, como en una animación de plastilina
+        float tt = floor(uT * 12.) / 12.;
         vec3 obj = vec3(.2, 1.55, 0.);
+        vec3 ro = vec3(3.9, 3.1, 8.0) - obj;
+        { float a = sin(tt * .55) * .32; ro = vec3(cos(a) * ro.x + sin(a) * ro.z, ro.y + sin(tt * .8) * .25, -sin(a) * ro.x + cos(a) * ro.z) + obj; }
         vec3 w = normalize(obj - ro), u = normalize(cross(w, vec3(0, 1, 0))), v = cross(u, w);
         vec3 rd = normalize(uv.x * u + uv.y * v + 1.55 * w);
         // desenfoque de lente
@@ -168,7 +173,7 @@
         vec3 n = normal(p);
         vec3 alb = albedo(h.y, p, n);
         // luz de ventana: esfera grande (sombras suaves muestreando un punto al azar)
-        vec3 lc = vec3(-4., 6.5, 5.);
+        vec3 lc = vec3(-4., 6.5, 5.) + vec3(sin(tt * 37.) , cos(tt * 23.), 0.) * .05; // la luz parpadea un pelín entre fotos
         vec2 z = rnd2();
         float cz = 1. - 2. * z.x, sz = sqrt(1. - cz * cz);
         vec3 lp = lc + 1.4 * vec3(sz * cos(z.y * 6.2832), cz, sz * sin(z.y * 6.2832));

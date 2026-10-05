@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #fff; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Autoestereograma: un mapa de profundidad escondido en un patrón que se repite
-    fases.marca();
     // con un periodo que cambia según la profundidad. Mirando "a través" aparece en 3D.
     (async () => {
       await M.fuentes('300px "Anton"', '22px "Plex Mono"');
@@ -78,7 +76,9 @@
       ctx.font = '20px "Plex Mono"';
       ctx.textAlign = "center";
       ctx.fillText("Acerca la nariz, relaja la vista y aléjate despacio hasta ver 3 puntos.", 540, ALTO + 66);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo el estereograma se construye como se calcula: columna a columna de izquierda a derecha,
+      // copiando el patrón con el desfase que pide la profundidad.
+      revelarPorCeldas({ cw: 6, ch: 1350, orden: 'filas', base: '#f6f2e8', tenue: 0 }); listo();
     })();
   </script>
 </body>

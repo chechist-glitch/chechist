@@ -4,18 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #0c1406; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Nervaduras por colonización del espacio: se reparten "hormonas" por la hoja y las venas
-    fases.marca();
     // crecen hacia ellas; cuando llegan, la hormona desaparece. El grosor sale del modelo de tuberías
-    fases.marca();
     // (Murray): cada rama es tan gruesa como la suma de las que alimenta.
     (async () => {
       await M.fuentes('italic 26px "Fraunces"');
@@ -95,39 +91,64 @@
       h.globalCompositeOperation = "destination-in";
       h.drawImage(mascara.c, 0, 0);
       h.globalCompositeOperation = "source-over";
-      // venas: más claras (amarillentas) y con un halo oscuro a los lados
-      h.lineCap = "round";
-      for (const pasada of [0, 1]) for (const nd of nodos) {
-        if (nd.padre < 0) continue;
-        const p = nodos[nd.padre];
-        const w = 0.8 + Math.pow(nd.grosor, 0.62) * 0.9;
-        h.strokeStyle = pasada ? `rgba(230,240,150,${Math.min(0.95, 0.4 + w * 0.08)})` : "rgba(40,70,10,.35)";
-        h.lineWidth = pasada ? w : w + 2.5;
-        h.beginPath();
-        h.moveTo(p.x, p.y);
-        h.lineTo(nd.x, nd.y);
-        h.stroke();
-      }
-      // borde y algún agujerito de oruga
-      h.strokeStyle = "rgba(200,220,110,.6)";
-      h.lineWidth = 2;
-      h.beginPath();
-      for (let a = -Math.PI; a <= Math.PI; a += 0.01) h.lineTo(CX + Math.cos(a) * radio(a) * 0.98, CY + Math.sin(a) * radio(a) * 0.98);
-      h.closePath();
-      h.stroke();
-      h.globalCompositeOperation = "destination-out";
-      for (const [x, y, rr] of [[700, 480, 16], [380, 820, 11], [720, 500, 7]]) { h.beginPath(); h.ellipse(x, y, rr, rr * 0.7, 0.5, 0, 6.28); h.fill(); }
-      h.globalCompositeOperation = "source-over";
-      ctx.save();
-      ctx.shadowColor = "rgba(190,240,80,.35)";
-      ctx.shadowBlur = 50;
-      ctx.drawImage(hoja.c, 0, 0);
-      ctx.restore();
-      ctx.fillStyle = "rgba(220,240,180,.8)";
-      ctx.font = 'italic 26px "Fraunces"';
-      ctx.fillText(`Ficus carica · ${nodos.length.toLocaleString("es-ES")} segmentos de vena crecidos hacia la luz`, 60, H - 44);
-      M.grano(ctx, 7, 5);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo las venas crecen en el mismo orden en que las calculó el algoritmo: salen del
+      // tallo y avanzan hacia las "hormonas" repartidas por la hoja, ramificándose hasta el borde.
+      // La lámina se va iluminando a la vez, como una hoja que se abre a contraluz.
+      const fondo = M.lienzo(); fondo.x.drawImage(ctx.canvas, 0, 0);
+      const venas = M.lienzo();
+      const v = venas.x;
+      v.lineCap = "round";
+      const borde = M.lienzo();
+      const bg = borde.x;
+      bg.strokeStyle = "rgba(200,220,110,.6)";
+      bg.lineWidth = 2;
+      bg.beginPath();
+      for (let a = -Math.PI; a <= Math.PI; a += 0.01) bg.lineTo(CX + Math.cos(a) * radio(a) * 0.98, CY + Math.sin(a) * radio(a) * 0.98);
+      bg.closePath();
+      bg.stroke();
+      const comp = M.lienzo();
+      const cg = comp.x;
+      let hechos = 1;
+      window.pintar = (t) => {
+        const u = Math.min(1, Math.max(0, (t - 0.5) / 8));
+        const hasta = Math.floor(nodos.length * u);
+        while (hechos < hasta) {
+          const nd = nodos[hechos++];
+          if (nd.padre < 0) continue;
+          const p = nodos[nd.padre];
+          const w = 0.8 + Math.pow(nd.grosor, 0.62) * 0.9;
+          v.strokeStyle = "rgba(40,70,10,.35)"; v.lineWidth = w + 2.5;
+          v.beginPath(); v.moveTo(p.x, p.y); v.lineTo(nd.x, nd.y); v.stroke();
+          v.strokeStyle = `rgba(230,240,150,${Math.min(0.95, 0.4 + w * 0.08)})`; v.lineWidth = w;
+          v.beginPath(); v.moveTo(p.x, p.y); v.lineTo(nd.x, nd.y); v.stroke();
+        }
+        // hoja = lámina + venas + borde, con sus agujeros
+        cg.globalCompositeOperation = "source-over"; cg.globalAlpha = 1;
+        cg.clearRect(0, 0, W, H);
+        cg.globalAlpha = 0.35 + 0.65 * Math.min(1, t / 3);
+        cg.drawImage(hoja.c, 0, 0);
+        cg.globalAlpha = 1;
+        cg.drawImage(venas.c, 0, 0);
+        cg.globalAlpha = Math.min(1, t / 1.5);
+        cg.drawImage(borde.c, 0, 0);
+        cg.globalAlpha = 1;
+        cg.globalCompositeOperation = "destination-in";
+        cg.drawImage(mascara.c, 0, 0);
+        cg.globalCompositeOperation = "destination-out";
+        for (const [x, y, rr] of [[700, 480, 16], [380, 820, 11], [720, 500, 7]]) { cg.beginPath(); cg.ellipse(x, y, rr, rr * 0.7, 0.5, 0, 6.28); cg.fill(); }
+        cg.globalCompositeOperation = "source-over";
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(fondo.c, 0, 0);
+        ctx.save();
+        ctx.shadowColor = `rgba(190,240,80,${0.15 + 0.2 * Math.min(1, t / 3)})`;
+        ctx.shadowBlur = 50;
+        ctx.drawImage(comp.c, 0, 0);
+        ctx.restore();
+        ctx.fillStyle = "rgba(220,240,180,.8)";
+        ctx.font = 'italic 26px "Fraunces"';
+        ctx.fillText(`Ficus carica · ${Math.max(0, hechos - 9).toLocaleString("es-ES")} segmentos de vena crecidos hacia la luz`, 60, H - 44);
+      };
+      listo();
     })();
   </script>
 </body>

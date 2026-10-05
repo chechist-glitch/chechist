@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/revelar.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #0a0d12; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Radiografía de un guitarrista: cada material suma "densidad" (madera poca, hueso media,
-    fases.marca();
     // metal mucha) en una capa aditiva; luego densidad → brillo como en la placa, con grano y tinte
     (async () => {
       await M.fuentes('bold 30px "Plex Mono"', '18px "Plex Mono"');
@@ -224,7 +222,8 @@
         ctx.fillStyle = "#5c6570";
         ctx.fillRect(x - 36, 22, 72, 10);
       }
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo la imagen se revela como en su proceso físico.
+      revelar({ modo: 'luz', papel: [12, 16, 22] }); listo();
     })();
   </script>
 </body>

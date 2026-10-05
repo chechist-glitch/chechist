@@ -11,11 +11,10 @@
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Paisaje "fotográfico" generado con código y pasado por un filtro Kuwahara:
-    fases.marca();
     // cada píxel toma el color medio del cuadrante más uniforme → manchas planas de gouache
     const ctx = canvas2d();
+    const fases = crearFases({});
     const r = rng(2026);
     const n = makeNoise(2026);
     const HOR = 690;
@@ -115,7 +114,6 @@
 
     fases.marca();
     // --- Filtro Kuwahara generalizado (8 sectores circulares con peso gaussiano) ---
-    fases.marca();
     // Cada píxel mira sus 8 "porciones de tarta" alrededor y se queda sobre todo con las más uniformes
     function kuwahara(radio, q = 8) {
       const src = ctx.getImageData(0, 0, W, H).data;

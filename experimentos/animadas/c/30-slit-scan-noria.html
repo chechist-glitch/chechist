@@ -4,16 +4,13 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #0b0b2a; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Slit-scan: la noria de la feria gira, y cada fila de la imagen se toma en un instante distinto
-    fases.marca();
     // (la de arriba al principio, la de abajo casi media vuelta después). La rueda se retuerce.
     (async () => {
       await M.fuentes('18px "Plex Mono"');
@@ -99,37 +96,46 @@
         return c.map((v, i) => Math.min(255, v + brillo[i]));
       }
 
-      const img = ctx.createImageData(W, H);
+      // En el vídeo el reloj sigue corriendo: cada fila de la imagen sigue siendo un instante
+      // distinto, pero todo el rango avanza, así que la noria gira y su retorcimiento se desliza.
+      // Se calcula a media resolución y se amplía (es una cuenta por píxel bastante gorda).
+      const SW = W / 2, SH = H / 2;
+      const peq = M.lienzo(SW, SH);
+      const img = peq.x.createImageData(SW, SH);
       const o = img.data;
-      for (let y = 0; y < H; y++) {
-        const t = y / H;
-        for (let x = 0; x < W; x++) {
-          const c = escena(x, y, t);
-          const k = (y * W + x) * 4;
-          o[k] = c[0]; o[k + 1] = c[1]; o[k + 2] = c[2]; o[k + 3] = 255;
+      window.pintar = (tv) => {
+        const desfase = tv * 0.09;
+        for (let y = 0; y < SH; y++) {
+          const t = (y * 2) / H + desfase;
+          for (let x = 0; x < SW; x++) {
+            const c = escena(x * 2 + 1, y * 2 + 1, t);
+            const k = (y * SW + x) * 4;
+            o[k] = c[0]; o[k + 1] = c[1]; o[k + 2] = c[2]; o[k + 3] = 255;
+          }
         }
-      }
-      ctx.putImageData(img, 0, 0);
-      for (const [x, y, b] of estrellas) {
-        ctx.fillStyle = `rgba(255,255,255,${0.2 + b * 0.6})`;
-        ctx.fillRect(x, y, 1.5, 1.5);
-      }
-      // eje del tiempo
-      ctx.strokeStyle = "rgba(255,255,255,.5)";
-      ctx.fillStyle = "rgba(255,255,255,.7)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(1040, 60); ctx.lineTo(1040, H - 60);
-      ctx.moveTo(1032, H - 74); ctx.lineTo(1040, H - 60); ctx.lineTo(1048, H - 74);
-      ctx.stroke();
-      ctx.font = '18px "Plex Mono"';
-      ctx.save();
-      ctx.translate(1058, 380);
-      ctx.rotate(Math.PI / 2);
-      ctx.textAlign = "center";
-      ctx.fillText("cada fila, un instante distinto →", 0, 0);
-      ctx.restore();
-      fases.marca(); fases.preparar(); listo();
+        peq.x.putImageData(img, 0, 0);
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(peq.c, 0, 0, W, H);
+        for (const [x, y, b] of estrellas) {
+          ctx.fillStyle = `rgba(255,255,255,${0.2 + b * 0.6 * (0.6 + 0.4 * Math.sin(tv * 3 + x))})`;
+          ctx.fillRect(x, y, 1.5, 1.5);
+        }
+        ctx.strokeStyle = "rgba(255,255,255,.5)";
+        ctx.fillStyle = "rgba(255,255,255,.7)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(1040, 60); ctx.lineTo(1040, H - 60);
+        ctx.moveTo(1032, H - 74); ctx.lineTo(1040, H - 60); ctx.lineTo(1048, H - 74);
+        ctx.stroke();
+        ctx.font = '18px "Plex Mono"';
+        ctx.save();
+        ctx.translate(1058, 380);
+        ctx.rotate(Math.PI / 2);
+        ctx.textAlign = "center";
+        ctx.fillText("cada fila, un instante distinto →", 0, 0);
+        ctx.restore();
+      };
+      listo();
     })();
   </script>
 </body>

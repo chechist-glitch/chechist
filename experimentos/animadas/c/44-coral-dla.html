@@ -4,16 +4,13 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #031018; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Agregación limitada por difusión: partículas que caminan al azar (con algo de corriente hacia abajo)
-    fases.marca();
     // se quedan pegadas al tocar el arrecife. Así crecen corales, rayos y escarcha.
     (async () => {
       await M.fuentes('16px "Plex Mono"');
@@ -59,46 +56,42 @@
         const rayo = Math.max(0, Math.sin(x * 0.012 + y * 0.004 + n(x * 0.003, y * 0.002, 2) * 4)) ** 8 * (1 - t);
         return c.map((v) => v + rayo * 40);
       });
+      // En el vídeo se ve crecer el arrecife: cada partícula aparece en el orden en que se pegó,
+      // así que el coral sube desde las rocas y se ramifica. Las motas en suspensión van a la deriva.
       const pal = M.rampa([[0, "#3a2440"], [0.2, "#7a2a5a"], [0.45, "#e2506b"], [0.7, "#ff9a6b"], [0.9, "#ffd6a0"], [1, "#fff4e0"]]);
+      const agua = M.lienzo(); agua.x.drawImage(ctx.canvas, 0, 0);
       const capa = M.lienzo();
       const g = capa.x;
-      for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
-        const e = ed[y * GW + x];
-        if (e < 0) continue;
-        const t = e === 0 ? 0 : Math.pow(e / pegadas, 0.7);
-        const prof = 1 - y / GH;
-        const c = e === 0 ? [40, 34, 38] : pal(t).map((v) => v * (0.75 + 0.35 * prof));
-        g.fillStyle = M.rgb(c);
-        g.beginPath();
-        g.arc(x * K + K / 2, y * K + K / 2, K * 0.75, 0, Math.PI * 2);
-        g.fill();
-      }
-      // sombra y brillo
-      ctx.save();
-      ctx.filter = "blur(6px)";
-      ctx.globalAlpha = 0.6;
-      ctx.globalCompositeOperation = "multiply";
-      ctx.drawImage(capa.c, 4, 8);
-      ctx.restore();
-      ctx.drawImage(capa.c, 0, 0);
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.filter = "blur(8px)";
-      ctx.globalAlpha = 0.45;
-      ctx.drawImage(capa.c, 0, 0);
-      ctx.restore();
-      // partículas en suspensión
-      for (let i = 0; i < 500; i++) {
-        ctx.fillStyle = `rgba(200,240,255,${r() * 0.35})`;
-        ctx.beginPath();
-        ctx.arc(r() * W, r() * H, r() * 1.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = "rgba(200,235,255,.75)";
-      ctx.font = '16px "Plex Mono"';
-      ctx.fillText(`agregación limitada por difusión · ${pegadas.toLocaleString("es-ES")} partículas pegadas una a una`, 40, H - 36);
-      M.grano(ctx, 7, 3);
-      fases.marca(); fases.preparar(); listo();
+      const orden = [];
+      for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) { const e = ed[y * GW + x]; if (e >= 0) orden.push([e, x, y]); }
+      orden.sort((a, b) => a[0] - b[0]);
+      const motas = Array.from({ length: 500 }, () => [r() * W, r() * H, r() * 1.8, r() * 0.35, r() * 6.28]);
+      let hecho = 0;
+      window.pintar = (t) => {
+        const u = Math.min(1, Math.max(0, (t - 0.2) / 8.8));
+        const hasta = Math.floor(orden.length * u);
+        while (hecho < hasta) {
+          const [e, x, y] = orden[hecho++];
+          const tt = e === 0 ? 0 : Math.pow(e / pegadas, 0.7);
+          const prof = 1 - y / GH;
+          const c = e === 0 ? [40, 34, 38] : pal(tt).map((v) => v * (0.75 + 0.35 * prof));
+          g.fillStyle = M.rgb(c);
+          g.beginPath(); g.arc(x * K + K / 2, y * K + K / 2, K * 0.75, 0, Math.PI * 2); g.fill();
+        }
+        ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; ctx.filter = "none";
+        ctx.drawImage(agua.c, 0, 0);
+        ctx.save(); ctx.filter = "blur(6px)"; ctx.globalAlpha = 0.6; ctx.globalCompositeOperation = "multiply"; ctx.drawImage(capa.c, 4, 8); ctx.restore();
+        ctx.drawImage(capa.c, 0, 0);
+        ctx.save(); ctx.globalCompositeOperation = "screen"; ctx.filter = "blur(8px)"; ctx.globalAlpha = 0.45; ctx.drawImage(capa.c, 0, 0); ctx.restore();
+        for (const [x, y, rad, a, f] of motas) {
+          ctx.fillStyle = `rgba(200,240,255,${a})`;
+          ctx.beginPath(); ctx.arc((x + Math.sin(t * 0.5 + f) * 12 + t * 6) % W, (y - t * 9 + H) % H, rad, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = "rgba(200,235,255,.75)";
+        ctx.font = '16px "Plex Mono"';
+        ctx.fillText(`agregación limitada por difusión · ${Math.max(0, hecho - (orden.length - pegadas)).toLocaleString("es-ES")} partículas pegadas una a una`, 40, H - 36);
+      };
+      listo();
     })();
   </script>
 </body>

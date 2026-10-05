@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #5b3b2a; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Kilim tejido pasada a pasada: cada celda es un tramo de trama sobre la urdimbre,
-    fases.marca();
     // con los escalones típicos, las ranuras entre colores y las franjas de tinte ("abrash")
     const ctx = canvas2d();
     const r = rng(1453);
@@ -22,7 +20,6 @@
     const X0 = 60, Y0 = 120, COLS = 120, FILAS = 185;
     const T = { R: "#9e2a24", I: "#22335c", A: "#d99a2b", M: "#e9dcc0", B: "#4a2c20", V: "#4f6b3a", N: "#c4622d" };
 
-    fases.marca();
     // --- Diseño ---
     function diseno(i, j) {
       const u = i - COLS / 2 + 0.5, v = j;
@@ -74,7 +71,6 @@
     const rej = [];
     for (let j = 0; j < FILAS; j++) { rej.push([]); for (let i = 0; i < COLS; i++) rej[j].push(diseno(i, j)); }
 
-    fases.marca();
     // Suelo de barro
     M.porPixel(ctx, (x, y) => {
       const bx = Math.floor(x / 180), by = Math.floor(y / 180);
@@ -83,14 +79,12 @@
       const v = 0.85 + n(x * 0.01 + bx * 7, y * 0.01 + by * 3, 3) * 0.3;
       return junta ? [70, 50, 40] : [150 * v, 88 * v, 60 * v];
     });
-    fases.marca();
     // Sombra de la alfombra
     ctx.fillStyle = "rgba(20,10,5,.5)";
     ctx.filter = "blur(14px)";
     ctx.fillRect(X0 + 10, Y0 + 14, COLS * CX, FILAS * CY);
     ctx.filter = "none";
 
-    fases.marca();
     // Flecos de urdimbre
     ctx.lineCap = "round";
     for (let i = 0; i < COLS; i += 1) {
@@ -105,7 +99,6 @@
         ctx.stroke();
       }
     }
-    fases.marca();
     // nudos cada 4 hilos
     for (let i = 0; i < COLS; i += 4) for (const y of [Y0 - 12, Y0 + FILAS * CY + 12]) {
       ctx.fillStyle = "#d8cbb0";
@@ -114,7 +107,6 @@
       ctx.fill();
     }
 
-    fases.marca();
     // Tejido: cada pasada de trama asoma entre los hilos de urdimbre
     const abrash = Array.from({ length: FILAS }, (_, j) => 0.92 + 0.12 * n(j * 0.05, 0.5, 2));
     for (let j = 0; j < FILAS; j++) for (let i = 0; i < COLS; i++) {
@@ -138,7 +130,6 @@
         ctx.fillRect(x - 0.6, y - 1, 1.3, CY + 1);
       }
     }
-    fases.marca();
     // Hebras sueltas y polvo
     for (let k = 0; k < 400; k++) {
       const x = X0 + r() * COLS * CX, y = Y0 + r() * FILAS * CY;
@@ -149,7 +140,8 @@
       ctx.lineTo(x + (r() - 0.5) * 16, y + (r() - 0.5) * 6);
       ctx.stroke();
     }
-    fases.marca(); fases.preparar(); listo();
+    // En el vídeo la pieza se hace celda a celda, en el orden de su oficio.
+    revelarPorCeldas({ cw: 960, ch: 6, ox: 60, oy: 120, cols: 1, filas: 185, orden: 'filas-abajo', base: '#d8cfbf', tenue: 0.1 }); listo();
   </script>
 </body>
 </html>

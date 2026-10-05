@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #222; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Mosaico de piezas de plástico con tetones: una escena pintada con código,
-    fases.marca();
     // reducida a 45×56 celdas y a una paleta de 18 colores de plástico
     const ctx = canvas2d();
     const r = rng(1958);
@@ -21,7 +19,6 @@
     const P = 24, CW = 45, CH = 57;
     const PALETA = ["#f4f4f4", "#a0a5a9", "#6c6e68", "#1b2a34", "#c91a09", "#720e0f", "#fe8a18", "#f2cd37", "#f8bb3d", "#e4cd9e", "#958a73", "#0a3463", "#0055bf", "#5a93db", "#36aebf", "#9ff3e9", "#237841", "#e4adc8", "#81007b", "#c870a0", "#352100"].map(M.hex);
 
-    fases.marca();
     // Escena: el faro de Chipiona al caer la tarde
     function escena(x, y) {
       // x, y en 0..1
@@ -63,7 +60,6 @@
       return c;
     }
 
-    fases.marca();
     // Cuantiza al color de pieza más cercano
     const celdas = [];
     const err = Array.from({ length: CH + 1 }, () => Array.from({ length: CW + 2 }, () => [0, 0, 0]));
@@ -87,7 +83,6 @@
       }
     }
 
-    fases.marca();
     // Pieza de 1×1 con su tetón
     ctx.fillStyle = "#111";
     ctx.fillRect(0, 0, W, H);
@@ -132,7 +127,8 @@
       ctx.arc(cx - 0.4, cy - 0.5, R - 2, Math.PI * 1.05, Math.PI * 1.55);
       ctx.stroke();
     }
-    fases.marca(); fases.preparar(); listo();
+    // En el vídeo la pieza se hace celda a celda, en el orden de su oficio.
+    revelarPorCeldas({ cw: 24, ch: 24, cols: 45, filas: 57, orden: 'abajo', base: '#3a3a3a', tenue: 0.08 }); listo();
   </script>
 </body>
 </html>

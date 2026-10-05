@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/revelar.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #000; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Cámara térmica: la escena se pinta como mapa de temperaturas en gris,
-    fases.marca();
     // se reduce a la resolución de un sensor (270×338), se desenfoca y se colorea con la paleta "hierro"
     (async () => {
       await M.fuentes('20px "Plex Mono"', 'bold 20px "Plex Mono"');
@@ -177,7 +175,8 @@
       ctx.textAlign = "right";
       ctx.fillText("71.2", bx - 10, by0 + 16);
       ctx.fillText("11.4", bx - 10, by1);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo la imagen se revela como en su proceso físico.
+      revelar({ modo: 'luz', papel: [20, 0, 40] }); listo();
     })();
   </script>
 </body>

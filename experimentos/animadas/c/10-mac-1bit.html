@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #000; } canvas { image-rendering: pixelated; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Escena 3D trazada con rayos en JS, reducida a 1 bit con tramado Atkinson
-    fases.marca();
     // y metida en una ventana de un Macintosh de 1984. Se dibuja a 540×675 y se amplía ×2.
     (async () => {
       await M.fuentes('8px "Pixel"');
@@ -177,7 +175,8 @@
       const ctx = canvas2d();
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(L.c, 0, 0, W, H);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo la pieza se hace celda a celda, en el orden de su oficio.
+    revelarPorCeldas({ cw: 1080, ch: 6, orden: 'filas', base: '#ffffff', tenue: 0, t0: 0.2, t1: 8.6 }); listo();
     })();
   </script>
 </body>

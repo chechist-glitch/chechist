@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script src="../../imagenes/assets/mas.js"></script>
+<style>body { background: #f2ecdf; }</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <script>
+    // Armonógrafo: dos péndulos mueven el papel y otro la plumilla. Cada trazo es la suma
+    // de senos que se van apagando; relaciones casi exactas (2:3, 3:4) y un pelín desafinadas.
+    (async () => {
+      await M.fuentes('italic 24px "Fraunces"', '16px "Plex Mono"');
+      const ctx = canvas2d();
+      M.porPixel(ctx, (x, y) => [242, 236, 223]);
+      M.papel(ctx, 1.2, 9);
+      // En el vídeo se ve el armonógrafo trabajando: la plumilla va dibujando cada figura en directo,
+      // la azul, luego la roja y por último la negra, y al final se rotula la hoja.
+      const fondo = M.lienzo(); fondo.x.drawImage(ctx.canvas, 0, 0);
+      const figuras = [
+        [540, 600, 215, { f1: 2, f2: 3.004, f3: 3, f4: 2.001, d1: 0.006, d2: 0.009, p1: 0, p2: 0.8, p3: 1.57, p4: 0.3 }, "rgba(30,50,140,.32)", 0.8, 0.2, 3.6],
+        [540, 600, 190, { f1: 3, f2: 4.003, f3: 4, f4: 3.002, d1: 0.008, d2: 0.007, p1: 0.4, p2: 0, p3: 0, p4: 1.2 }, "rgba(190,40,40,.3)", 0.8, 3.0, 6.4],
+        [540, 600, 120, { f1: 1, f2: 2.002, f3: 1.001, f4: 3, d1: 0.01, d2: 0.012, p1: 1.57, p2: 0, p3: 0, p4: 0.6 }, "rgba(20,20,20,.35)", 0.7, 5.8, 8.6],
+      ];
+      const hecho = figuras.map(() => 0);
+      const T = 260, dt = 0.004;
+      const punto = (cx, cy, esc, p, t) => {
+        const e1 = Math.exp(-p.d1 * t), e2 = Math.exp(-p.d2 * t);
+        return [cx + (Math.sin(p.f1 * t + p.p1) * e1 + Math.sin(p.f2 * t + p.p2) * e2) * esc, cy + (Math.sin(p.f3 * t + p.p3) * e1 + Math.sin(p.f4 * t + p.p4) * e2) * esc];
+      };
+      const tinta = M.lienzo();
+      const pluma = M.lienzo();
+      let rotulado = false;
+      window.pintar = (t) => {
+        const g = tinta.x;
+        g.globalCompositeOperation = "multiply";
+        figuras.forEach(([cx, cy, esc, p, color, ancho, t0, t1], i) => {
+          const u = Math.min(1, Math.max(0, (t - t0) / (t1 - t0)));
+          const hasta = T * (1 - Math.pow(1 - u, 1.4));
+          if (hasta <= hecho[i]) return;
+          g.strokeStyle = color; g.lineWidth = ancho;
+          g.beginPath();
+          let q = punto(cx, cy, esc, p, hecho[i]); g.moveTo(...q);
+          for (let tt = hecho[i]; tt <= hasta; tt += dt) { q = punto(cx, cy, esc, p, tt); g.lineTo(...q); }
+          g.stroke();
+          hecho[i] = hasta;
+        });
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(fondo.c, 0, 0);
+        ctx.globalCompositeOperation = "multiply";
+        ctx.drawImage(tinta.c, 0, 0);
+        ctx.globalCompositeOperation = "source-over";
+        // la plumilla: un puntito con su sombra donde está dibujando ahora
+        figuras.forEach(([cx, cy, esc, p, , , t0, t1], i) => {
+          if (t < t0 || t > t1 + 0.1) return;
+          const [x, y] = punto(cx, cy, esc, p, hecho[i]);
+          ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.arc(x + 6, y + 8, 6, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#333"; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
+        });
+        if (t > 8.8) {
+          ctx.globalAlpha = Math.min(1, (t - 8.8) / 0.6);
+          ctx.fillStyle = "#2b2b2b";
+          ctx.font = 'italic 26px "Fraunces"';
+          ctx.textAlign = "center";
+          ctx.fillText("Armonógrafo de tres péndulos", 540, 1180);
+          ctx.font = '16px "Plex Mono"';
+          ctx.fillStyle = "#555";
+          ctx.fillText("azul 2:3 · rojo 3:4 · negro 1:2:3 · amortiguación 0,006–0,012 · plumilla 0,3 mm", 540, 1214);
+          ctx.fillText("tinta china y tinta de sello sobre papel verjurado", 540, 1240);
+          ctx.globalAlpha = 1;
+        }
+      };
+      listo();
+    })();
+  </script>
+</body>
+</html>

@@ -13,9 +13,11 @@
   <script>
     // Marquetería: rosa de los vientos en maderas distintas (arce, nogal, cerezo, ébano, acebo)
     // sobre un parqué de roble. Todo con vetas procedurales en un shader.
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: la rosa de los vientos oscila como una brújula hasta pararse y un reflejo de barniz cruza la madera.
     trazarVideo({
-      escala: .67,
+      escala: 1,
+      modo: "anima",
+      porFotograma: 1,
       muestras: 48,
       tono: false,
       expo: 1,
@@ -48,7 +50,14 @@
         return c;
       }
 
+      vec3 muestra0(vec2 px);
+      // un reflejo de barniz cruza la mesa en diagonal, como al mover la cabeza delante del mueble
       vec3 muestra(vec2 px) {
+        vec3 c = muestra0(px);
+        float d = (px.x * .6 + (uRes.y - px.y) * .4) / uRes.y - (uT * .16 - .35);
+        return c * (1. + .55 * exp(-d * d / .004)) + vec3(.06) * exp(-d * d / .02);
+      }
+      vec3 muestra0(vec2 px) {
         vec2 C = vec2(540., 700.);
         vec2 p = px - C;
         float rr = length(p);
@@ -81,7 +90,8 @@
           linea = min(linea * 1.4, min(t, 124. / 3. - t) * 2.2);
           linea = min(linea, abs(rr - 446.));
         } else {
-          // Medallón
+          // Medallón: la rosa de los vientos oscila como la aguja de una brújula y se para
+          p = rot(.3 * sin(uT * 2.1) * exp(-uT * .28)) * p; rr = length(p); ang = atan(p.y, p.x);
           vec2 bm = vec2(abs(p.x), p.y);  // hoja de arce "a libro abierto"
           col = madera(bm, 1.5708, 0, 1.);
           linea = min(abs(rr - 404.), abs(rr - 446.));

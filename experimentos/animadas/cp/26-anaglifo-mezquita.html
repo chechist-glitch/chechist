@@ -21,9 +21,11 @@
   <script>
     // Bosque de columnas de la Mezquita de Córdoba en raymarching, renderizado dos veces
     // (un ojo por canal): rojo = ojo izquierdo, cian = ojo derecho
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: la cámara se mueve de lado a lado para que el relieve se note aún más con las gafas rojo-cian.
     trazarVideo({
       escala: .67,
+      modo: "anima",
+      porFotograma: 1,
       muestras: 48,
       tono: false,
       vineta: 0.35,
@@ -96,7 +98,7 @@
 
       vec3 muestra(vec2 px) {
         vec2 uv = (px - uRes * .5) / uRes.y;
-        vec3 ro = vec3(.05, 1.55, 18.);
+        vec3 ro = vec3(.05 + sin(uT * .63) * 1.6, 1.55 + sin(uT * .4) * .2, 18. - uT * .3);
         vec3 ta = vec3(-1.6, 2.1, 0.);
         vec3 w = normalize(ta - ro), u = normalize(cross(w, vec3(0, 1, 0))), v = cross(u, w);
         vec3 rd = normalize(uv.x * u + uv.y * v + 1.25 * w);

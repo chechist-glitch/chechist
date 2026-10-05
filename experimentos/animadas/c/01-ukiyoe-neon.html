@@ -11,14 +11,15 @@
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // La gran ola de Hokusai en una Cádiz ciberpunk: tintas planas de xilografía + neón
     (async () => {
       await M.fuentes('40px "DM Serif"', '18px "Plex Mono"');
       const ctx = canvas2d();
+      const fases = crearFases({});
       const r = rng(1831);
       const HOR = 800;
 
+      fases.marca();
       // Cielo nocturno
       const cielo = ctx.createLinearGradient(0, 0, 0, HOR);
       cielo.addColorStop(0, "#0b0620");
@@ -32,6 +33,7 @@
         ctx.fillRect(r() * W, r() * 560, 1.6, 1.6);
       }
 
+      fases.marca();
       // Sol a franjas (se pinta aparte para poder vaciar las franjas)
       const sol = M.lienzo();
       const sx = 780, sy = 470, sr = 190;
@@ -51,6 +53,7 @@
       ctx.drawImage(sol.c, 0, 0);
       ctx.restore();
 
+      fases.marca();
       // Ciudad al fondo
       let x = -10;
       const neones = [];
@@ -76,6 +79,7 @@
         if (r() < 0.35 && h > 140) neones.push([x + w * 0.5, HOR - h + 30, r() < 0.5 ? "#37f5ff" : "#ff4fd8"]);
         x += w + 2;
       }
+      fases.marca();
       // Rótulos verticales de neón
       const palabras = ["BAR", "TAPAS", "24H", "OLÉ", "HOTEL", "RAMEN"];
       ctx.font = '22px "Plex Mono"';
@@ -94,6 +98,7 @@
         ctx.restore();
       });
 
+      fases.marca();
       // Mar del fondo con reflejos
       const mar = ctx.createLinearGradient(0, HOR, 0, H);
       mar.addColorStop(0, "#1d0f45");
@@ -107,6 +112,7 @@
         ctx.fillStyle = `rgba(255,120,170,${a * 0.55})`;
         ctx.fillRect(sx - ancho / 2 + (r() - 0.5) * 40, y, ancho, 2);
       }
+      fases.marca();
       // Monte Fuji de holograma en el horizonte
       ctx.save();
       ctx.shadowColor = "#37f5ff";
@@ -128,6 +134,7 @@
       ctx.stroke();
       ctx.restore();
 
+      fases.marca();
       // Olas pequeñas del mar (escamas de xilografía)
       ctx.strokeStyle = "rgba(55,245,255,.35)";
       ctx.lineWidth = 1.6;
@@ -140,6 +147,7 @@
         }
       }
 
+      fases.marca();
       // --- La gran ola: banda en espiral con grosor que se afina hacia la punta ---
       function ola(cx, cy, esc, fin) {
         const ext = [], int = [];
@@ -289,6 +297,7 @@
         ctx.drawImage(esp.c, 0, 0);
       }
 
+      fases.marca();
       // Barca con luces entre las olas
       function barca(bx, by, ang, largo) {
         ctx.save();
@@ -317,6 +326,7 @@
       barca(560, 1150, 0.2, 260);
       pintaOla(880, 1120, 0.5, 3.9);
 
+      fases.marca();
       // Cartela vertical y sello
       ctx.fillStyle = "#f2e6c9";
       ctx.fillRect(60, 60, 84, 360);

@@ -11,21 +11,20 @@
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Preparación victoriana de diatomeas vista en campo oscuro: algas de cristal colocadas
-    fases.marca();
     // a mano en simetría. Cada concha se dibuja con sus filas de poros (areolas) y costillas;
-    fases.marca();
     // en campo oscuro solo brillan los bordes, con un poco de aberración cromática.
     (async () => {
       await M.fuentes('15px "Plex Mono"');
       const ctx = canvas2d();
+      const fases = crearFases({});
       const r = rng(1860);
       const L = M.lienzo();
       const g = L.x;
       g.globalCompositeOperation = "lighter";
       const anillo = (x, y, rx, ry, a, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, Math.PI * 2); g.stroke(); };
       const punto = (x, y, rad, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill(); };
+      fases.marca();
       // Céntrica: disco con radios de poros que se multiplican hacia fuera
       function centrica(cx, cy, R, tono, sectores = 0) {
         anillo(cx, cy, R, R, 0, `hsla(${tono},80%,70%,.9)`, 2.2);
@@ -41,6 +40,7 @@
         }
         punto(cx, cy, R * 0.06, `hsla(${tono},80%,80%,.7)`);
       }
+      fases.marca();
       // Pennada: navícula con rafe central y estrías transversales
       function pennada(cx, cy, LL, A, ang, tono) {
         g.save();
@@ -60,6 +60,7 @@
         }
         g.restore();
       }
+      fases.marca();
       // Triangular (Triceratium)
       function triangular(cx, cy, R, ang, tono) {
         const v = [0, 1, 2].map((k) => [cx + Math.cos(ang + (k * 2 * Math.PI) / 3) * R, cy + Math.sin(ang + (k * 2 * Math.PI) / 3) * R]);
@@ -78,6 +79,7 @@
         }
         v.forEach(([x, y]) => anillo(x + (cx - x) * 0.12, y + (cy - y) * 0.12, 9, 9, 0, `hsla(${tono},80%,80%,.8)`, 1.5));
       }
+      fases.marca();
       // Composición en roseta: centro, corona de pennadas, triangulares y céntricas pequeñas
       const CX = 540, CY = 620;
       centrica(CX, CY, 120, 200, 0);
@@ -94,6 +96,7 @@
         const a = (k / 24) * Math.PI * 2;
         centrica(CX + Math.cos(a) * 450, CY + Math.sin(a) * 450, 13, 180 + (k % 3) * 40, 0);
       }
+      fases.marca();
       // Campo oscuro: halo y aberración cromática
       const halo = A0();
       function A0() {
@@ -110,6 +113,7 @@
       ctx.globalAlpha = 0.7;
       ctx.drawImage(halo, 0, 0);
       ctx.globalAlpha = 1;
+      fases.marca();
       // canales desplazados
       const sep = (col, dx, dy) => {
         const o = M.lienzo();
@@ -125,12 +129,14 @@
       sep("#00ff00", 0, 0);
       sep("#0000ff", -1.5, 0.5);
       ctx.globalCompositeOperation = "source-over";
+      fases.marca();
       // círculo del campo del microscopio
       const v = ctx.createRadialGradient(CX, CY, 420, CX, CY, 560);
       v.addColorStop(0, "rgba(0,0,0,0)");
       v.addColorStop(1, "rgba(0,0,0,1)");
       ctx.fillStyle = v;
       ctx.fillRect(0, 0, W, H);
+      fases.marca();
       // motas y barra de escala
       for (let i = 0; i < 120; i++) { ctx.fillStyle = `rgba(200,220,255,${r() * 0.25})`; ctx.beginPath(); ctx.arc(CX + (r() - 0.5) * 900, CY + (r() - 0.5) * 900, r() * 1.5, 0, 6.28); ctx.fill(); }
       ctx.fillStyle = "#e9f2ff";

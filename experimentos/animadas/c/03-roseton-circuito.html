@@ -11,11 +11,11 @@
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Rosetón gótico donde el plomo de la vidriera son pistas de una placa de circuito
     (async () => {
       await M.fuentes('20px "Plex Mono"', 'bold 20px "Plex Mono"');
       const ctx = canvas2d();
+      const fases = crearFases({});
       const r = rng(1248);
       const n = makeNoise(1248);
       const CX = 540, CY = 610, ROUT = 470;
@@ -30,6 +30,7 @@
         morado: [120, 50, 190], cian: [40, 170, 220], blanco: [230, 220, 190],
       };
 
+      fases.marca();
       // Devuelve [color de vidrio, distancia al plomo más cercano]
       function roseton(x, y) {
         const dx = x - CX, dy = y - CY;
@@ -110,6 +111,7 @@
         return [Math.min(255, vid[0] * k + 30 * (1 - borde)), Math.min(255, vid[1] * k), Math.min(255, vid[2] * k)];
       });
 
+      fases.marca();
       // Pistas que salen del rosetón hacia el borde de la placa
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -153,6 +155,7 @@
         ctx.fill();
       }
 
+      fases.marca();
       // Vías en los nudos del plomo
       function via(x, y, rad = 6) {
         const g = ctx.createRadialGradient(x - rad * 0.3, y - rad * 0.3, 1, x, y, rad);
@@ -174,6 +177,7 @@
         via(CX + Math.cos(a + SEG / 2) * 428, CY + Math.sin(a + SEG / 2) * 428, 6);
       }
 
+      fases.marca();
       // Chip central
       ctx.save();
       ctx.translate(CX, CY);
@@ -196,6 +200,7 @@
       ctx.fill();
       ctx.restore();
 
+      fases.marca();
       // Componentes y serigrafía en las esquinas
       function smd(x, y, w, h, cuerpo, et) {
         ctx.fillStyle = "#d8b060";

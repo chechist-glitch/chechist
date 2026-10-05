@@ -15,9 +15,11 @@
   <script>
     // Agujero negro: los rayos de luz se curvan con la aceleración efectiva de la relatividad
     // general (−3/2·h²·r/|r|⁵) y se colorea el disco según temperatura y efecto Doppler.
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: el disco de acreción gira como manda Kepler (lo de dentro más deprisa) y la cámara se acerca despacio.
     trazarVideo({
       escala: .67,
+      modo: "anima",
+      porFotograma: 1,
       muestras: 48,
       tono: true,
       expo: 1.1,
@@ -56,7 +58,7 @@
       }
       vec3 muestra(vec2 px) {
         vec2 uv = (px - uRes * .5) / uRes.y;
-        vec3 ro = vec3(0., 2.2, -26.);
+        vec3 ro = vec3(0., 2.2 - uT * .12, -26. + uT * .35);
         vec3 ta = vec3(0., 0., 0.);
         vec3 w = normalize(ta - ro), u = normalize(cross(w, vec3(.18, 1, 0))), v = cross(u, w);
         vec3 rd = normalize(uv.x * u + uv.y * v + 1.6 * w);
@@ -80,7 +82,7 @@
             if (rc > 2.6 && rc < 14.) {
               float ang = atan(c.z, c.x);
               // turbulencia arrastrada por la rotación (más rápida dentro)
-              float rot = ang + 6. / pow(rc, 1.5);
+              float rot = ang + 6. / pow(rc, 1.5) - uT * 1.4 / pow(rc / 2.6, 1.5);
               float den = smoothstep(2.6, 3.4, rc) * smoothstep(14., 8., rc);
               den *= .45 + .9 * fbm(vec3(cos(rot) * rc, sin(rot) * rc, rc * .6) * .55);
               // Doppler: el lado que viene hacia nosotros se ve más azul y brillante

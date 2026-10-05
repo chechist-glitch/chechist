@@ -4,18 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #efe9d8; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Cartografía en relieve sombreado a la suiza (estilo Imhof): mapa de alturas con ruido
-    fases.marca();
     // erosionado, sombreado con luz del noroeste, tintas hipsométricas, bruma azul en las sombras,
-    fases.marca();
     // curvas de nivel, ríos que bajan siguiendo la pendiente y rotulación.
     (async () => {
       await M.fuentes('italic 30px "Fraunces"', '18px "Plex Mono"', '900 40px "Fraunces"');
@@ -47,9 +43,10 @@
       const A = (x, y) => alt[Math.min(gh - 1, Math.max(0, y)) * gw + Math.min(gw - 1, Math.max(0, x))];
       const hip0 = M.rampa([[0, "#a9c49a"], [0.15, "#c6d6a4"], [0.3, "#e6dfb4"], [0.45, "#e2c99a"], [0.6, "#cdb08f"], [0.75, "#c2b6ae"], [0.88, "#ece9ea"], [1, "#ffffff"]]);
       const hip = (t) => hip0(Math.pow(t, 0.85));
-      const L = [-0.62, -0.62, 0.48];
       const img = ctx.createImageData(W, H);
       const d = img.data;
+      // el sombreado va en una función para poder repetirlo con el sol en otra posición
+      function relieve(L) {
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
         const gx = x / S, gy = y / S, x0 = gx | 0, y0 = gy | 0, fx = gx - x0, fy = gy - y0;
         const h = (A(x0, y0) * (1 - fx) + A(x0 + 1, y0) * fx) * (1 - fy) + (A(x0, y0 + 1) * (1 - fx) + A(x0 + 1, y0 + 1) * fx) * fy;
@@ -73,6 +70,9 @@
         const k = (y * W + x) * 4;
         d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; d[k + 3] = 255;
       }
+      }
+      relieve([-0.62, -0.62, 0.48]);
+      const soloRelieve = new Uint8ClampedArray(d);
       ctx.putImageData(img, 0, 0);
       // Ríos: desde muchas fuentes, bajar por máxima pendiente acumulando caudal
       const caudal = new Float32Array(gw * gh);
@@ -140,7 +140,22 @@
       ctx.lineWidth = 6;
       ctx.strokeRect(3, 3, W - 6, H - 6);
       M.papel(ctx, 1, 4);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo pasa un día entero por la sierra: el sol sale por el este, rasante, y gira hasta
+      // la luz del noroeste de los mapas suizos; las sombras de las montañas se mueven con él.
+      // Ríos, rótulos y cartela se separan comparando con el relieve solo, y se ponen encima.
+      const final = ctx.getImageData(0, 0, W, H).data;
+      const encima = new Uint8Array(W * H);
+      for (let k = 0; k < W * H; k++) { const q = k * 4; if (Math.abs(final[q] - soloRelieve[q]) + Math.abs(final[q + 1] - soloRelieve[q + 1]) + Math.abs(final[q + 2] - soloRelieve[q + 2]) > 12) encima[k] = 1; }
+      window.pintar = (t) => {
+        const u = Math.min(1, t / 9);
+        const e = u * u * (3 - 2 * u);
+        const az = -2.356 + 2.6 * (1 - e), z = 0.22 + 0.26 * e;
+        const r = Math.sqrt(1 - z * z);
+        relieve([Math.cos(az) * r, Math.sin(az) * r, z]);
+        for (let k = 0; k < W * H; k++) if (encima[k]) { const q = k * 4; d[q] = final[q]; d[q + 1] = final[q + 1]; d[q + 2] = final[q + 2]; }
+        ctx.putImageData(img, 0, 0);
+      };
+      listo();
     })();
   </script>
 </body>

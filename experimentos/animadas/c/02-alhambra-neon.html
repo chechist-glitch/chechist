@@ -11,14 +11,15 @@
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Lacería nazarí (método de Hankin sobre el mosaico 4.8.8) hecha con tubos de neón
     (async () => {
       await M.fuentes('30px "Plex Mono"', '60px "DM Serif"');
       const ctx = canvas2d();
+      const fases = crearFases({});
       const r = rng(1238);
       const n = makeNoise(1238);
 
+      fases.marca();
       // Pared de yesería oscura
       M.porPixel(ctx, (x, y) => {
         const v = n(x * 0.01, y * 0.01, 5);
@@ -26,6 +27,7 @@
         return [k * 0.9, k * 0.75, k * 1.2];
       });
 
+      fases.marca();
       // --- Mosaico de octógonos y cuadrados ---
       const e = 58;
       const s = e * (1 + Math.SQRT2);
@@ -44,6 +46,7 @@
         polis.push({ v: [[qx + d, qy], [qx, qy + d], [qx - d, qy], [qx, qy - d]], tipo: 1, c: [qx, qy] });
       }
 
+      fases.marca();
       // Rayos de Hankin: desde el punto medio de cada lado, dos rayos a 67.5º
       const theta = (67.5 * Math.PI) / 180;
       const segs = [];
@@ -80,6 +83,7 @@
         });
       }
 
+      fases.marca();
       // Zócalo de alicatado muy apagado debajo del neón
       for (const pol of polis) {
         ctx.beginPath();
@@ -89,6 +93,7 @@
         ctx.fill();
       }
 
+      fases.marca();
       // Neón en capa aparte (dentro del arco)
       const neon = M.lienzo();
       const g = neon.x;
@@ -112,6 +117,7 @@
       tubo(1);
       tubo(2);
       g.globalAlpha = 1;
+      fases.marca();
       // Los tubos no se tocan: hueco donde se cruzan, alternando cuál pasa por encima
       g.globalCompositeOperation = "destination-out";
       cortes.forEach(([x, y], i) => {
@@ -131,6 +137,7 @@
         g.lineWidth = 1.6;
         g.stroke();
       });
+      fases.marca();
       // Rosetas doradas en el centro de los octógonos
       for (const pol of polis) if (!pol.tipo) {
         g.save();
@@ -144,6 +151,7 @@
         g.restore();
       }
 
+      fases.marca();
       // Arco de herradura: solo se ve el neón dentro
       const acx = 540, acy = 560, ar = 420;
       const arco = new Path2D();
@@ -159,6 +167,7 @@
       ctx.drawImage(neon.c, 0, 0);
       ctx.restore();
 
+      fases.marca();
       // Marco del arco: alfiz y dovelas en neón dorado
       ctx.save();
       ctx.shadowColor = "#ff9e2c";
@@ -179,6 +188,7 @@
       ctx.strokeRect(66, 56, 948, 1160);
       ctx.restore();
 
+      fases.marca();
       // Enjutas con ataurique: pequeñas espirales doradas tenues
       ctx.strokeStyle = "rgba(255,200,120,.22)";
       ctx.lineWidth = 1.5;
@@ -192,6 +202,7 @@
         ctx.stroke();
       }
 
+      fases.marca();
       // Cartela inferior
       ctx.save();
       ctx.shadowColor = "#37f5ff";

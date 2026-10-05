@@ -4,14 +4,13 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #2a0d10; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Jersey de punto con cenefas de estilo nórdico: cada punto es una "V" de dos lazadas de lana
     const ctx = canvas2d();
     const r = rng(1224);
@@ -25,15 +24,12 @@
       for (let x = 0; x < COLS; x++) filas.forEach((f, j) => { const ch = f[x % ancho]; if (mapa[ch]) pon(x, y0 + j, mapa[ch]); });
     };
 
-    fases.marca();
     // Cenefas
     const franja = (y, c) => { for (let x = 0; x < COLS; x++) pon(x, y, c); };
-    fases.marca();
     // 1. dientes
     franja(3, "C");
     repite(["X...", "XX..", "XXX.", "XX..", "X..."], 4, 4, { X: "C" });
     franja(9, "C");
-    fases.marca();
     // 2. estrella nórdica de ocho puntas sobre azul
     for (let y = 12; y < 31; y++) franja(y, "N");
     const estrella = [
@@ -44,12 +40,10 @@
     ];
     repite(estrella, 13, 21, { X: "C" });
     for (let x = 0; x < COLS; x++) if (x % 21 === 17) for (let y = 14; y < 29; y += 2) pon(x, y, "A");
-    fases.marca();
     // 3. rombos pequeños
     franja(33, "C");
     repite(["..X...", ".XAX..", "XAAAX.", ".XAX..", "..X..."], 35, 6, { X: "V", A: "A" });
     franja(41, "C");
-    fases.marca();
     // 4. texto con letra de 3×5
     const F = { F: "111100110100100", E: "111100110100111", L: "100100100100111", I: "111010010010111", Z: "111001010100111", S: "011100010001110", T: "111010010010010", A: "010101111101101", " ": "000000000000000" };
     for (let y = 43; y < 54; y++) franja(y, "C");
@@ -58,7 +52,6 @@
     [...frase].forEach((l, i) => { for (let k = 0; k < 15; k++) if (F[l][k] === "1") pon(x0 + i * 4 + (k % 3), 46 + Math.floor(k / 3), "R"); });
     repite(["X.", ".X"], 43, 2, { X: "A" });
     repite(["X.", ".X"], 52, 2, { X: "A" });
-    fases.marca();
     // 5. abetos
     franja(56, "C");
     for (let y = 58; y < 72; y++) franja(y, "V");
@@ -70,7 +63,6 @@
     franja(75, "N");
     franja(76, "N");
 
-    fases.marca();
     // Punto: dos lazadas inclinadas formando una V
     function lazada(cx, cy, lado, col) {
       const base = M.hex(col);
@@ -120,7 +112,6 @@
       lazada(x - SW * 0.21, y, -1, col);
       lazada(x + SW * 0.21, y, 1, col);
     }
-    fases.marca();
     // Pelusa suelta
     ctx.lineWidth = 0.6;
     for (let k = 0; k < 900; k++) {
@@ -131,14 +122,14 @@
       ctx.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (r() - 0.5) * 6, y + Math.sin(a) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l);
       ctx.stroke();
     }
-    fases.marca();
     // Luz suave de ventana
     const luz = ctx.createRadialGradient(300, 250, 50, 540, 675, 1000);
     luz.addColorStop(0, "rgba(255,240,220,.12)");
     luz.addColorStop(1, "rgba(0,0,0,.35)");
     ctx.fillStyle = luz;
     ctx.fillRect(0, 0, W, H);
-    fases.marca(); fases.preparar(); listo();
+    // En el vídeo la pieza se hace celda a celda, en el orden de su oficio.
+    revelarPorCeldas({ cw: 1080, ch: 16, orden: 'filas-abajo', base: '#2a2422', tenue: 0.1, t1: 9 }); listo();
   </script>
 </body>
 </html>

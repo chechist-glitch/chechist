@@ -14,9 +14,11 @@
     // Placa de colodión húmedo (1860): escena 3D en raymarching, luego todo lo químico:
     // cielo quemado (la placa solo ve el azul), mar de seda por la exposición larga,
     // bordes del vertido, manchas, cometas, polvo y barniz negro
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: la placa se revela delante de la cámara: el líquido corre por el vidrio y la imagen va saliendo.
     trazarVideo({
       escala: .67,
+      modo: "anima",
+      porFotograma: 1,
       muestras: 48,
       tono: false,
       vineta: 0,
@@ -97,6 +99,12 @@
         // Curva de la placa: altas luces que se empastan y sombras profundas
         l = smoothstep(.04, .98, l);
         l = pow(l, 1.25);
+        // revelado: el líquido entra por la esquina de arriba a la izquierda y va sacando la imagen
+        float frente = -0.25 + uT * .17;
+        float dist = uv.x * .55 + (1. - uv.y) * .55 + (fbm(uv * 5. + 3.) - .5) * .3;
+        float rev = clamp((frente - dist) / .18, 0., 1.);
+        float brillo = smoothstep(.06, 0., abs(frente - dist)) * .25;
+        l = mix(.06, l, rev) + brillo * (1. - rev * .6);
         // Borde del vertido: rectángulo con esquinas redondeadas y un contorno irregular
         vec2 q = abs(uv - .5) - vec2(.44, .455);
         float borde = length(max(q, 0.)) + min(max(q.x, q.y), 0.) - .02;

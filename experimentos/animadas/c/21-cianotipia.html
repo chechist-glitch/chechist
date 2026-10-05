@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/revelar.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #f4f1e8; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Cianotipia (fotograma): objetos puestos sobre papel emulsionado y expuestos al sol.
-    fases.marca();
     // Se construye una máscara de "luz bloqueada" y el papel se tiñe de azul de Prusia donde no la hay.
     (async () => {
       await M.fuentes('italic 26px "Fraunces"');
@@ -209,7 +207,8 @@
       ctx.fillStyle = "rgba(20,50,100,.8)";
       ctx.font = 'italic 26px "Fraunces"';
       ctx.fillText("a la manera de Anna Atkins · helechos, olivo y puntilla · 12 min al sol de Écija", 76, H - 34);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo la imagen se revela como en su proceso físico.
+      revelar({ modo: 'tinta', papel: [226, 222, 196] }); listo();
     })();
   </script>
 </body>

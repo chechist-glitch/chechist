@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../imagenes/assets/base.css" />
+<script src="../../imagenes/assets/lib.js"></script>
+<script type="importmap">{ "imports": { "three": "../../imagenes/assets/vendor/three.module.js" } }</script>
+<style>
+  body { background: #f3efe6; }
+  .firma { position: absolute; right: 90px; bottom: 70px; font-family: "Pacifico"; font-size: 34px; color: rgba(45, 45, 52, .75); transform: rotate(-4deg); }
+  .nota { position: absolute; left: 80px; bottom: 70px; font-family: "Fraunces"; font-style: italic; font-size: 30px; color: rgba(45, 45, 52, .7); line-height: 1.3; }
+</style>
+</head>
+<body>
+  <canvas id="c" class="full"></canvas>
+  <div class="nota">Estudio de volúmenes<br />luz a la izquierda · grafito HB y 4B</div>
+  <div class="firma">chechist '26</div>
+  <script type="module">
+    // Escena 3D real (Three.js) pasada a dibujo a lápiz con un shader propio:
+    // contornos por discontinuidad de normales y profundidad + sombreado por capas de tramado
+    import * as THREE from "three";
+    const W = 1080, H = 1350;
+    const canvas = document.getElementById("c");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+    renderer.setSize(W, H, false);
+    renderer.setPixelRatio(1);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+    const camara = new THREE.PerspectiveCamera(32, W / H, 0.5, 60);
+    camara.position.set(8, 6.2, 12.9);
+    camara.lookAt(0.2, 1.1, 0);
+
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
+    const objeto = (geo, x, y, z, ry = 0) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.rotation.y = ry;
+      m.castShadow = m.receiveShadow = true;
+      scene.add(m);
+      return m;
+    };
+    objeto(new THREE.SphereGeometry(1, 96, 64), -1.8, 1.05, 0.9);
+    objeto(new THREE.BoxGeometry(1.7, 1.7, 1.7), 1.3, 0.93, -0.9, 0.55);
+    objeto(new THREE.ConeGeometry(0.85, 2.3, 96), 0.35, 1.23, 1.9);
+    objeto(new THREE.CylinderGeometry(0.62, 0.62, 2.9, 96), -0.6, 1.53, -2.2);
+    const nudo = objeto(new THREE.TorusKnotGeometry(0.42, 0.15, 220, 32), 2.55, 0.75, 1.5, 0.4);
+
+    // Paño con pliegues sobre la mesa y otro colgando al fondo
+    const pliegues = (geo, fn) => {
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) pos.setZ(i, fn(pos.getX(i), pos.getY(i)));
+      geo.computeVertexNormals();
+      return geo;
+    };
+    const mesa = new THREE.Mesh(pliegues(new THREE.PlaneGeometry(18, 12, 360, 240), (x, y) => 0.09 * Math.sin(x * 2.2 + Math.sin(y * 1.1) * 1.6) + 0.04 * Math.sin(x * 5.1 + y * 0.7)), mat);
+    mesa.rotation.x = -Math.PI / 2;
+    mesa.receiveShadow = true;
+    scene.add(mesa);
+    const fondo = new THREE.Mesh(pliegues(new THREE.PlaneGeometry(18, 9, 360, 180), (x, y) => 0.28 * Math.sin(x * 2.6 + y * 0.15) * (0.5 + 0.5 * Math.sin(x * 0.7)) + 0.08 * Math.sin(x * 7.0)), mat);
+    fondo.position.set(0, 4.3, -4.2);
+    fondo.receiveShadow = true;
+    scene.add(fondo);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.55));
+    const sol = new THREE.DirectionalLight(0xffffff, 2.6);
+    sol.position.set(-7, 9, 5);
+    sol.castShadow = true;
+    sol.shadow.mapSize.set(2048, 2048);
+    Object.assign(sol.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 30 });
+    sol.shadow.bias = -0.0005;
+    sol.shadow.radius = 4;
+    scene.add(sol);
+
+    // Pase 1: luz (tono). Pase 2: normales + profundidad (contornos)
+    const rtLuz = new THREE.WebGLRenderTarget(W, H);
+    const rtNor = new THREE.WebGLRenderTarget(W, H, { depthTexture: new THREE.DepthTexture(W, H) });
+    const matNor = new THREE.MeshNormalMaterial();
+
+    const quad = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.ShaderMaterial({
+        uniforms: { tLuz: { value: rtLuz.texture }, tNor: { value: rtNor.texture }, tProf: { value: rtNor.depthTexture }, res: { value: new THREE.Vector2(W, H) }, sem: { value: 0 } },
+        vertexShader: `void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+        fragmentShader: `
+          uniform sampler2D tLuz, tNor, tProf; uniform vec2 res; uniform float sem;
+          float h(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+          float ruido(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+            return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+          float lineal(float d) { float z = d * 2. - 1.; return (2. * .5 * 60.) / (60. + .5 - z * (60. - .5)); }
+          // Una capa de trazos paralelos con cortes, como hecha a mano
+          float trazos(vec2 p, float ang, float sep, float grosor) {
+            vec2 d = vec2(cos(ang), sin(ang));
+            float t = dot(p, vec2(-d.y, d.x)) / sep;
+            t += (ruido(p * .006) - .5) * 1.2;
+            float f = abs(fract(t) - .5) * sep;
+            float corte = smoothstep(.2, .35, ruido(vec2(dot(p, d) * .025, floor(t) * 7.3)));
+            return smoothstep(grosor, grosor * .3, f) * corte;
+          }
+          void main() {
+            vec2 p = gl_FragCoord.xy + vec2(sem * 37.1, sem * 91.7); // cada dibujo, trazos nuevos
+            vec2 temblor = vec2(ruido(p * .03), ruido(p * .03 + 17.)) - .5;
+            vec2 uv = (gl_FragCoord.xy + temblor * 3.) / res;
+            float L = dot(texture2D(tLuz, uv).rgb, vec3(.3, .59, .11));
+            // Contornos (Sobel sobre normales y profundidad)
+            float e = 0.;
+            vec3 n0 = texture2D(tNor, uv).rgb; float z0 = lineal(texture2D(tProf, uv).r);
+            for (int i = 0; i < 8; i++) {
+              float a = float(i) * .785398;
+              vec2 o = vec2(cos(a), sin(a)) * 1.6 / res;
+              vec3 n1 = texture2D(tNor, uv + o).rgb; float z1 = lineal(texture2D(tProf, uv + o).r);
+              e = max(e, max(length(n1 - n0) * 1.4, abs(z1 - z0) / z0 * 18.));
+            }
+            float contorno = smoothstep(.35, .8, e);
+            // Sombreado por capas: cuanto más oscuro, más cruces de trazos
+            float osc = 1. - L;
+            float tinta = 0.;
+            tinta = max(tinta, trazos(p, .75, 7., 1.9) * smoothstep(.2, .4, osc));
+            tinta = max(tinta, trazos(p, -.75, 7.5, 1.7) * smoothstep(.42, .6, osc));
+            tinta = max(tinta, trazos(p, .08, 6., 1.6) * smoothstep(.6, .75, osc));
+            tinta = max(tinta, trazos(p, 1.5, 4.5, 1.8) * smoothstep(.74, .88, osc));
+            tinta *= .55 + .45 * osc;
+            tinta = max(tinta, contorno * .95);
+            // El dibujo se desvanece hacia los bordes del papel, sin terminar
+            vec2 q = gl_FragCoord.xy / res - .5;
+            float borde = smoothstep(.62, .44, length(q * vec2(1., .9)) + (ruido(p * .01) - .5) * .18);
+            tinta *= borde;
+            // Grano del grafito y del papel
+            tinta *= .72 + .28 * h(p * 1.7);
+            vec3 papel = vec3(.953, .937, .902) * (.97 + .03 * ruido(p * .5));
+            vec3 grafito = vec3(.17, .17, .2);
+            gl_FragColor = vec4(mix(papel, grafito, clamp(tinta, 0., 1.)), 1.);
+          }`,
+      })
+    );
+    const post = new THREE.Scene();
+    post.add(quad);
+    const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    // En el vídeo es animación dibujada a mano: la cámara gira despacio alrededor de los objetos,
+    // el nudo da vueltas, y el rayado se redibuja 8 veces por segundo (ese "temblor" de lápiz).
+    window.pintar = (t) => {
+      const a = Math.atan2(12.9, 8) - 0.35 + t * 0.07, rr = Math.hypot(8, 12.9);
+      camara.position.set(Math.cos(a) * rr, 6.2 + Math.sin(t * 0.4) * 0.4, Math.sin(a) * rr);
+      camara.lookAt(0.2, 1.1, 0);
+      nudo.rotation.y = 0.4 + t * 0.6; nudo.rotation.x = Math.sin(t * 0.5) * 0.3;
+      scene.background = new THREE.Color(0xffffff);
+      renderer.setRenderTarget(rtLuz);
+      renderer.render(scene, camara);
+      scene.overrideMaterial = matNor;
+      scene.background = new THREE.Color(0x8080ff);
+      renderer.setRenderTarget(rtNor);
+      renderer.render(scene, camara);
+      scene.overrideMaterial = null;
+      renderer.setRenderTarget(null);
+      quad.material.uniforms.sem.value = Math.floor(t * 8) % 97;
+      renderer.render(post, ortho);
+    };
+    listo();
+  </script>
+</body>
+</html>

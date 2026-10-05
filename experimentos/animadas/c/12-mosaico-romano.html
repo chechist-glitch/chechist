@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #bdb29c; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Mosaico romano: las teselas se colocan en filas que siguen los contornos de la figura
-    fases.marca();
     // (opus vermiculatum) y en filas rectas en el fondo (opus tessellatum).
     const ctx = canvas2d();
     const r = rng(79);
@@ -21,7 +19,6 @@
     const S = 15;
     const MARCO = 96;
 
-    fases.marca();
     // --- Distancias con signo de la figura: dos peces ---
     const len = (x, y) => Math.hypot(x, y);
     function sdElipse(x, y, rx, ry) { const k = len(x / rx, y / ry); return (k - 1) * Math.min(rx, ry) * (k > 1 ? 1 : 1); }
@@ -59,7 +56,6 @@
       }
       return mejor;
     }
-    fases.marca();
     // Color de la piedra según la parte del pez
     function colorPez(u, v, partes, d) {
       if (d > -S * 0.9) return [28, 26, 24];
@@ -76,7 +72,6 @@
       return [226, 219, 198];
     }
 
-    fases.marca();
     // --- Campo guía: cada zona tiene su propia función cuyos niveles son las filas ---
     const dBorde = (x, y) => Math.min(x, y, W - x, H - y);
     function zona(x, y) {
@@ -92,7 +87,6 @@
       return y;
     }
 
-    fases.marca();
     // Candidatos densos → se pegan a la fila más cercana con Newton
     const cand = M.poisson(S * 0.3, r);
     const pts = [];
@@ -119,7 +113,6 @@
     }
     pts.sort((p, q) => p.orden - q.orden);
 
-    fases.marca();
     // Aceptación codiciosa sin solapes (rejilla espacial)
     const celda = S;
     const cols = Math.ceil(W / celda), filas = Math.ceil(H / celda);
@@ -138,7 +131,6 @@
       teselas.push(p);
     }
 
-    fases.marca();
     // Colores del fondo y de la cenefa de olas
     function colorFondo(x, y) {
       const v = n(x * 0.01, y * 0.01, 3);
@@ -154,9 +146,7 @@
       return d - 18 < ola - 12 ? [30, 28, 26] : [236, 229, 212];
     }
 
-    fases.marca();
     // --- Pintado ---
-    fases.marca();
     // Mortero
     M.porPixel(ctx, (x, y) => {
       const v = 0.9 + n(x * 0.3, y * 0.3, 2) * 0.2;
@@ -202,10 +192,10 @@
       }
       ctx.restore();
     }
-    fases.marca();
     // Desgaste general
     M.papel(ctx, 1.4, 7);
-    fases.marca(); fases.preparar(); listo();
+    // En el vídeo la pieza se hace celda a celda, en el orden de su oficio.
+    revelarPorCeldas({ cw: 15, ch: 15, orden: 'centro', base: '#cfc6b4', tenue: 0.1 }); listo();
   </script>
 </body>
 </html>

@@ -14,9 +14,11 @@
     // Nubes volumétricas: el rayo atraviesa un campo de densidad 3D y en cada paso se mira
     // cuánta luz del sol llega (Beer–Lambert), con dispersión hacia delante (Henyey–Greenstein)
     // y el efecto "polvo" que oscurece el interior. Atardecer con el sol detrás de los cúmulos.
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: las nubes avanzan con el viento y se deshacen y rehacen por dentro mientras pasan.
     trazarVideo({
       escala: .67,
+      modo: "anima",
+      porFotograma: 1,
       muestras: 48,
       tono: true,
       expo: 1.05,
@@ -31,13 +33,13 @@
       const vec3 SOL = normalize(vec3(.55, .28, .8));
       float densidad(vec3 p, int oct) {
         // cúmulos: un mapa 2D dice dónde hay nube y lo alta que sube; la base es plana a 1,2 km
-        float cob = smoothstep(.46, .66, fbm(vec3(p.xz * .55, 0.), 3));
+        float cob = smoothstep(.46, .66, fbm(vec3(p.xz * .55 + vec2(uT * .045, uT * .012), uT * .015), 3));
         if (cob <= 0.) return 0.;
         float base = 1.2, cima = 1.28 + 0.75 * cob;
         float h = (p.y - base) / (cima - base);
         if (h < 0. || h > 1.) return 0.;
         float perfil = smoothstep(0., .08, h) * (1. - h * h);
-        vec3 q = p * 3.1 + vec3(0., -p.y * 1.2, 0.);
+        vec3 q = p * 3.1 + vec3(uT * .14, -p.y * 1.2 - uT * .05, uT * .04);
         float b = 0., a = .5;
         for (int i = 0; i < 5; i++) { if (i >= oct) break; b += a * abs(vn3(q) * 2. - 1.); q = q * 2.13 + 3.7; a *= .5; }
         float d = cob * perfil - .34 * b + .07;

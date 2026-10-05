@@ -14,9 +14,11 @@
     // Cáusticas de piscina calculadas, no dibujadas: la superficie del agua es una suma de ondas;
     // cada rayo de sol se desvía según la pendiente y la luz se concentra donde la superficie hace
     // de lupa. La intensidad es 1/|det J|, el jacobiano de esa desviación. Encima, un flotador.
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: el agua se mueve de verdad (cada onda a su velocidad) y las cáusticas bailan en el fondo; el flotador va a la deriva.
     trazarVideo({
       escala: .67,
+      modo: "anima",
+      porFotograma: 2,
       muestras: 48,
       tono: true,
       expo: 1.1,
@@ -32,7 +34,7 @@
           float a = fi * 2.399 + .3;
           vec2 d = vec2(cos(a), sin(a));
           float k = .9 + fi * .45;
-          h += sin(dot(p, d) * k + fi * 1.7) / (k * k) * .55;
+          h += sin(dot(p, d) * k + fi * 1.7 - uT * sqrt(k) * 1.5) / (k * k) * .55;
         }
         return h;
       }
@@ -65,8 +67,8 @@
         vec2 q = uv + g0 * .025;
         vec3 base = suelo(q);
         // flotador: sombra en el fondo (desplazada por el sol) y el propio aro arriba
-        vec2 fc = vec2(.55, .5);
-        float aro = abs(length(uv - fc - vec2(.18, -.22)) - .38) - .13;
+        vec2 fc = vec2(.55 + .04 * sin(uT * .45), .5 + .03 * cos(uT * .37));
+        float aro = abs(length(uv - fc - vec2(.18, -.22) - g0 * .01) - .38) - .13;
         float sombra = smoothstep(.0, .06, aro);
         vec3 c = base * (.28 + .42 * caus * sombra) * vec3(.85, .97, 1.05);
         // color del agua por profundidad
@@ -84,7 +86,7 @@
           float z = sqrt(1. - pow(1. - t, 2.));
           vec2 dir = (uv - fc) / dA;
           vec3 nn = normalize(vec3(dir * (dA - .38) / .13 * 1.2, z));
-          float ang = atan(dir.y, dir.x);
+          float ang = atan(dir.y, dir.x) + uT * .08;
           vec3 alb = fract(ang / 6.2832 * 8.) < .5 ? vec3(.9, .1, .12) : vec3(.95, .95, .92);
           float dif = max(dot(nn, normalize(vec3(-.4, .5, .8))), 0.);
           float esp = pow(max(dot(reflect(vec3(0, 0, -1), nn), normalize(vec3(-.4, .5, .8))), 0.), 40.);

@@ -14,9 +14,11 @@
     // Pompas de jabón: esferas con película fina; el color sale de la interferencia de la luz
     // que rebota en las dos caras de una capa de agua de unos cientos de nanómetros,
     // calculada para cada longitud de onda. La película es más fina arriba (el agua escurre).
-    // En el vídeo se ve cómo se calcula la imagen: de ruido a limpia, muestra a muestra.
+    // En el vídeo: las pompas suben despacio y tiemblan, y los colores de la película de jabón se arremolinan y escurren.
     trazarVideo({
       escala: .67,
+      modo: "anima",
+      porFotograma: 2,
       muestras: 48,
       tono: true,
       expo: 1.05,
@@ -65,7 +67,7 @@
         vec3 col = jardin(uv * 1.1 + rnd2() * .004);
         // pompas de atrás hacia delante (ordenadas por z descendente)
         for (int i = NB - 1; i >= 0; i--) {
-          vec3 c = B[i].xyz; float R = B[i].w;
+          vec3 c = B[i].xyz + vec3(sin(uT * .6 + float(i) * 1.7) * .06, uT * (.03 + .012 * float(i)) + sin(uT * .9 + float(i)) * .03, 0.); float R = B[i].w * (1. + .015 * sin(uT * 2.3 + float(i)));
           vec3 oc = ro - c;
           float b = dot(oc, rd), cc = dot(oc, oc) - R * R, h = b * b - cc;
           if (h < 0.) continue;
@@ -79,7 +81,7 @@
             float cosT = sqrt(1. - (1. - cosI * cosI) / (1.33 * 1.33));
             vec3 q = (p - c) / R;
             // espesor: escurre hacia abajo, con remolinos
-            float esp = mix(120., 900., smoothstep(.9, -.7, q.y)) + 260. * (fbm(q * 2.5 + float(i) * 3.1 + vec3(0., q.y * 2., 0.)) - .5);
+            float esp = mix(120., 900., smoothstep(.9, -.7, q.y)) + 260. * (fbm(q * 2.5 + float(i) * 3.1 + vec3(uT * .25, q.y * 2. + uT * .35, uT * .15)) - .5);
             vec3 fr = vec3(pelicula(esp, cosT, 650.), pelicula(esp, cosT, 540.), pelicula(esp, cosT, 450.));
             float fres = .04 + .96 * pow(1. - cosI, 5.);
             vec3 refl = entorno(reflect(rd, n)) * (fr * 1.6 * (.25 + fres));

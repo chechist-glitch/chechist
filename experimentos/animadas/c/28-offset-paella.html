@@ -4,18 +4,15 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/revelar.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #f3eee2; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Cuatricromía offset: la imagen se separa en cian, magenta, amarillo y negro,
-    fases.marca();
     // cada tinta se trama con puntos a su ángulo (15º, 75º, 0º, 45º) y se imprime desregistrada.
-    fases.marca();
     // Una lupa muestra las rosetas de cerca.
     (async () => {
       await M.fuentes('16px "Plex Mono"');
@@ -208,7 +205,8 @@
       ctx.font = '16px "Plex Mono"';
       ctx.fillText("PAELLA · CMYK 15/75/0/45 · 65 lpi · pliego 3 de 12", X0 + 340, Y1 + 84);
       ctx.fillText("tinta de prensa sobre papel reciclado · Valencia–Sevilla", X0 + 340, Y1 + 108);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo la imagen se revela como en su proceso físico.
+      revelar({ modo: 'cmyk', papel: [244, 240, 228], t1: 8.8 }); listo();
     })();
   </script>
 </body>

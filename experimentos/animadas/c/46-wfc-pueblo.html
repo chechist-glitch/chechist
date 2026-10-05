@@ -4,18 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #5c8a3a; } canvas { image-rendering: pixelated; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Wave Function Collapse: cada casilla empieza pudiendo ser cualquier loseta; se colapsa
-    fases.marca();
     // la más restringida y se propagan las reglas de bordes (camino con camino, agua con agua...).
-    fases.marca();
     // Las losetas se dibujan en pixel art de 12×12 y se amplían ×6.
     (async () => {
       const r = rng(1984);
@@ -32,8 +28,11 @@
       const NT = L.length;
       const opp = (d) => (d + 2) % 4;
       const encaja = (a, b, d) => L[a].b[d] === L[b].b[opp(d)];
+      let paso = null, historia = null;
       function intenta() {
         const ola = Array.from({ length: COLS * FILAS }, () => new Set(L.map((_, i) => i).filter((i) => L[i].peso > 0)));
+        // para el vídeo: en qué paso se decidió cada casilla y cuántas opciones le quedaban en cada momento
+        paso = new Int32Array(COLS * FILAS).fill(-1); historia = []; let npaso = 0;
         const D = [[0, -1], [1, 0], [0, 1], [-1, 0]];
         while (true) {
           let mejor = -1, me = Infinity;
@@ -47,6 +46,7 @@
           let tot = opciones.reduce((a, i) => a + L[i].peso, 0), x = r() * tot, elegida = opciones[0];
           for (const i of opciones) { x -= L[i].peso; if (x <= 0) { elegida = i; break; } }
           ola[mejor] = new Set([elegida]);
+          npaso++; paso[mejor] = npaso; historia.push(mejor);
           const pila = [mejor];
           while (pila.length) {
             const c = pila.pop();
@@ -57,7 +57,7 @@
               const k = ny * COLS + nx;
               const antes = ola[k].size;
               for (const t of [...ola[k]]) if (![...ola[c]].some((a) => encaja(a, t, d))) ola[k].delete(t);
-              if (ola[k].size !== antes) pila.push(k);
+              if (ola[k].size !== antes) { pila.push(k); if (ola[k].size === 1 && paso[k] < 0) paso[k] = npaso; }
             });
           }
         }
@@ -103,12 +103,29 @@
       };
       const ctx = canvas2d();
       ctx.imageSmoothingEnabled = false;
-      mapa.forEach((t, i) => {
-        const nom = L[t].nombre;
-        (dib[nom] || dib.hierba)(i * 17 + 3);
-        ctx.drawImage(loseta.c, (i % COLS) * T * Z, ((i / COLS) | 0) * T * Z, T * Z, T * Z);
-      });
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo se ve el algoritmo: al principio todo es "superposición" (casillas grises que
+      // aún pueden ser cualquier cosa); cada paso colapsa la casilla más restringida y las reglas
+      // deciden de rebote a sus vecinas. La casilla recién elegida se marca con un recuadro.
+      const losetas = mapa.map((t, i) => { (dib[L[t].nombre] || dib.hierba)(i * 17 + 3); const c = M.lienzo(T, T); c.x.drawImage(loseta.c, 0, 0); return c.c; });
+      const total = historia.length;
+      const niebla = M.lienzo(T * Z, T * Z);
+      for (let y = 0; y < T * Z; y += 6) for (let x = 0; x < T * Z; x += 6) { niebla.x.fillStyle = (x + y) % 12 === 0 ? "#3b4a3a" : "#33402f"; niebla.x.fillRect(x, y, 6, 6); }
+      window.pintar = (t) => {
+        const u = Math.min(1, Math.max(0, (t - 0.4) / 8.4));
+        const hasta = Math.floor(total * (u * u * (3 - 2 * u)));
+        ctx.imageSmoothingEnabled = false;
+        mapa.forEach((_, i) => {
+          const x = (i % COLS) * T * Z, y = ((i / COLS) | 0) * T * Z;
+          if (paso[i] >= 0 && paso[i] <= hasta) ctx.drawImage(losetas[i], x, y, T * Z, T * Z);
+          else ctx.drawImage(niebla.c, x, y);
+        });
+        if (hasta > 0 && hasta < total) {
+          const i = historia[hasta - 1];
+          ctx.strokeStyle = "#ffe066"; ctx.lineWidth = 4;
+          ctx.strokeRect((i % COLS) * T * Z + 2, ((i / COLS) | 0) * T * Z + 2, T * Z - 4, T * Z - 4);
+        }
+      };
+      listo();
     })();
   </script>
 </body>

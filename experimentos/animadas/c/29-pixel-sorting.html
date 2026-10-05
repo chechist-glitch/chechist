@@ -4,16 +4,13 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #120a14; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Ordenación de píxeles: se pinta un atardecer en Cádiz y luego, columna a columna,
-    fases.marca();
     // los tramos con brillo medio se reordenan de oscuro a claro. Las siluetas frenan la ordenación.
     const ctx = canvas2d();
     const r = rng(1812);
@@ -38,7 +35,6 @@
       const brillo = Math.exp(-Math.abs(x - 620) / (40 + prof * 200)) * (n(x * 0.05, y * 0.4, 2) > 0.5 ? 1 : 0.2);
       return M.mezcla(c, [255, 200, 120], brillo);
     });
-    fases.marca();
     // Siluetas: catedral, casas y palmeras
     ctx.fillStyle = "#120a14";
     ctx.beginPath();
@@ -75,9 +71,9 @@
     palmera(900, 260);
     palmera(80, 290);
 
-    fases.marca();
     // --- Ordenación ---
     const img = ctx.getImageData(0, 0, W, H);
+    const original = new Uint8ClampedArray(img.data);
     const d = img.data;
     const lum = (k) => (d[k] * 0.3 + d[k + 1] * 0.59 + d[k + 2] * 0.11) / 255;
     for (let x = 0; x < W; x++) {
@@ -96,7 +92,6 @@
         }
       }
     }
-    fases.marca();
     // Una franja ordenada en horizontal y bandas con desplazamiento de canales
     for (let y = 1000; y < 1080; y++) {
       const fila = [];
@@ -112,8 +107,26 @@
         d[k] = copia[k2];
       }
     }
-    ctx.putImageData(img, 0, 0);
-    fases.marca(); fases.preparar(); listo();
+    // En el vídeo la ordenación barre la imagen de izquierda a derecha: por delante del barrido el
+    // atardecer está intacto, por detrás ya está ordenado, y en el frente los píxeles van cambiando.
+    const final = new Uint8ClampedArray(d);
+    const salida = ctx.createImageData(W, H);
+    const azar = new Float32Array(W * H);
+    const desv = new Float32Array(W * H);
+    for (let k = 0; k < W * H; k++) { azar[k] = r(); desv[k] = (n((k % W) * 0.004, ((k / W) | 0) * 0.003, 2) - 0.5) * 0.6; }
+    window.pintar = (t) => {
+      const u = Math.min(1, Math.max(0, (t - 0.6) / 7.8));
+      const frente = -120 + u * (W + 240);
+      const o = salida.data;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const k = y * W + x, q = k * 4;
+        const m = (frente - x) / 120 + desv[k];
+        const src = azar[k] < m ? final : original;
+        o[q] = src[q]; o[q + 1] = src[q + 1]; o[q + 2] = src[q + 2]; o[q + 3] = 255;
+      }
+      ctx.putImageData(salida, 0, 0);
+    };
+    listo();
   </script>
 </body>
 </html>

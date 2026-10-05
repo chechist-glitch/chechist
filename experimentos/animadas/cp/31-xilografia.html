@@ -4,16 +4,14 @@
 <meta charset="utf-8" />
 <link rel="stylesheet" href="../../imagenes/assets/base.css" />
 <script src="../../imagenes/assets/lib.js"></script>
-<script src="../comun/fases.js"></script>
+<script src="../comun/celdas.js"></script>
 <script src="../../imagenes/assets/mas.js"></script>
 <style>body { background: #efe6d2; }</style>
 </head>
 <body>
   <canvas id="c" class="full"></canvas>
   <script>
-    const fases = crearFases({});
     // Xilografía: cada zona tiene su dirección de talla (círculos en el sol, curvas de nivel
-    fases.marca();
     // en la sierra, surcos en el campo) y el grosor de la línea sale de lo oscura que es la escena
     (async () => {
       await M.fuentes('64px "Anton"', '40px "DM Serif"');
@@ -102,7 +100,8 @@
       ctx.fillStyle = "#efe6d2";
       ctx.font = '48px "DM Serif"';
       ctx.fillText("Q", W - M0 - 55, H - M0 - TIT - 58);
-      fases.marca(); fases.preparar(); listo();
+      // En el vídeo se levanta el papel de la plancha entintada: la estampa aparece de arriba abajo.
+      revelarPorCeldas({ cw: 1080, ch: 5, orden: 'filas', base: '#ece4d2', tenue: 0, t0: 1, t1: 7.5 }); listo();
     })();
   </script>
 </body>
