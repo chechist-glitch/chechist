@@ -1,0 +1,24 @@
+# Ajustes generales del rastreador. Las rutas son relativas a la carpeta desde
+# la que se lanza `centinela` (la raíz del proyecto).
+
+base_datos = "datos/centinela.sqlite"
+carpeta_datos = "datos"
+
+# Nos identificamos tal cual. Pon el correo del proyecto (nunca uno personal)
+# para que un medio pueda escribirnos si algo le molesta.
+user_agent = "CentinelaBot/0.1 (+mailto:CAMBIAR@ejemplo.org)"
+
+# Mínimo entre dos peticiones al mismo medio. Si su robots.txt pide más
+# (Crawl-delay), se respeta lo que pida.
+segundos_entre_peticiones = 8
+timeout_segundos = 30
+
+# Ruta a Chromium si no usas el que instala `playwright install chromium`.
+chromium = ""
+
+# Al rastrear no se bajan imágenes, vídeo ni fuentes: menos carga para el medio.
+bloquear_recursos = ["image", "media", "font"]
+
+# robots.txt se aplica también a las peticiones de datos (XHR/fetch) que la
+# página hace a su propio dominio, como la API de comentarios.
+robots_en_peticiones_internas = true

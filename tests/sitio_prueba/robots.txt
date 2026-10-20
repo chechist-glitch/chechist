@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /noticias/privado/
+Disallow: /api/secreta

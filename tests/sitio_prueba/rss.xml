@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Diario de Prueba</title>
+    <item><title>Noticia uno</title><link>__BASE__/noticias/uno.html?utm_source=rss#arriba</link></item>
+    <item><title>Noticia dos</title><link>__BASE__/noticias/dos.html</link></item>
+    <item><title>Sin comentarios</title><link>__BASE__/noticias/sin_comentarios.html</link></item>
+    <item><title>Privada</title><link>__BASE__/noticias/privado/tres.html</link></item>
+    <item><title>De otro medio</title><link>https://otro-medio.example/noticias/x.html</link></item>
+    <item><title>Columna</title><link>__BASE__/opinion/columna.html</link></item>
+  </channel>
+</rss>

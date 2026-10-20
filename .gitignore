@@ -1,0 +1,13 @@
+# Datos recogidos: no se suben nunca al repositorio.
+datos/
+*.sqlite
+*.sqlite-journal
+
+# Secretos (claves de API, correo del proyecto...).
+.env
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/

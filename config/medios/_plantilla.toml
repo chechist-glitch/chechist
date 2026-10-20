@@ -1,0 +1,41 @@
+# Plantilla para dar de alta un medio. Cópiala como config/medios/<id>.toml
+# (sin el "_" delante, que es lo que hace que esta no se cargue) y rellena los
+# selectores mirando la página con `centinela inspeccionar <url>`.
+#
+# Los selectores son CSS normales. Los valores de aquí son de ejemplo.
+
+id = "ejemplo"
+nombre = "Diario de Ejemplo"
+dominio = "diarioejemplo.es"   # también vale para sus subdominios
+
+[descubrimiento]
+# RSS, Atom o sitemap de noticias del propio medio.
+fuentes = ["https://www.diarioejemplo.es/rss/portada.xml"]
+# Expresiones regulares sobre la URL. Vacío = todo.
+incluir = ["/sociedad/", "/espana/"]
+excluir = ["/videos/", "/directo/"]
+max_articulos = 30          # por pasada
+ventana_horas = 48          # se siguen revisando los artículos de las últimas N horas
+horas_entre_rastreos = 6    # cada cuánto se vuelve a mirar un mismo artículo
+
+[comentarios]
+# Obligatorios
+item = ".comentario"                    # cada comentario (incluidas las respuestas)
+texto = ".comentario__texto"            # dentro del comentario: el texto
+
+# Opcionales
+cuenta = ".comentario__autor"           # nombre de la cuenta tal como aparece
+contenedor = "#comentarios"             # zona de comentarios (para bajar hasta ella)
+id_atributo = "data-id"                 # atributo con el id del comentario
+respuesta_a_atributo = ""               # atributo con el id del padre; vacío = por anidamiento
+fecha = "time"
+fecha_atributo = "datetime"
+iframe = ""                             # si los comentarios van dentro de un iframe
+consentimiento = "#didomi-notice-agree-button"   # botón del aviso de cookies
+consentimiento_iframe = ""              # si el aviso va dentro de un iframe
+abrir = "button.ver-comentarios"        # botón para desplegar los comentarios
+cargar_mas = "button.cargar-mas"        # se pulsa hasta que desaparece
+max_cargar_mas = 20
+expandir_respuestas = "button.ver-respuestas"
+espera_ms = 1500                        # pausa tras cada clic
+timeout_aparicion_ms = 10000            # cuánto esperar al primer comentario

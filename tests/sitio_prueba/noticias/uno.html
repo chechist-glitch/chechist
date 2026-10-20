@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Noticia uno - Diario de Prueba</title>
+  <style>
+    #banner-cookies { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); }
+    .oculto { display: none; }
+    article { min-height: 1500px; }
+  </style>
+</head>
+<body>
+  <article><h1>Noticia uno</h1><p>Texto de la noticia de prueba.</p></article>
+
+  <section id="comentarios">
+    <button id="ver-comentarios">Ver comentarios</button>
+    <div id="lista"></div>
+    <button id="cargar-mas" class="oculto">Cargar más</button>
+  </section>
+
+  <div id="banner-cookies"><button id="aceptar-cookies">Aceptar</button></div>
+
+  <script>
+    // Simula un sistema de comentarios que se carga a trozos y con respuestas plegadas.
+    const tandas = [
+      [
+        { id: 'c1', cuenta: 'usuario_uno', texto: 'Primer comentario de prueba.', fecha: '2026-10-19T10:00:00Z',
+          respuestas: [
+            { id: 'c1r1', cuenta: 'usuario_dos', texto: 'Respuesta al primero.', fecha: '2026-10-19T10:05:00Z',
+              respuestas: [
+                { id: 'c1r1r1', cuenta: 'usuario_uno', texto: 'Respuesta a la respuesta.', fecha: '2026-10-19T10:07:00Z' },
+              ] },
+          ] },
+        { id: 'c2', cuenta: 'usuario_tres', texto: 'Segundo comentario<br>con dos líneas.', fecha: '2026-10-19T11:00:00Z' },
+      ],
+      [
+        { id: 'c3', cuenta: 'usuario_cuatro', texto: 'Tercer comentario.', fecha: '2026-10-19T12:00:00Z' },
+        { id: 'c4', cuenta: 'usuario_cinco', texto: 'Cuarto comentario.', fecha: '2026-10-19T12:30:00Z' },
+      ],
+      [
+        { id: 'c5', cuenta: 'usuario_seis', texto: 'Quinto comentario.', fecha: '2026-10-19T13:00:00Z' },
+      ],
+    ];
+    const lista = document.getElementById('lista');
+    const botonMas = document.getElementById('cargar-mas');
+    let siguiente = 0;
+
+    function pintar(c, destino) {
+      const div = document.createElement('div');
+      div.className = 'comentario';
+      div.dataset.id = c.id;
+      div.innerHTML =
+        `<span class="comentario__cuenta">${c.cuenta}</span>` +
+        `<time datetime="${c.fecha}">hace un rato</time>` +
+        `<p class="comentario__texto">${c.texto}</p>`;
+      if (c.respuestas) {
+        const boton = document.createElement('button');
+        boton.className = 'ver-respuestas';
+        boton.textContent = 'Ver respuestas';
+        boton.onclick = () => setTimeout(() => {
+          boton.textContent = 'Ocultar respuestas';
+          for (const r of c.respuestas) pintar(r, div);
+        }, 50);
+        div.appendChild(boton);
+      }
+      destino.appendChild(div);
+    }
+
+    function cargar() {
+      for (const c of tandas[siguiente]) pintar(c, lista);
+      siguiente++;
+      botonMas.classList.toggle('oculto', siguiente >= tandas.length);
+    }
+
+    // Aviso de cookies: tapa la página hasta que se acepta y luego no vuelve a salir.
+    const banner = document.getElementById('banner-cookies');
+    document.getElementById('aceptar-cookies').onclick = () => {
+      document.cookie = 'consentimiento=1; path=/';
+      banner.remove();
+    };
+    if (document.cookie.includes('consentimiento=1')) banner.remove();
+    document.getElementById('ver-comentarios').onclick = (e) => {
+      e.target.remove();
+      setTimeout(cargar, 100);
+    };
+    botonMas.onclick = () => setTimeout(cargar, 100);
+
+    // Una petición a una ruta que robots.txt prohíbe: el rastreador no debe hacerla.
+    fetch('/api/secreta').catch(() => {});
+  </script>
+</body>
+</html>
