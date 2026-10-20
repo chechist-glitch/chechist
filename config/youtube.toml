@@ -1,0 +1,18 @@
+# Canales de YouTube a vigilar, por su API oficial.
+#
+# La clave de la API NO va aquí: ponla en el fichero .env de la raíz del
+# proyecto (no se sube al repo) con una línea así:
+#   YOUTUBE_API_KEY=tu_clave
+#
+# Cada canal se pone por su @ (sale en la dirección del canal:
+# youtube.com/@nombre) o por su id (UC...). Cambia el ejemplo por los reales.
+canales = ["@ejemplo"]
+
+videos_por_canal = 15            # los más recientes de cada canal
+max_comentarios_por_video = 2000
+ventana_horas = 72               # vídeos publicados en las últimas N horas
+horas_entre_rastreos = 6         # cada cuánto se vuelve a mirar un vídeo
+
+# Google da 10.000 unidades al día gratis y cada consulta gasta 1 (hasta 100
+# comentarios). Con 1.500 por pasada y una pasada cada 4 horas no se pasa.
+cuota_maxima_por_pasada = 1500

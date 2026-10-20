@@ -7,6 +7,7 @@ objetivo, las líneas rojas y las fases están en [CLAUDE.md](CLAUDE.md).
 
 - [x] Rastreo de comentarios de un medio (el código de este repo)
 - [x] Captura asistida en redes (extensión del navegador): Instagram y cualquier web
+- [x] YouTube automático por su API oficial
 - [ ] Dar de alta el primer periódico real (falta inspeccionar sus páginas)
 - [ ] Clasificación con IA (arts. 510 y 169 CP): propone y prioriza, no decide
 - [ ] Cola de revisión humana con el hilo completo
@@ -29,6 +30,25 @@ objetivo, las líneas rojas y las fases están en [CLAUDE.md](CLAUDE.md).
 - Lo que no llega a candidato se borra con `centinela purgar` (30 días por
   defecto). Se conserva el hilo completo de los artículos con algún candidato,
   como contexto para la revisión.
+
+## YouTube (automático, por la API oficial)
+
+Google da los comentarios públicos de cualquier vídeo con una clave gratuita,
+así que aquí sí va solo: `centinela youtube` mira los últimos vídeos de cada
+canal y se trae todos sus comentarios y respuestas.
+
+1. Saca una clave (gratis, con la cuenta de Google del proyecto):
+   - Entra en https://console.cloud.google.com/ y crea un proyecto.
+   - En "APIs y servicios" → "Biblioteca", busca **YouTube Data API v3** y
+     dale a "Habilitar".
+   - En "APIs y servicios" → "Credenciales" → "Crear credenciales" →
+     "Clave de API". Cópiala.
+2. Crea un fichero `.env` en la raíz del proyecto con la línea
+   `YOUTUBE_API_KEY=tu_clave` (no se sube al repo).
+3. Pon los canales en `config/youtube.toml` (por su `@`, el que sale en
+   `youtube.com/@nombre`).
+4. `centinela youtube`. Con el cupo gratis (10.000 unidades al día, unos
+   100 comentarios por unidad) da para una pasada cada 4 horas.
 
 ## Captura asistida en redes (Instagram y demás)
 
@@ -90,6 +110,7 @@ centinela medios                                  # medios configurados
 centinela rastrear [--medio id] [--max-articulos N]
 centinela comentarios [--medio id] [--limite N]   # últimos guardados
 centinela purgar [--dias 30]
+centinela youtube [--canal @canal]                # comentarios de YouTube
 centinela recepcion [--puerto 8770]               # recibe los casos de la extensión
 centinela casos [--limite N]                      # casos capturados a mano
 ```
@@ -98,6 +119,7 @@ Para que vaya solo, con cron:
 
 ```cron
 0 * * * *  cd /ruta/al/proyecto && .venv/bin/centinela rastrear >> datos/rastreo.log 2>&1
+15 */4 * * * cd /ruta/al/proyecto && .venv/bin/centinela youtube >> datos/rastreo.log 2>&1
 30 3 * * * cd /ruta/al/proyecto && .venv/bin/centinela purgar >> datos/rastreo.log 2>&1
 ```
 

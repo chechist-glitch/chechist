@@ -71,6 +71,26 @@ def _comentarios(args, ajustes: Ajustes, medios: dict[str, Medio]) -> int:
     return 0
 
 
+def _youtube(args, ajustes: Ajustes, medios: dict[str, Medio]) -> int:
+    from .redes.youtube import ClienteYoutube, cargar_ajustes_youtube, leer_clave, rastrear_youtube
+
+    try:
+        ajustes_yt = cargar_ajustes_youtube(Path(args.config_youtube))
+        clave = leer_clave()
+    except ErrorConfig as e:
+        print(f"Error de configuración: {e}", file=sys.stderr)
+        return 2
+    cliente = ClienteYoutube(clave, ajustes_yt.cuota_maxima_por_pasada)
+    con = db.conectar(ajustes.base_datos)
+    for r in rastrear_youtube(ajustes_yt, cliente, con, args.canal):
+        print(
+            f"{r.canal}: {r.videos_revisados} vídeos revisados, {r.comentarios_nuevos} comentarios nuevos, "
+            f"{r.errores} errores" + (f". PARADO: {r.detenido_por}" if r.detenido_por else "")
+        )
+    print(f"Unidades de la API gastadas: {cliente.unidades}")
+    return 0
+
+
 def _recepcion(args, ajustes: Ajustes, medios: dict[str, Medio]) -> int:
     from .captura.recepcion import crear_servidor
 
@@ -131,6 +151,11 @@ def _analizador() -> argparse.ArgumentParser:
     o.add_argument("--medio")
     o.add_argument("--limite", type=int, default=20)
     o.set_defaults(funcion=_comentarios)
+
+    o = ordenes.add_parser("youtube", help="recoge comentarios de YouTube por su API oficial")
+    o.add_argument("--canal", action="append", help="@canal o id (repetible; por defecto, los de la config)")
+    o.add_argument("--config-youtube", default="config/youtube.toml")
+    o.set_defaults(funcion=_youtube)
 
     o = ordenes.add_parser("recepcion", help="recibe los casos que envía la extensión del navegador")
     o.add_argument("--puerto", type=int, default=8770)

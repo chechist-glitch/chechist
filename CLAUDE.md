@@ -54,6 +54,7 @@ Revisión del diseño por un abogado de protección de datos y derecho al honor.
 ## Código (estado actual)
 - Python ≥ 3.11, paquete `centinela` en `src/`, CLI `centinela` (ver README).
 - `src/centinela/rastreo/`: descubrimiento por RSS/sitemap, cortesía (robots.txt, ritmo, parar ante bloqueos), navegador Playwright, extracción por selectores CSS e inspección de páginas para dar de alta medios.
+- YouTube: automático por la API oficial (`src/centinela/redes/youtube.py`, `config/youtube.toml`, clave en `.env` como `YOUTUBE_API_KEY`). No se guardan id de canal, foto ni enlace al perfil del autor. Otras redes con API abierta (Telegram, Bluesky) irían en `redes/`.
 - Redes sociales (Instagram, etc.): nada de rastreo automático con sesión iniciada. Captura asistida: `extension/` (extensión Chrome MV3, clic derecho → "Enviar a Centinela") + `src/centinela/captura/recepcion.py` (servidor solo en 127.0.0.1, solo acepta a la extensión). Esos casos entran con estado `capturado_a_mano` y su captura en la tabla `capturas`.
 - `config/medios/<id>.toml`: un fichero por medio con sus selectores; `_plantilla.toml` es la plantilla.
 - `src/centinela/db.py`: SQLite local en `datos/` (no se sube al repo). Los estados de los comentarios empiezan en `pendiente_clasificar`; la clasificación, la revisión, la denuncia y el seguimiento irán en paquetes hermanos de `rastreo/`.
