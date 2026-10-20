@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Enviar a Centinela</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 16px; color: #222; background: #fff; }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; }
+    input, textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 6px; }
+    textarea { height: 120px; }
+    img { width: 100%; border: 1px solid #ccc; margin-top: 4px; }
+    button { margin-top: 14px; padding: 8px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+    .aviso { background: #fff4ce; border: 1px solid #e0c060; padding: 8px; margin-top: 8px; }
+    .error { color: #b00020; }
+    .ok { color: #1b6e20; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <form id="formulario">
+    <label for="cuenta">Cuenta (tal como aparece)</label>
+    <input id="cuenta" required autocomplete="off" placeholder="@nombre_de_la_cuenta">
+
+    <label for="texto">Comentario</label>
+    <textarea id="texto" required></textarea>
+
+    <label for="url">Enlace</label>
+    <input id="url" readonly>
+    <p id="aviso-enlace" class="aviso" hidden>
+      Este enlace no es el de la publicación. Abre la publicación (que en la barra
+      ponga /p/… o /reel/…) y vuelve a enviarlo, para que la denuncia lleve el enlace bueno.
+    </p>
+
+    <label>Captura</label>
+    <p id="sin-captura" class="aviso" hidden></p>
+    <img id="captura" alt="Captura de la pantalla" hidden>
+
+    <button type="submit" id="enviar">Guardar en Centinela</button>
+    <p id="estado"></p>
+  </form>
+  <script src="formulario.js"></script>
+</body>
+</html>

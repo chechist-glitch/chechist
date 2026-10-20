@@ -71,6 +71,36 @@ def _comentarios(args, ajustes: Ajustes, medios: dict[str, Medio]) -> int:
     return 0
 
 
+def _recepcion(args, ajustes: Ajustes, medios: dict[str, Medio]) -> int:
+    from .captura.recepcion import crear_servidor
+
+    servidor = crear_servidor(ajustes.base_datos, ajustes.carpeta_datos, args.puerto)
+    print(f"Esperando casos de la extensión en http://127.0.0.1:{args.puerto} (Ctrl+C para parar)")
+    try:
+        servidor.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        servidor.server_close()
+    return 0
+
+
+def _casos(args, ajustes: Ajustes, medios: dict[str, Medio]) -> int:
+    con = db.conectar(ajustes.base_datos)
+    filas = db.casos_manuales(con, args.limite)
+    if not filas:
+        print("Todavía no hay casos capturados a mano.")
+    for fila in filas:
+        texto = fila["texto"].replace("\n", " ")
+        if len(texto) > 200:
+            texto = texto[:197] + "..."
+        print(f"#{fila['id']} [{fila['primera_vez_visto']}] {fila['medio_id']} · {fila['cuenta']}: {texto}")
+        print(f"    {fila['url']}")
+        if fila["captura"]:
+            print(f"    captura: {fila['captura']}")
+    return 0
+
+
 def _purgar(args, ajustes: Ajustes, medios: dict[str, Medio]) -> int:
     con = db.conectar(ajustes.base_datos)
     borrados = db.purgar(con, args.dias, ahora())
@@ -101,6 +131,14 @@ def _analizador() -> argparse.ArgumentParser:
     o.add_argument("--medio")
     o.add_argument("--limite", type=int, default=20)
     o.set_defaults(funcion=_comentarios)
+
+    o = ordenes.add_parser("recepcion", help="recibe los casos que envía la extensión del navegador")
+    o.add_argument("--puerto", type=int, default=8770)
+    o.set_defaults(funcion=_recepcion)
+
+    o = ordenes.add_parser("casos", help="muestra los últimos casos capturados a mano")
+    o.add_argument("--limite", type=int, default=20)
+    o.set_defaults(funcion=_casos)
 
     o = ordenes.add_parser("purgar", help="borra lo que no ha llegado a candidato pasado un tiempo")
     o.add_argument("--dias", type=float, default=30)

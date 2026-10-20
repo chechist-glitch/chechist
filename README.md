@@ -6,6 +6,7 @@ objetivo, las líneas rojas y las fases están en [CLAUDE.md](CLAUDE.md).
 ## Estado de la fase 1
 
 - [x] Rastreo de comentarios de un medio (el código de este repo)
+- [x] Captura asistida en redes (extensión del navegador): Instagram y cualquier web
 - [ ] Dar de alta el primer periódico real (falta inspeccionar sus páginas)
 - [ ] Clasificación con IA (arts. 510 y 169 CP): propone y prioriza, no decide
 - [ ] Cola de revisión humana con el hilo completo
@@ -28,6 +29,31 @@ objetivo, las líneas rojas y las fases están en [CLAUDE.md](CLAUDE.md).
 - Lo que no llega a candidato se borra con `centinela purgar` (30 días por
   defecto). Se conserva el hilo completo de los artículos con algún candidato,
   como contexto para la revisión.
+
+## Captura asistida en redes (Instagram y demás)
+
+En las redes no se rastrea con un bot: con la sesión iniciada va contra sus
+condiciones y acaban baneando la cuenta. Lo que se hace es que una persona
+navega como siempre y, cuando ve un comentario de odio, lo manda a Centinela
+en dos clics con su texto, su enlace y una captura de pantalla.
+
+1. Deja abierta una terminal con:
+   ```bash
+   centinela recepcion
+   ```
+2. Instala la extensión una vez: en Chrome (o Edge o Brave) entra en
+   `chrome://extensions`, activa el "Modo de desarrollador", pulsa "Cargar
+   extensión sin empaquetar" y elige la carpeta `extension/` del proyecto.
+3. En Instagram, abre la publicación (que en la barra ponga `/p/…` o
+   `/reel/…`), deja el comentario a la vista, selecciona su texto, haz clic
+   derecho y elige **Enviar a Centinela**. En el formulario, pega el nombre de
+   la cuenta y dale a Guardar.
+4. `centinela casos` lista lo capturado. Las capturas van a `datos/capturas/`
+   con su huella SHA-256 apuntada en la base de datos.
+
+Estas capturas valen para trabajar y para la revisión. Para la denuncia, la
+prueba fuerte sigue siendo la captura certificada de un servicio de prueba
+electrónica (frente 2).
 
 ## Instalación (en el equipo del proyecto)
 
@@ -64,6 +90,8 @@ centinela medios                                  # medios configurados
 centinela rastrear [--medio id] [--max-articulos N]
 centinela comentarios [--medio id] [--limite N]   # últimos guardados
 centinela purgar [--dias 30]
+centinela recepcion [--puerto 8770]               # recibe los casos de la extensión
+centinela casos [--limite N]                      # casos capturados a mano
 ```
 
 Para que vaya solo, con cron:

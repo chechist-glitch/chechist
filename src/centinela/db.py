@@ -18,6 +18,8 @@ from .tiempo import hace, iso
 
 PENDIENTE = "pendiente_clasificar"
 DESCARTADO = "descartado"
+# Lo ha señalado una persona (p. ej. con la extensión): no se purga nunca solo.
+CAPTURADO_A_MANO = "capturado_a_mano"
 # Lo que no ha llegado a candidato a delito se borra pasado un tiempo (ver purgar).
 ESTADOS_PURGABLES = (PENDIENTE, DESCARTADO)
 
@@ -50,6 +52,15 @@ CREATE TABLE IF NOT EXISTS comentarios (
     UNIQUE (articulo_id, id_externo)
 );
 CREATE INDEX IF NOT EXISTS comentarios_estado ON comentarios (estado);
+
+CREATE TABLE IF NOT EXISTS capturas (
+    id             INTEGER PRIMARY KEY,
+    comentario_id  INTEGER NOT NULL REFERENCES comentarios (id),
+    ruta           TEXT NOT NULL,
+    sha256         TEXT NOT NULL,
+    url_pagina     TEXT NOT NULL,
+    tomada_en      TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS rastreos (
     id                    INTEGER PRIMARY KEY,
@@ -161,6 +172,70 @@ def guardar_comentarios(
             (marca, vistos, articulo_id),
         )
     return nuevos
+
+
+def guardar_caso_manual(
+    con: sqlite3.Connection,
+    *,
+    plataforma: str,
+    url: str,
+    titulo: str,
+    id_externo: str,
+    cuenta: str,
+    texto: str,
+    captura: tuple[str, str] | None,
+    momento: datetime,
+) -> tuple[int, bool]:
+    """Guarda un comentario que ha señalado una persona, con su captura (ruta, sha256).
+
+    Devuelve (id del comentario, si es nuevo). Si ya estaba, solo se añade la captura.
+    """
+    articulo_id = registrar_articulo(con, plataforma, url, titulo, momento)
+    marca = iso(momento)
+    with con:
+        fila = con.execute(
+            "SELECT id FROM comentarios WHERE articulo_id = ? AND id_externo = ?",
+            (articulo_id, id_externo),
+        ).fetchone()
+        nuevo = fila is None
+        if nuevo:
+            comentario_id = con.execute(
+                """
+                INSERT INTO comentarios (
+                    articulo_id, id_externo, posicion, cuenta, texto, hash_texto,
+                    fecha_texto, primera_vez_visto, ultima_vez_visto, estado
+                ) VALUES (?, ?, 0, ?, ?, ?, '', ?, ?, ?)
+                """,
+                (
+                    articulo_id, id_externo, cuenta, texto,
+                    hashlib.sha256(texto.encode()).hexdigest(), marca, marca, CAPTURADO_A_MANO,
+                ),
+            ).lastrowid
+        else:
+            comentario_id = fila["id"]
+            con.execute(
+                "UPDATE comentarios SET ultima_vez_visto = ? WHERE id = ?", (marca, comentario_id)
+            )
+        if captura:
+            con.execute(
+                "INSERT INTO capturas (comentario_id, ruta, sha256, url_pagina, tomada_en) VALUES (?, ?, ?, ?, ?)",
+                (comentario_id, captura[0], captura[1], url, marca),
+            )
+    return comentario_id, nuevo
+
+
+def casos_manuales(con: sqlite3.Connection, limite: int = 20) -> list[sqlite3.Row]:
+    return con.execute(
+        """
+        SELECT c.id, c.cuenta, c.texto, c.primera_vez_visto, a.url, a.medio_id,
+               (SELECT ruta FROM capturas WHERE comentario_id = c.id ORDER BY id DESC LIMIT 1) AS captura
+        FROM comentarios c JOIN articulos a ON a.id = c.articulo_id
+        WHERE c.estado = ?
+        ORDER BY c.primera_vez_visto DESC
+        LIMIT ?
+        """,
+        (CAPTURADO_A_MANO, limite),
+    ).fetchall()
 
 
 def purgar(con: sqlite3.Connection, dias: float, momento: datetime) -> int:
