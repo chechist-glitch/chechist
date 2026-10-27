@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torre Puente 3D</title>
+<style>
+  :root {
+    --bg: #d9cdc5;
+    --ink: #3a2c26;
+    --panel: rgba(255, 250, 245, 0.82);
+    --accent: #c86a45;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --panel: rgba(40, 32, 28, 0.82); --ink: #f3e6dc; }
+  }
+  :root[data-theme="dark"] { --panel: rgba(40, 32, 28, 0.82); --ink: #f3e6dc; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #ui {
+    position: fixed; left: 16px; bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap;
+    background: var(--panel); color: var(--ink); padding: 8px; border-radius: 10px;
+    backdrop-filter: blur(6px); font-size: 13px; max-width: calc(100vw - 48px);
+  }
+  #ui button {
+    border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit;
+    background: var(--accent); color: #fff;
+  }
+  #ui span { align-self: center; opacity: 0.75; }
+  body.hero #ui { display: none; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="ui">
+  <button id="btnHero">Vista original</button>
+  <button id="btnSpin">Girar</button>
+  <button id="btnGlb">Descargar .glb</button>
+  <span>Arrastra para orbitar · rueda para zoom</span>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+// ---------------------------------------------------------------------------
+// Coordinates: X along the long front of the plot, Z going back, Y up.
+// 1 unit ≈ 1 px of the reference image. Three.js z = -Z.
+// Hero camera reproduces the reference: yaw 33.7°, pitch 16.7°, orthographic.
+// ---------------------------------------------------------------------------
+const YAW = THREE.MathUtils.degToRad(33.7), PITCH = THREE.MathUtils.degToRad(16.7);
+const cT = Math.cos(YAW), sT = Math.sin(YAW), sP = Math.sin(PITCH), cP = Math.cos(PITCH);
+const OX = 8, OY = 777; // screen position of plot corner (X=0,Z=0,Y=0)
+const REF_W = 594, REF_H = 893;
+
+const params = new URLSearchParams(location.search);
+const HERO = params.has('hero');
+if (HERO) document.body.classList.add('hero');
+
+const C = {
+  orange: 0xf2ab58, orangeDeep: 0xd4893f, cream: 0xfdeedb, creamDark: 0xf0dcc4,
+  red: 0xd06a46, redDeep: 0x9a4433, dark: 0x3d3634, darkWarm: 0x5e5552,
+  plinth: 0xe2d2c2, paving: 0xd8c6b4, glass: 0x4a3a33, sill: 0xd9c7ae,
+  leaf: 0x6c7432, leaf2: 0x5a6629, leaf3: 0x80883a, trunk: 0x5b4330, panel: 0x4b5566,
+  person: 0x2b2522,
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdccfc6);
+const model = new THREE.Group();
+scene.add(model);
+
+const mats = new Map();
+function mat(color) {
+  if (!mats.has(color)) mats.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0 }));
+  return mats.get(color);
+}
+const unitBox = new THREE.BoxGeometry(1, 1, 1);
+
+// box in plot coordinates
+function box(x0, x1, y0, y1, z0, z1, color, opts = {}) {
+  let material = mat(color);
+  if (opts.front) { material = Array(6).fill(material); material[4] = mat(opts.front); }
+  const m = new THREE.Mesh(unitBox, material);
+  m.scale.set(Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0));
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, -(z0 + z1) / 2);
+  m.castShadow = opts.cast !== false;
+  m.receiveShadow = true;
+  (opts.parent || model).add(m);
+  return { x0, x1, y0, y1, z0, z1, mesh: m };
+}
+
+// Box from reference-image measurements: screen x of the front-left and
+// front-right vertical edges, depth position z0 and depth d, base height yb,
+// and screen y of the top front-left corner.
+function S(sxL, sxR, z0, d, yb, syT, color, opts) {
+  const x0 = (sxL - OX - sT * z0) / cT;
+  const x1 = (sxR - OX - sT * z0) / cT;
+  const y1 = (OY + sT * sP * x0 - cT * sP * z0 - syT) / cP;
+  return box(x0, x1, yb, y1, z0, z0 + d, color, opts);
+}
+
+// ---------- detail helpers ----------
+// Windows: slots on one face of a box ('front' = -Z, 'right' = +X, 'back' = +Z, 'left' = -X).
+function windows(b, face, { cols, rows, w = 3, h = 9, top = 14, bottom = 14, margin = 8, color = C.glass, skip = () => false }) {
+  const alongX = face === 'front' || face === 'back';
+  const along = alongX ? [b.x0, b.x1] : [b.z0, b.z1];
+  const span = along[1] - along[0] - margin * 2;
+  const H = b.y1 - b.y0 - top - bottom;
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+    if (skip(c, r)) continue;
+    const a = along[0] + margin + (cols === 1 ? span / 2 : (span * c) / (cols - 1));
+    const y = b.y1 - top - (rows === 1 ? 0 : (H * r) / (rows - 1));
+    if (face === 'front') box(a - w / 2, a + w / 2, y - h, y, b.z0 - 0.6, b.z0 + 0.4, color, { cast: false });
+    else if (face === 'back') box(a - w / 2, a + w / 2, y - h, y, b.z1 - 0.4, b.z1 + 0.6, color, { cast: false });
+    else if (face === 'right') box(b.x1 - 0.4, b.x1 + 0.6, y - h, y, a - w / 2, a + w / 2, color, { cast: false });
+    else box(b.x0 - 0.6, b.x0 + 0.4, y - h, y, a - w / 2, a + w / 2, color, { cast: false });
+  }
+}
+// Sparse, irregular window pattern sized to the face; used for the faces
+// the reference image doesn't show, so the model holds up from every side.
+function facade(b, faces = ['back', 'left'], { from = 0, to = Infinity } = {}) {
+  const y0 = Math.max(b.y0, from), y1 = Math.min(b.y1, to);
+  if (y1 - y0 < 40) return;
+  for (const face of faces) {
+    const span = (face === 'front' || face === 'back') ? b.x1 - b.x0 : b.z1 - b.z0;
+    const cols = Math.max(1, Math.floor((span - 12) / 18));
+    const rows = Math.max(1, Math.floor((y1 - y0 - 40) / 26));
+    const k = Math.floor(rand() * 1000);
+    windows({ ...b, y0, y1 }, face, {
+      cols, rows, w: 2.6, h: 8, top: 18, bottom: 22, margin: span < 30 ? span / 2 - 1 : 10,
+      skip: (c, r) => ((c * 7 + r * 13 + k) % 10) < 3,
+    });
+  }
+}
+const leafColors = [C.leaf, C.leaf2, C.leaf3];
+const TREE = 1.6;
+const blobGeo = new THREE.IcosahedronGeometry(1, 1);
+const trunkGeo = new THREE.CylinderGeometry(0.6, 0.8, 1, 6);
+function tree(X, Y, Z, s = 1) {
+  s *= TREE;
+  const g = new THREE.Group();
+  const t = new THREE.Mesh(trunkGeo, mat(C.trunk));
+  t.scale.set(s, 6 * s, s); t.position.set(0, 3 * s, 0); t.castShadow = true; g.add(t);
+  const n = 3 + Math.floor(rand() * 3);
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(blobGeo, mat(leafColors[Math.floor(rand() * 3)]));
+    const r = (3 + rand() * 2.2) * s;
+    m.scale.set(r, r * 0.85, r);
+    m.position.set((rand() - 0.5) * 6 * s, (8 + rand() * 4) * s, (rand() - 0.5) * 6 * s);
+    m.castShadow = true; m.receiveShadow = true; g.add(m);
+  }
+  g.position.set(X, Y, -Z);
+  model.add(g);
+}
+let seed = 7;
+function rand() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+function treesOnTop(b, n, s = 1, inset = 4) {
+  for (let i = 0; i < n; i++) {
+    tree(b.x0 + inset + rand() * (b.x1 - b.x0 - inset * 2), b.y1,
+         b.z0 + inset + rand() * (b.z1 - b.z0 - inset * 2), s * (0.8 + rand() * 0.4));
+  }
+}
+// rooftop planter with parapet + trees
+function roofGarden(b, n, s = 1, parapet = C.cream) {
+  const p = 1.6, h = 3;
+  box(b.x0, b.x1, b.y1, b.y1 + h, b.z0, b.z0 + p, parapet);
+  box(b.x0, b.x1, b.y1, b.y1 + h, b.z1 - p, b.z1, parapet);
+  box(b.x0, b.x0 + p, b.y1, b.y1 + h, b.z0, b.z1, parapet);
+  box(b.x1 - p, b.x1, b.y1, b.y1 + h, b.z0, b.z1, parapet);
+  treesOnTop(b, n, s, 6);
+}
+// recessed balcony slot: dark core with cream slabs and railings every floor
+function balconyStack(x0, x1, y0, y1, z, floor = 15, faceRight = false, slab = C.creamDark) {
+  for (let y = y0 + floor; y < y1 - 4; y += floor) {
+    if (!faceRight) {
+      box(x0, x1, y - 1.6, y, z - 4, z + 2, slab, { cast: false });
+      box(x0, x1, y, y + 4, z - 4, z - 3.2, 0x8c7c70, { cast: false });
+      if (rand() < 0.35) tree(x0 + 3 + rand() * (x1 - x0 - 6), y, z, 0.45);
+    } else {
+      box(z - 2, z + 4, y - 1.6, y, x0, x1, slab, { cast: false });
+      box(z + 3.2, z + 4, y, y + 4, x0, x1, 0x8c7c70, { cast: false });
+      if (rand() < 0.35) tree(z + 1, y, x0 + 3 + rand() * (x1 - x0 - 6), 0.45);
+    }
+  }
+}
+const personGeo = new THREE.CapsuleGeometry(0.9, 2.6, 2, 6);
+function person(X, Z) {
+  const m = new THREE.Mesh(personGeo, mat(C.person));
+  m.position.set(X, 2.2, -Z); m.castShadow = true; model.add(m);
+}
+
+// ======================= MODEL =======================
+// Plot / plinth
+box(0, 502, -7, 0, 0, 292, C.plinth);
+box(4, 498, 0, 0.6, 4, 288, C.paving, { cast: false });
+
+// ---------------- LEFT CLUSTER ----------------
+// orange mass carrying the left end of the top bridge
+const LorT = S(155, 222, 120, 100, 0, 178, C.orangeDeep);
+windows(LorT, 'front', { cols: 1, rows: 7, top: 100, bottom: 120, margin: 12 });
+// lower orange tower (front-left)
+const Lor = S(109, 200, 78, 40, 0, 300, C.orangeDeep);
+windows(Lor, 'front', { cols: 3, rows: 4, top: 24, bottom: 230, margin: 20, skip: (c) => c === 2 });
+windows(Lor, 'front', { cols: 1, rows: 4, top: 70, bottom: 120, margin: 60 });
+roofGarden(Lor, 3, 0.9);
+// red sliver + red towers in front
+const LredThin = S(114, 134, 66, 12, 0, 435, C.redDeep);
+const Lred = S(95, 125, 42, 44, 0, 533, C.red, { front: C.redDeep });
+windows(Lred, 'front', { cols: 1, rows: 5, top: 30, bottom: 60, margin: 6 });
+roofGarden(Lred, 2, 0.8, C.red);
+const Lred2 = S(124, 176, 36, 28, 0, 593, C.red);
+windows(Lred2, 'front', { cols: 2, rows: 4, top: 20, bottom: 50, margin: 12, h: 7 });
+// dark balcony column
+const Ldark = S(157, 177, 64, 30, 0, 368, C.dark);
+balconyStack(Ldark.x0 + 2, Ldark.x1 - 2, 40, Ldark.y1, Ldark.z0);
+// cream block with roof garden
+const Lcream = S(177, 218, 52, 26, 0, 388, C.cream);
+windows(Lcream, 'front', { cols: 2, rows: 11, top: 26, bottom: 60, margin: 10, w: 2.4, h: 8, skip: (c, r) => (c + r) % 3 === 0 });
+roofGarden(Lcream, 3, 0.9);
+// inner pillar of left gate leg: dark balcony slot on front, cream face toward the gap
+const Lpil = S(222, 249, 112, 79, 0, 232, C.cream);
+box(Lpil.x0 + 2, Lpil.x1 - 2, 30, Lpil.y1, Lpil.z0 - 0.5, Lpil.z0 + 8, C.dark);
+balconyStack(Lpil.x0 + 2, Lpil.x1 - 2, 30, Lpil.y1, Lpil.z0 + 2);
+windows(Lpil, 'right', { cols: 2, rows: 10, top: 120, bottom: 120, margin: 25, w: 2.4, h: 8 });
+
+// ---------------- RIGHT CLUSTER ----------------
+// right gate leg (set back) with its dark balcony core
+const Rpil = S(345, 381, 160, 70, 0, 236, C.creamDark);
+windows(Rpil, 'front', { cols: 1, rows: 4, top: 60, bottom: 300, margin: 10 });
+const Rdark = S(381, 404, 140, 80, 0, 250, C.creamDark);
+box(Rdark.x0 + 1, Rdark.x1 - 1, 20, Rdark.y1, Rdark.z0 - 0.5, Rdark.z0 + 8, C.dark);
+facade(Rdark, ['back']);
+balconyStack(Rdark.x0 + 1, Rdark.x1 - 1, 20, Rdark.y1, Rdark.z0);
+// tall orange tower (tallest) with a stepped crown
+const Ror = S(397, 442, 100, 105, 0, 62, C.orange);
+windows(Ror, 'right', { cols: 1, rows: 20, top: 40, bottom: 260, margin: 30 });
+windows(Ror, 'right', { cols: 1, rows: 7, top: 90, bottom: 420, margin: 70, w: 2.5, h: 7 });
+const RorA = box(Ror.x0, Ror.x1 - 10, Ror.y1, Ror.y1 + 30, Ror.z0, Ror.z0 + 48, C.orange);
+treesOnTop(RorA, 3, 1);
+treesOnTop({ ...Ror, z0: Ror.z0 + 52 }, 4, 1);
+// cream tower in front of it
+const Rcream = S(404, 442, 82, 24, 0, 176, C.cream);
+windows(Rcream, 'front', { cols: 2, rows: 16, top: 70, bottom: 130, margin: 9, w: 2.4, h: 8, skip: (c, r) => r % 4 === 3 });
+// orange niche with garden at the top of the cream tower
+const niche = box(Rcream.x0 - 3, Rcream.x0 + 18, Rcream.y1 - 30, Rcream.y1 - 2, Rcream.z0 - 4, Rcream.z0 + 6, C.orangeDeep);
+treesOnTop(niche, 2, 0.6, 3);
+// cream ledge with trees part-way down
+const Rledge = S(380, 452, 70, 34, 0, 276, C.cream);
+Rledge.mesh.scale.y = 14; Rledge.mesh.position.y = Rledge.y1 - 7; Rledge.y0 = Rledge.y1 - 14;
+treesOnTop(Rledge, 4, 0.8);
+// small planter box lower down on the gate leg
+const Rbal = S(364, 402, 120, 16, 0, 418, C.creamDark);
+Rbal.mesh.scale.y = 12; Rbal.mesh.position.y = Rbal.y1 - 6; Rbal.y0 = Rbal.y1 - 12;
+treesOnTop(Rbal, 2, 0.6);
+// dark balcony column on the right
+const Rdark2 = S(452, 474, 96, 22, 0, 342, C.dark);
+balconyStack(Rdark2.x0, Rdark2.x1, 140, Rdark2.y1, Rdark2.z0);
+// red tower right
+const Rred = S(447, 476, 88, 80, 0, 490, C.red, { front: C.redDeep });
+windows(Rred, 'right', { cols: 3, rows: 6, top: 30, bottom: 70, margin: 14, w: 2.5, h: 9 });
+roofGarden(Rred, 3, 1, C.red);
+
+// ---------------- BRIDGES ----------------
+// top orange bridge (spans the gap, slightly stepped terraces on top)
+const Bt = S(212, 400, 112, 70, 0, 165, C.orangeDeep);
+Bt.mesh.scale.y = 100; Bt.y0 = Bt.y1 - 100; Bt.mesh.position.y = Bt.y1 - 50;
+windows(Bt, 'front', { cols: 8, rows: 2, top: 26, bottom: 30, margin: 30, skip: (c, r) => (c * 3 + r) % 5 === 0 });
+// stepped roof terraces
+const T1 = box(Bt.x0 + 50, Bt.x1, Bt.y1, Bt.y1 + 22, Bt.z0 + 20, Bt.z1, C.orange);
+const T2 = box(Bt.x0 + 120, Bt.x1, T1.y1, T1.y1 + 22, Bt.z0 + 30, Bt.z1, C.orange);
+const T3 = box(Bt.x0 + 170, Bt.x1, T2.y1, T2.y1 + 20, Bt.z0 + 40, Bt.z1, C.orange);
+treesOnTop({ ...Bt, x1: Bt.x0 + 48, z1: Bt.z0 + 40 }, 2, 1);
+treesOnTop({ ...T1, x1: T1.x0 + 60, z1: T1.z0 + 14 }, 3, 1);
+treesOnTop({ ...T2, x1: T2.x0 + 40, z1: T2.z0 + 12 }, 3, 1);
+treesOnTop({ ...T3, z1: T3.z0 + 20 }, 3, 1);
+box(Bt.x0 + 30, Bt.x0 + 50, Bt.y1, Bt.y1 + 26, Bt.z0 + 24, Bt.z0 + 50, 0x5d5a5e); // stair core
+box(T2.x0 + 60, T2.x0 + 82, T3.y1, T3.y1 + 22, T3.z0 + 10, T3.z0 + 30, 0x5d5a5e);
+for (let i = 0; i < 4; i++) box(LorT.x0 + 8 + i * 9, LorT.x0 + 15 + i * 9, LorT.y1 + 1, LorT.y1 + 3, LorT.z0 + 10, LorT.z0 + 30, C.panel);
+
+// red skybridge
+const Bred = S(291, 346, 125, 40, 0, 392, C.redDeep);
+Bred.mesh.scale.y = 44; Bred.y0 = Bred.y1 - 44; Bred.mesh.position.y = Bred.y1 - 22;
+for (let i = 0; i < 6; i++) {
+  const x = Bred.x0 + 6 + i * ((Bred.x1 - Bred.x0 - 12) / 5);
+  box(x - 3, x + 3, Bred.y0 + 16, Bred.y0 + 28, Bred.z0 - 0.6, Bred.z0 + 1, C.glass, { cast: false });
+}
+treesOnTop(Bred, 5, 0.85);
+
+// unseen faces of the main volumes
+facade(LorT, ['back', 'left'], { to: LorT.y1 - 20 });
+facade(Lor, ['left', 'back']);
+facade(Lred, ['left', 'back']); facade(Lred2, ['back']);
+facade(Lcream, ['left', 'right', 'back']);
+facade(Lpil, ['back', 'left']);
+facade(Rpil, ['back', 'right', 'left']);
+facade(Rcream, ['right', 'left', 'back']);
+facade(Ror, ['back', 'left']);
+facade(Ror, ['front'], { from: Rcream.y1 + 10 });
+facade(Rred, ['back']);
+facade(Bt, ['back']);
+facade(LorT, ['right'], { to: Bt.y0 - 10 });
+// balcony slots on the back of the gate legs, mirroring the front
+box(Lpil.x0 + 2, Lpil.x1 - 2, 30, Lpil.y1, Lpil.z1 - 8, Lpil.z1 + 0.5, C.dark);
+box(Rpil.x0 + 8, Rpil.x1 - 8, 30, Rpil.y1, Rpil.z1 - 8, Rpil.z1 + 0.5, C.dark);
+for (let y = 45; y < Lpil.y1 - 4; y += 15) {
+  box(Lpil.x0 + 2, Lpil.x1 - 2, y - 1.6, y, Lpil.z1 - 2, Lpil.z1 + 4, C.creamDark, { cast: false });
+  box(Rpil.x0 + 8, Rpil.x1 - 8, y - 1.6, y, Rpil.z1 - 2, Rpil.z1 + 4, C.creamDark, { cast: false });
+}
+
+// ---------------- PODIUM / STREET LEVEL ----------------
+const P1 = S(65, 95, 26, 30, 0, 690, C.creamDark); roofGarden(P1, 2, 0.9);
+const P2 = S(95, 150, 14, 24, 0, 700, C.cream); roofGarden(P2, 2, 0.9);
+windows(P2, 'front', { cols: 2, rows: 3, margin: 12, top: 20, bottom: 20 });
+const P3 = S(145, 200, 10, 22, 0, 730, C.darkWarm); roofGarden(P3, 2, 0.8);
+box(P3.x0 - 10, P3.x0 + 30, 22, 24, P3.z0 - 10, P3.z0 + 2, 0x6a6460); // canopy
+const P4 = S(190, 250, 22, 26, 0, 682, C.cream); roofGarden(P4, 3, 0.9);
+windows(P4, 'front', { cols: 2, rows: 4, margin: 14, top: 20, bottom: 30 });
+const P5 = S(288, 311, 112, 18, 0, 674, C.red); roofGarden(P5, 1, 0.9, C.red);
+const P6 = S(340, 372, 104, 30, 0, 626, C.cream); roofGarden(P6, 1, 0.9);
+const P7 = S(315, 400, 40, 34, 0, 730, C.darkWarm); roofGarden(P7, 3, 0.9);
+windows(P7, 'front', { cols: 3, rows: 2, margin: 16, top: 20, bottom: 20 });
+const P8 = S(388, 470, 48, 34, 0, 680, C.cream); roofGarden(P8, 4, 0.9);
+windows(P8, 'right', { cols: 2, rows: 3, margin: 8, top: 20, bottom: 30 });
+const P9 = S(362, 452, 12, 26, 0, 788, C.cream); roofGarden(P9, 3, 0.9);
+const P10 = S(470, 500, 120, 60, 0, 728, C.red);
+const P11 = S(518, 548, 140, 30, 0, 765, C.cream);
+box(P8.x1 - 6, P8.x1 + 14, 22, 24, P8.z0 + 30, P8.z0 + 60, 0x6a6460); // canopy right
+
+// central stairs climbing into the gap
+for (let i = 0; i < 8; i++) {
+  box(200 + i * 1.2, 262, 0, 2.5 * (i + 1), 34 + i * 4, 38 + i * 4, C.creamDark);
+}
+for (let i = 0; i < 6; i++) {
+  box(240, 275, 20, 20 + 2.5 * (i + 1), 70 + i * 4, 74 + i * 4, C.creamDark);
+}
+box(232, 300, 0, 20, 94, 140, C.paving);
+
+// street trees and people along the front
+for (let x = 30; x < 480; x += 38 + rand() * 20) tree(x, 0, 6 + rand() * 4, 0.9 + rand() * 0.3);
+for (let z = 20; z < 280; z += 45 + rand() * 20) tree(494, 0, z, 0.9);
+for (let i = 0; i < 12; i++) person(20 + rand() * 470, 2 + rand() * 3);
+
+// ======================= RENDER =======================
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xfff4ec, 0x9a8678, 1.9));
+const sun = new THREE.DirectionalLight(0xfff3e6, 3.4);
+sun.position.set(250 + 800, 1400, -150 + 650);
+sun.target.position.set(250, 0, -150);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -700, right: 700, top: 700, bottom: -700, near: 10, far: 3000 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
+scene.add(sun, sun.target);
+// ground plane for the long cast shadow
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.ShadowMaterial({ opacity: 0.18 }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = -7; ground.receiveShadow = true;
+scene.add(ground);
+
+// Orthographic camera. The hero pose reproduces the reference frame exactly:
+// the pivot below projects to the centre of the 594x893 reference image.
+const pivot = new THREE.Vector3(250, 351, -146);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -4000, 8000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = true;
+controls.maxPolarAngle = Math.PI / 2 - 0.02;
+controls.minZoom = 0.4; controls.maxZoom = 6;
+
+function frame() {
+  const aspect = innerWidth / innerHeight;
+  let w = REF_W, h = REF_H;
+  if (aspect > w / h) w = h * aspect; else h = w / aspect;
+  if (!HERO) { w *= 1.04; h *= 1.04; }
+  Object.assign(camera, { left: -w / 2, right: w / 2, top: h / 2, bottom: -h / 2 });
+  camera.updateProjectionMatrix();
+}
+function setView(yaw = YAW, pitch = PITCH) {
+  const d = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  camera.position.copy(pivot).addScaledVector(d, -3000);
+  camera.up.set(0, 1, 0);
+  camera.zoom = 1;
+  controls.target.copy(pivot);
+  camera.lookAt(pivot);
+  frame();
+  controls.update();
+}
+const v = params.get('view');
+if (v) { const [y, p] = v.split(',').map(Number); setView(THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(p)); }
+else setView();
+
+document.getElementById('btnHero').onclick = () => { controls.autoRotate = false; setView(); };
+document.getElementById('btnSpin').onclick = () => { controls.autoRotate = !controls.autoRotate; controls.autoRotateSpeed = 1.2; };
+document.getElementById('btnGlb').onclick = () => {
+  new GLTFExporter().parse(model, (buf) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'model/gltf-binary' }));
+    a.download = 'torre-puente.glb'; a.click();
+  }, console.error, { binary: true });
+};
+
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); frame(); });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+window.__ready = true;
+</script>
+</body>
+</html>
